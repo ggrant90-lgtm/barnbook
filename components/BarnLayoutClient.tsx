@@ -2,7 +2,7 @@
 
 import { useBarn } from "@/components/BarnContext";
 import { EquiTrackBrand } from "@/components/EquiTrackBrand";
-import Image from "next/image";
+import { HorsePhotoImg } from "@/components/HorsePhotoImg";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -18,13 +18,10 @@ function HorseRowThumb({
   if (photoUrl) {
     return (
       <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full ring-1 ring-border-dark">
-        <Image
+        <HorsePhotoImg
           src={photoUrl}
           alt=""
-          width={32}
-          height={32}
           className="h-8 w-8 object-cover"
-          unoptimized
         />
       </span>
     );

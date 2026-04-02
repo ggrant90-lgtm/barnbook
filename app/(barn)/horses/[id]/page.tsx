@@ -1,7 +1,13 @@
 "use client";
 
 import { useBarn } from "@/components/BarnContext";
+import { HorsePhotoImg } from "@/components/HorsePhotoImg";
 import { ageFromFoalDate } from "@/lib/horse-age";
+import {
+  breedSelectOptions,
+  HORSE_INPUT_CLASS,
+  HORSE_SEX_OPTIONS,
+} from "@/lib/horse-form";
 import { isAllowedHorseImage, uploadHorsePhoto } from "@/lib/horse-photo";
 import { supabase } from "@/lib/supabase";
 import Image from "next/image";
@@ -144,6 +150,21 @@ function HorseProfilePageInner() {
   const [profileUrl, setProfileUrl] = useState("");
   const [qrDownloading, setQrDownloading] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  const [editing, setEditing] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editBarnName, setEditBarnName] = useState("");
+  const [editBreed, setEditBreed] = useState("");
+  const [editSex, setEditSex] = useState("");
+  const [editColor, setEditColor] = useState("");
+  const [editFoalDate, setEditFoalDate] = useState("");
+  const [editSire, setEditSire] = useState("");
+  const [editDam, setEditDam] = useState("");
+  const [editRegistration, setEditRegistration] = useState("");
+  const [editMicrochip, setEditMicrochip] = useState("");
 
   const loadHorse = useCallback(async () => {
     if (!id) return;
@@ -234,20 +255,102 @@ function HorseProfilePageInner() {
     }
   }
 
+  const openEdit = useCallback(() => {
+    if (!horse) return;
+    setEditName(horse.name);
+    setEditBarnName(horse.barn_name ?? "");
+    setEditBreed(horse.breed ?? "Thoroughbred");
+    setEditSex(horse.sex ?? "");
+    setEditColor(horse.color ?? "");
+    const fd = horse.foal_date;
+    setEditFoalDate(fd && fd.length >= 10 ? fd.slice(0, 10) : "");
+    setEditSire(horse.sire ?? "");
+    setEditDam(horse.dam ?? "");
+    setEditRegistration(horse.registration_number ?? "");
+    setEditMicrochip(horse.microchip_number ?? "");
+    setEditError(null);
+    setEditing(true);
+    setTab("overview");
+  }, [horse]);
+
+  const cancelEdit = useCallback(() => {
+    setEditing(false);
+    setEditError(null);
+  }, []);
+
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!horse) return;
+    const trimmed = editName.trim();
+    if (!trimmed) {
+      setEditError("Name is required.");
+      return;
+    }
+    setEditSaving(true);
+    setEditError(null);
+    const { error } = await supabase
+      .from("horses")
+      .update({
+        name: trimmed,
+        barn_name: editBarnName.trim() || null,
+        breed: editBreed || null,
+        sex: editSex || null,
+        color: editColor.trim() || null,
+        foal_date: editFoalDate || null,
+        sire: editSire.trim() || null,
+        dam: editDam.trim() || null,
+        registration_number: editRegistration.trim() || null,
+        microchip_number: editMicrochip.trim() || null,
+      })
+      .eq("id", horse.id);
+    setEditSaving(false);
+    if (error) {
+      setEditError(error.message);
+      return;
+    }
+    setHorse((h) =>
+      h
+        ? {
+            ...h,
+            name: trimmed,
+            barn_name: editBarnName.trim() || null,
+            breed: editBreed || null,
+            sex: editSex || null,
+            color: editColor.trim() || null,
+            foal_date: editFoalDate || null,
+            sire: editSire.trim() || null,
+            dam: editDam.trim() || null,
+            registration_number: editRegistration.trim() || null,
+            microchip_number: editMicrochip.trim() || null,
+          }
+        : h,
+    );
+    await refreshHorses();
+    setEditing(false);
+  }
+
   const handlePhotoFile = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       e.target.value = "";
       if (!file || !horse) return;
-      if (!isAllowedHorseImage(file)) return;
+      setPhotoError(null);
+      if (!isAllowedHorseImage(file)) {
+        setPhotoError("Use JPEG, PNG, or WebP.");
+        return;
+      }
       setPhotoUploading(true);
       const up = await uploadHorsePhoto(horse.id, file);
-      if ("publicUrl" in up) {
+      if ("error" in up) {
+        setPhotoError(up.error);
+      } else {
         const { error } = await supabase
           .from("horses")
           .update({ photo_url: up.publicUrl })
           .eq("id", horse.id);
-        if (!error) {
+        if (error) {
+          setPhotoError(error.message);
+        } else {
           setHorse((h) => (h ? { ...h, photo_url: up.publicUrl } : h));
           await refreshHorses();
         }
@@ -338,14 +441,11 @@ function HorseProfilePageInner() {
         <section className="overflow-hidden rounded-2xl border border-border-warm bg-cream shadow-sm">
           <div className="relative aspect-[2/1] max-h-80 w-full bg-parchment">
             {horse.photo_url ? (
-              <Image
+              <HorsePhotoImg
                 src={horse.photo_url}
                 alt=""
-                fill
-                className="object-cover"
-                sizes="(max-width: 896px) 100vw, 896px"
-                priority
-                unoptimized
+                className="absolute inset-0 h-full w-full object-cover"
+                loading="eager"
               />
             ) : (
               <div className="flex h-full min-h-[12rem] w-full items-center justify-center bg-parchment">
@@ -359,6 +459,11 @@ function HorseProfilePageInner() {
                 <span className="text-sm font-medium text-cream">
                   Uploading…
                 </span>
+              </div>
+            ) : null}
+            {photoError ? (
+              <div className="absolute left-3 right-3 top-3 rounded-lg border border-alert/40 bg-alert/90 px-3 py-2 text-xs text-cream shadow-sm">
+                {photoError}
               </div>
             ) : null}
             <input
@@ -407,6 +512,15 @@ function HorseProfilePageInner() {
                   </span>
                 ) : null}
               </div>
+              {!editing ? (
+                <button
+                  type="button"
+                  onClick={openEdit}
+                  className="shrink-0 rounded-lg border border-border-warm bg-parchment px-4 py-2 text-sm font-semibold text-barn-dark transition hover:border-brass/50 hover:bg-cream"
+                >
+                  Edit profile
+                </button>
+              ) : null}
             </div>
 
             <dl className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
@@ -445,6 +559,209 @@ function HorseProfilePageInner() {
             </dl>
           </div>
 
+          {editing ? (
+            <form
+              className="border-t border-border-warm bg-cream px-5 py-6 sm:px-8 sm:py-8"
+              onSubmit={handleSaveEdit}
+            >
+              <h2 className="text-lg font-semibold text-barn-dark">
+                Edit profile
+              </h2>
+              <p className="mt-1 text-sm text-oak">
+                Update details saved to this horse&apos;s record.
+              </p>
+              {editError ? (
+                <div
+                  className="mt-4 rounded-lg border border-alert/30 bg-alert/10 px-4 py-3 text-sm text-alert"
+                  role="alert"
+                >
+                  {editError}
+                </div>
+              ) : null}
+              <div className="mt-6 space-y-5">
+                <div>
+                  <label
+                    htmlFor="edit-name"
+                    className="block text-sm font-medium text-oak"
+                  >
+                    Name <span className="text-alert">*</span>
+                  </label>
+                  <input
+                    id="edit-name"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className={HORSE_INPUT_CLASS}
+                    required
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="edit-barn-name"
+                    className="block text-sm font-medium text-oak"
+                  >
+                    Barn name
+                  </label>
+                  <input
+                    id="edit-barn-name"
+                    value={editBarnName}
+                    onChange={(e) => setEditBarnName(e.target.value)}
+                    className={HORSE_INPUT_CLASS}
+                  />
+                </div>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="edit-breed"
+                      className="block text-sm font-medium text-oak"
+                    >
+                      Breed
+                    </label>
+                    <select
+                      id="edit-breed"
+                      value={editBreed}
+                      onChange={(e) => setEditBreed(e.target.value)}
+                      className={HORSE_INPUT_CLASS}
+                    >
+                      {breedSelectOptions(horse.breed).map((b) => (
+                        <option key={b} value={b}>
+                          {b}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="edit-sex"
+                      className="block text-sm font-medium text-oak"
+                    >
+                      Sex
+                    </label>
+                    <select
+                      id="edit-sex"
+                      value={editSex}
+                      onChange={(e) => setEditSex(e.target.value)}
+                      className={HORSE_INPUT_CLASS}
+                    >
+                      <option value="">Select…</option>
+                      {HORSE_SEX_OPTIONS.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="edit-color"
+                      className="block text-sm font-medium text-oak"
+                    >
+                      Color
+                    </label>
+                    <input
+                      id="edit-color"
+                      value={editColor}
+                      onChange={(e) => setEditColor(e.target.value)}
+                      className={HORSE_INPUT_CLASS}
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="edit-foal"
+                      className="block text-sm font-medium text-oak"
+                    >
+                      Foal date
+                    </label>
+                    <input
+                      id="edit-foal"
+                      type="date"
+                      value={editFoalDate}
+                      onChange={(e) => setEditFoalDate(e.target.value)}
+                      className={HORSE_INPUT_CLASS}
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="edit-sire"
+                      className="block text-sm font-medium text-oak"
+                    >
+                      Sire
+                    </label>
+                    <input
+                      id="edit-sire"
+                      value={editSire}
+                      onChange={(e) => setEditSire(e.target.value)}
+                      className={HORSE_INPUT_CLASS}
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="edit-dam"
+                      className="block text-sm font-medium text-oak"
+                    >
+                      Dam
+                    </label>
+                    <input
+                      id="edit-dam"
+                      value={editDam}
+                      onChange={(e) => setEditDam(e.target.value)}
+                      className={HORSE_INPUT_CLASS}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label
+                    htmlFor="edit-reg"
+                    className="block text-sm font-medium text-oak"
+                  >
+                    Registration number
+                  </label>
+                  <input
+                    id="edit-reg"
+                    value={editRegistration}
+                    onChange={(e) => setEditRegistration(e.target.value)}
+                    className={HORSE_INPUT_CLASS}
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="edit-microchip"
+                    className="block text-sm font-medium text-oak"
+                  >
+                    Microchip number
+                  </label>
+                  <input
+                    id="edit-microchip"
+                    value={editMicrochip}
+                    onChange={(e) => setEditMicrochip(e.target.value)}
+                    className={HORSE_INPUT_CLASS}
+                  />
+                </div>
+              </div>
+              <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  disabled={editSaving}
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border-warm bg-cream px-5 py-2.5 text-sm font-semibold text-barn-dark hover:bg-parchment disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSaving}
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-brass px-5 py-2.5 text-sm font-semibold text-barn-dark shadow-sm hover:bg-brass-light disabled:opacity-60"
+                >
+                  {editSaving ? "Saving…" : "Save changes"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
           <div className="border-b border-border-warm px-5 py-5 sm:px-8">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-oak">
               Pedigree
@@ -639,6 +956,8 @@ function HorseProfilePageInner() {
               </div>
             )}
           </div>
+            </>
+          )}
         </section>
       </div>
 

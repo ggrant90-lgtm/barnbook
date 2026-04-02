@@ -1,9 +1,9 @@
 "use client";
 
 import { useBarn } from "@/components/BarnContext";
+import { HorsePhotoImg } from "@/components/HorsePhotoImg";
 import { ageFromFoalDate } from "@/lib/horse-age";
 import { supabase } from "@/lib/supabase";
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -132,13 +132,10 @@ export default function BarnDashboardPage() {
                     >
                       <div className="relative aspect-[16/10] w-full bg-parchment">
                         {horse.photo_url ? (
-                          <Image
+                          <HorsePhotoImg
                             src={horse.photo_url}
                             alt=""
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 768px) 100vw, 33vw"
-                            unoptimized
+                            className="absolute inset-0 h-full w-full object-cover"
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center">

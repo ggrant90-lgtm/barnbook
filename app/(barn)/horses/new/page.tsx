@@ -2,6 +2,11 @@
 
 import { useBarn } from "@/components/BarnContext";
 import { CURRENT_BARN_ID } from "@/lib/constants";
+import {
+  HORSE_BREEDS,
+  HORSE_INPUT_CLASS,
+  HORSE_SEX_OPTIONS,
+} from "@/lib/horse-form";
 import { isAllowedHorseImage, uploadHorsePhoto } from "@/lib/horse-photo";
 import { supabase } from "@/lib/supabase";
 import Image from "next/image";
@@ -9,32 +14,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const BREEDS = [
-  "Thoroughbred",
-  "Quarter Horse",
-  "Arabian",
-  "Warmblood",
-  "Paint",
-  "Appaloosa",
-  "Morgan",
-  "Andalusian",
-  "Friesian",
-  "Draft",
-  "Pony",
-  "Other",
-] as const;
-
-const SEX_OPTIONS = [
-  "Mare",
-  "Stallion",
-  "Gelding",
-  "Colt",
-  "Filly",
-  "Unknown",
-] as const;
-
-const inputClass =
-  "mt-1.5 w-full rounded-lg border border-border-warm bg-white px-3 py-2.5 text-barn-dark shadow-sm outline-none focus:border-brass focus:ring-2 focus:ring-brass/25";
+const inputClass = HORSE_INPUT_CLASS;
 
 function generateQrCode(): string {
   const ts = Date.now();
@@ -294,7 +274,7 @@ export default function NewHorsePage() {
                 onChange={(e) => setBreed(e.target.value)}
                 className={inputClass}
               >
-                {BREEDS.map((b) => (
+                {HORSE_BREEDS.map((b) => (
                   <option key={b} value={b}>
                     {b}
                   </option>
@@ -314,7 +294,7 @@ export default function NewHorsePage() {
                 className={inputClass}
               >
                 <option value="">Select…</option>
-                {SEX_OPTIONS.map((s) => (
+                {HORSE_SEX_OPTIONS.map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>

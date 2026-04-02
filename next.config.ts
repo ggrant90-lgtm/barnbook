@@ -10,6 +10,24 @@ if (supabaseUrl) {
   }
 }
 
+const supabaseStoragePatterns = [
+  // Wildcard: works even if NEXT_PUBLIC_SUPABASE_URL was missing at build time
+  {
+    protocol: "https" as const,
+    hostname: "*.supabase.co",
+    pathname: "/storage/v1/object/public/**",
+  },
+  ...(supabaseHost
+    ? [
+        {
+          protocol: "https" as const,
+          hostname: supabaseHost,
+          pathname: "/storage/v1/object/public/**",
+        },
+      ]
+    : []),
+];
+
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
@@ -18,15 +36,7 @@ const nextConfig: NextConfig = {
         hostname: "api.qrserver.com",
         pathname: "/v1/create-qr-code/**",
       },
-      ...(supabaseHost
-        ? [
-            {
-              protocol: "https" as const,
-              hostname: supabaseHost,
-              pathname: "/storage/v1/object/public/**",
-            },
-          ]
-        : []),
+      ...supabaseStoragePatterns,
     ],
   },
 };
