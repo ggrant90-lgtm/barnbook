@@ -1,3 +1,5 @@
+import { BarnLayoutClient } from "@/components/BarnLayoutClient";
+import { BarnProvider } from "@/components/BarnContext";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import "./globals.css";
@@ -33,7 +35,11 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} h-full`}
     >
-      <body className="flex min-h-full flex-col font-sans">{children}</body>
+      <body className="flex min-h-full flex-col font-sans">
+        <BarnProvider>
+          <BarnLayoutClient>{children}</BarnLayoutClient>
+        </BarnProvider>
+      </body>
     </html>
   );
 }
