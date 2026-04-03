@@ -68,6 +68,16 @@ export default function BarnDashboardPage() {
           Your barn dashboard — horses, activity, and records in one place.
         </p>
 
+        <p className="mt-4">
+          <Link
+            href="/identify"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-brass hover:text-brass-light"
+          >
+            Identify a horse (search all barns)
+            <span aria-hidden>→</span>
+          </Link>
+        </p>
+
         <dl className="mt-8 grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-border-warm bg-cream p-5 shadow-sm">
             <dt className="text-xs font-semibold uppercase tracking-wide text-oak">

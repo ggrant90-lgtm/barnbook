@@ -132,6 +132,15 @@ function SidebarContent({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="px-3 pt-4">
+          <Link
+            href="/identify"
+            onClick={onNavigate}
+            className="flex min-h-11 w-full items-center justify-center rounded-lg border border-border-dark bg-barn px-3 text-sm font-semibold text-brass transition hover:bg-barn/90"
+          >
+            Identify horse
+          </Link>
+        </div>
         <p className="px-4 pb-1 pt-4 text-xs font-semibold uppercase tracking-wider text-leather/80">
           Horses
         </p>
