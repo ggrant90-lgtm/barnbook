@@ -1,0 +1,42 @@
+import {
+  IconCalendar,
+  IconCamera,
+  IconHome,
+  IconHorses,
+  IconKey,
+  IconUser,
+} from "@/components/protected/nav-icons";
+import type { ReactNode } from "react";
+
+export type NavItem = {
+  href: string;
+  label: string;
+  icon: ReactNode;
+};
+
+export function navLinkClass(active: boolean): string {
+  return [
+    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
+    active
+      ? "bg-brass-gold/15 text-brass-gold"
+      : "text-parchment/90 hover:bg-barn-panel hover:text-parchment",
+  ].join(" ");
+}
+
+export const fullNav: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", icon: <IconHome className="h-5 w-5" /> },
+  { href: "/horses", label: "Horses", icon: <IconHorses className="h-5 w-5" /> },
+  { href: "/keys", label: "Keys", icon: <IconKey className="h-5 w-5" /> },
+  { href: "/calendar", label: "Calendar", icon: <IconCalendar className="h-5 w-5" /> },
+  { href: "/identify", label: "Identify", icon: <IconCamera className="h-5 w-5" /> },
+];
+
+export const reducedNav: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", icon: <IconHome className="h-5 w-5" /> },
+  { href: "/profile", label: "Profile", icon: <IconUser className="h-5 w-5" /> },
+];
+
+export function isNavActive(pathname: string, href: string): boolean {
+  if (href === "/dashboard") return pathname === "/dashboard";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}

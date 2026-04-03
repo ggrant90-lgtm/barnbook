@@ -7,6 +7,9 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+/** Minimum similarity (0–1) to show a match; same scale as `cosineSimilarity` in lib/embeddings.ts */
+const MIN_MATCH_SCORE = 0.8;
+
 type HorseMeta = {
   id: string;
   name: string;
@@ -114,7 +117,14 @@ export default function IdentifyHorsePage() {
         return;
       }
 
-      const displayRanked = ranked.slice(0, 25);
+      const confident = ranked.filter((r) => r.score >= MIN_MATCH_SCORE);
+      if (confident.length === 0) {
+        setResults([]);
+        setSearching(false);
+        return;
+      }
+
+      const displayRanked = confident.slice(0, 25);
       const ids = displayRanked.map((r) => r.horseId);
       const { data: horses, error: horseError } = await supabase
         .from("horses")
@@ -175,7 +185,11 @@ export default function IdentifyHorsePage() {
         <p className="mt-2 text-center text-sm text-oak">
           Upload or capture one photo. We compare it to enrolled reference
           embeddings across <span className="font-medium">all barns</span> in
-          the database.
+          the database. Only matches at{" "}
+          <span className="font-medium">
+            {(MIN_MATCH_SCORE * 100).toFixed(0)}% similarity
+          </span>{" "}
+          or higher are shown.
         </p>
 
         <div className="mt-8 rounded-2xl border border-border-warm bg-cream p-5 shadow-sm sm:p-6">
@@ -274,14 +288,29 @@ export default function IdentifyHorsePage() {
           )}
         </div>
 
-        {results && results.length > 0 ? (
+        {results !== null && results.length === 0 ? (
+          <div
+            className="mt-8 rounded-2xl border border-border-warm bg-cream px-5 py-8 text-center shadow-sm sm:px-8"
+            role="status"
+          >
+            <p className="font-semibold text-barn-dark">No results found</p>
+            <p className="mt-2 text-sm leading-relaxed text-oak">
+              Nothing reached {(MIN_MATCH_SCORE * 100).toFixed(0)}% similarity.
+              Try another photo with clearer lighting or a different angle
+              (similar to enrollment: front, side, or full body).
+            </p>
+          </div>
+        ) : null}
+
+        {results !== null && results.length > 0 ? (
           <div className="mt-8">
             <h2 className="text-lg font-semibold text-barn-dark">
               Best matches
             </h2>
             <p className="mt-1 text-sm text-oak">
               Scores use the placeholder embedding model (0–1, higher is more
-              similar). Replace with a real vision model for production.
+              similar). Only {(MIN_MATCH_SCORE * 100).toFixed(0)}%+ matches are
+              listed. Replace with a real vision model for production.
             </p>
             <ol className="mt-4 space-y-3">
               {results.slice(0, 15).map((r, i) => (

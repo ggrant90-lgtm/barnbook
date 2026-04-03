@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+:root {
+  --background: #1a1207;
+  --foreground: #f5f0e8;
+}
+
+@theme inline {
+  --color-barn-dark: #1a1207;
+  --color-barn-panel: #2a1f10;
+  --color-brass-gold: #c9a84c;
+  --color-parchment: #f5f0e8;
+  --color-muted-tan: #a09078;
+  --color-barn-green: #4a7c59;
+  --color-barn-red: #8b3a3a;
+  --color-barn-warning: #c9a84c;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --font-sans: var(--font-barn-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-barn-serif), ui-serif, Georgia, serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}

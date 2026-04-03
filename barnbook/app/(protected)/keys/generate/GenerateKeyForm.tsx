@@ -1,0 +1,196 @@
+"use client";
+
+import { generateAccessKeyAction } from "@/app/(protected)/actions/keys";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { getJoinUrl } from "@/lib/site-url";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
+export function GenerateKeyForm({
+  barnName,
+  horses,
+  initialType,
+  initialHorseId,
+}: {
+  barnName: string;
+  horses: { id: string; name: string }[];
+  initialType: "barn" | "stall";
+  initialHorseId: string | null;
+}) {
+  const router = useRouter();
+  const [keyKind, setKeyKind] = useState<"barn" | "stall">(initialType);
+  const [horseId, setHorseId] = useState(initialHorseId ?? horses[0]?.id ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [revealed, setRevealed] = useState<string | null>(null);
+
+  const joinUrl = getJoinUrl();
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setPending(true);
+    const fd = new FormData(e.currentTarget);
+    fd.set("key_kind", keyKind);
+    if (keyKind === "stall") fd.set("horse_id", horseId);
+    const res = await generateAccessKeyAction(null, fd);
+    setPending(false);
+    if (res?.error) {
+      setError(res.error);
+      return;
+    }
+    if (res?.plainKey) setRevealed(res.plainKey);
+    router.refresh();
+  }
+
+  async function shareKey(code: string) {
+    const text = `Your BarnBook key: ${code}\nRedeem at ${joinUrl}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "BarnBook key", text, url: joinUrl });
+      } else {
+        await navigator.clipboard.writeText(text);
+      }
+    } catch {
+      /* user cancelled or failed */
+    }
+  }
+
+  if (revealed) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-10 sm:px-6">
+        <Link href="/keys" className="text-sm text-barn-dark/70 hover:text-brass-gold">
+          ← Keys
+        </Link>
+        <h1 className="mt-6 font-serif text-3xl font-semibold text-barn-dark">Key created</h1>
+        <p className="mt-2 text-barn-dark/70">{barnName}</p>
+
+        <Card className="mt-10 border-2 border-brass-gold/40" padding="md">
+          <p className="text-xs font-medium uppercase tracking-wide text-barn-dark/50">Your key</p>
+          <p className="mt-3 break-all font-mono text-2xl font-semibold tracking-wide text-barn-dark">
+            {revealed}
+          </p>
+          <p className="mt-4 text-sm leading-relaxed text-barn-dark/75">
+            Share this key with the person who needs access. They&apos;ll enter it at{" "}
+            <span className="font-medium text-barn-dark">{joinUrl}</span>
+          </p>
+        </Card>
+
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <Button
+            type="button"
+            className="w-full sm:w-auto sm:flex-1"
+            onClick={() => void navigator.clipboard.writeText(revealed)}
+          >
+            Copy key
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full sm:w-auto sm:flex-1"
+            onClick={() => void shareKey(revealed)}
+          >
+            Share (text / email)
+          </Button>
+        </div>
+
+        <Link href="/keys" className="mt-10 inline-block text-sm font-medium text-brass-gold hover:underline">
+          Back to key dashboard
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-lg px-4 py-10 sm:px-6">
+      <Link href="/keys" className="text-sm text-barn-dark/70 hover:text-brass-gold">
+        ← Keys
+      </Link>
+      <h1 className="mt-6 font-serif text-3xl font-semibold text-barn-dark">Generate key</h1>
+      <p className="mt-2 text-barn-dark/70">{barnName}</p>
+
+      <form onSubmit={onSubmit} className="mt-10 space-y-5">
+        <div>
+          <span className="mb-2 block text-sm font-medium text-barn-dark/80">Key type</span>
+          <div className="flex flex-wrap gap-4">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-barn-dark">
+              <input
+                type="radio"
+                name="key_kind_radio"
+                checked={keyKind === "barn"}
+                onChange={() => setKeyKind("barn")}
+              />
+              Barn key
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-barn-dark">
+              <input
+                type="radio"
+                name="key_kind_radio"
+                checked={keyKind === "stall"}
+                onChange={() => setKeyKind("stall")}
+              />
+              Stall key
+            </label>
+          </div>
+        </div>
+
+        {keyKind === "stall" ? (
+          <Select
+            label="Horse"
+            id="horse_id"
+            name="horse_id"
+            required
+            value={horseId}
+            onChange={(e) => setHorseId(e.target.value)}
+          >
+            {horses.length === 0 ? (
+              <option value="">No horses — add one first</option>
+            ) : (
+              horses.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.name}
+                </option>
+              ))
+            )}
+          </Select>
+        ) : null}
+
+        <Input id="label" name="label" label="Label" placeholder="e.g. Farrier access" />
+
+        <Select label="Permission level" id="permission_level" name="permission_level" defaultValue="viewer">
+          <option value="viewer">Viewer</option>
+          <option value="editor">Editor</option>
+        </Select>
+
+        <Input
+          id="max_uses"
+          name="max_uses"
+          type="number"
+          min={1}
+          label="Max uses (optional)"
+          placeholder="Unlimited if empty"
+        />
+
+        <Input id="expires_at" name="expires_at" type="date" label="Expiry date (optional)" />
+
+        {error ? (
+          <p className="rounded-lg border border-barn-red/40 bg-barn-red/10 px-3 py-2 text-sm text-barn-dark" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        <Button
+          type="submit"
+          block
+          disabled={pending || (keyKind === "stall" && horses.length === 0)}
+        >
+          {pending ? "Creating…" : "Generate key"}
+        </Button>
+      </form>
+    </div>
+  );
+}
