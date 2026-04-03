@@ -53,7 +53,9 @@ export default function EnrollBiometricPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const fileRef = useRef<HTMLInputElement>(null);
+  /** Opens the device camera (mobile); avoid `capture` on the gallery input or iOS often skips the photo library. */
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!id) {
@@ -344,10 +346,18 @@ export default function EnrollBiometricPage() {
               </div>
 
               <input
-                ref={fileRef}
+                ref={cameraInputRef}
                 type="file"
                 accept="image/*"
                 capture="environment"
+                className="hidden"
+                aria-hidden
+                onChange={onInputChange}
+              />
+              <input
+                ref={galleryInputRef}
+                type="file"
+                accept="image/*"
                 className="hidden"
                 aria-hidden
                 onChange={onInputChange}
@@ -362,13 +372,27 @@ export default function EnrollBiometricPage() {
                 </p>
               ) : null}
 
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="mt-8 flex min-h-12 w-full items-center justify-center rounded-xl bg-brass px-6 text-base font-semibold text-barn-dark shadow-sm transition hover:bg-brass-light"
-              >
-                Capture photo
-              </button>
+              <p className="mt-6 text-center text-xs text-oak">
+                Use the camera on your phone, or upload an existing photo from
+                your library or computer.
+              </p>
+
+              <div className="mt-4 flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="flex min-h-12 w-full items-center justify-center rounded-xl bg-brass px-6 text-base font-semibold text-barn-dark shadow-sm transition hover:bg-brass-light"
+                >
+                  Take photo with camera
+                </button>
+                <button
+                  type="button"
+                  onClick={() => galleryInputRef.current?.click()}
+                  className="flex min-h-12 w-full items-center justify-center rounded-xl border border-border-warm bg-cream px-6 text-base font-semibold text-barn-dark shadow-sm transition hover:bg-parchment"
+                >
+                  Upload from library / files
+                </button>
+              </div>
             </div>
           ) : null}
         </div>
