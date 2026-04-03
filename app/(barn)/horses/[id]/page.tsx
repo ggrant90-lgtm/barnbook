@@ -137,6 +137,7 @@ function HorseProfilePageInner() {
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const showLogSuccess = searchParams.get("log") === "success";
+  const showEnrollSuccess = searchParams.get("enroll") === "success";
 
   const [horse, setHorse] = useState<Horse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -437,6 +438,23 @@ function HorseProfilePageInner() {
         </div>
       ) : null}
 
+      {showEnrollSuccess ? (
+        <div className="border-b border-pasture/30 bg-pasture/10 px-4 py-3 sm:px-6">
+          <div className="mx-auto flex max-w-4xl items-start justify-between gap-3">
+            <p className="text-sm font-medium text-pasture">
+              Biometric enrollment saved.
+            </p>
+            <button
+              type="button"
+              onClick={dismissSuccessBanner}
+              className="shrink-0 text-sm font-semibold text-pasture hover:text-pasture/80"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-6">
         <section className="overflow-hidden rounded-2xl border border-border-warm bg-cream shadow-sm">
           <div className="relative aspect-[2/1] max-h-80 w-full bg-parchment">
@@ -513,13 +531,21 @@ function HorseProfilePageInner() {
                 ) : null}
               </div>
               {!editing ? (
-                <button
-                  type="button"
-                  onClick={openEdit}
-                  className="shrink-0 rounded-lg border border-border-warm bg-parchment px-4 py-2 text-sm font-semibold text-barn-dark transition hover:border-brass/50 hover:bg-cream"
-                >
-                  Edit profile
-                </button>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Link
+                    href={`/horses/${id}/enroll`}
+                    className="shrink-0 rounded-lg border border-border-warm bg-parchment px-4 py-2 text-sm font-semibold text-barn-dark transition hover:border-brass/50 hover:bg-cream"
+                  >
+                    Biometric ID
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={openEdit}
+                    className="shrink-0 rounded-lg border border-border-warm bg-parchment px-4 py-2 text-sm font-semibold text-barn-dark transition hover:border-brass/50 hover:bg-cream"
+                  >
+                    Edit profile
+                  </button>
+                </div>
               ) : null}
             </div>
 
