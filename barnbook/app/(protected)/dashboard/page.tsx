@@ -115,6 +115,20 @@ export default async function DashboardPage() {
           <h1 className="font-serif text-3xl font-semibold text-barn-dark">{barn.name}</h1>
           <p className="text-sm text-barn-dark/65">Barn dashboard</p>
         </div>
+        <div className="flex gap-2">
+          <Link
+            href={`/barn/${barn.id}`}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-barn-dark/20 bg-white px-4 py-2.5 text-sm font-medium text-barn-dark hover:border-brass-gold"
+          >
+            View Profile
+          </Link>
+          <Link
+            href={`/barn/${barn.id}/edit`}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-brass-gold px-4 py-2.5 text-sm font-medium text-barn-dark shadow hover:brightness-110"
+          >
+            Edit Profile
+          </Link>
+        </div>
       </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-3">
