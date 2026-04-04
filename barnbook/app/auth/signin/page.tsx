@@ -133,7 +133,10 @@ function SignInForm() {
 
         <p className="mt-6 text-center text-sm text-muted-tan">
           Need an account?{" "}
-          <Link href="/auth/signup" className="font-medium text-brass-gold underline-offset-2 hover:underline">
+          <Link
+            href={next !== "/dashboard" ? `/auth/signup?next=${encodeURIComponent(next)}` : "/auth/signup"}
+            className="font-medium text-brass-gold underline-offset-2 hover:underline"
+          >
             Sign up
           </Link>
         </p>

@@ -2,11 +2,16 @@
 
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
 const inputClass =
   "w-full rounded-xl border border-brass-gold/25 bg-barn-dark px-4 py-3 text-parchment placeholder:text-muted-tan/60 outline-none transition focus:border-brass-gold focus:ring-2 focus:ring-brass-gold/30";
+
+function safeNextParam(raw: string | null): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/dashboard";
+  return raw;
+}
 
 function mapAuthError(message: string): string {
   const m = message.toLowerCase();
@@ -18,8 +23,11 @@ function mapAuthError(message: string): string {
   return message;
 }
 
-export default function SignUpPage() {
+function SignUpForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = safeNextParam(searchParams.get("next"));
+
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -52,12 +60,14 @@ export default function SignUpPage() {
 
     setLoading(true);
     const origin = window.location.origin;
+    // Pass the `next` destination through the email callback so the key is preserved
+    const callbackUrl = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
     const { error: signUpError } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: {
         data: { full_name: name },
-        emailRedirectTo: `${origin}/auth/callback`,
+        emailRedirectTo: callbackUrl,
       },
     });
     setLoading(false);
@@ -71,6 +81,11 @@ export default function SignUpPage() {
     router.refresh();
   }
 
+  // Build sign-in link preserving the next param
+  const signInHref = next !== "/dashboard"
+    ? `/auth/signin?next=${encodeURIComponent(next)}`
+    : "/auth/signin";
+
   if (success) {
     return (
       <div className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center px-5 py-12 sm:px-8">
@@ -80,10 +95,11 @@ export default function SignUpPage() {
             Check your email to confirm your account.
           </p>
           <p className="mt-3 text-sm text-muted-tan">
-            After you confirm, you can sign in and go straight to your dashboard.
+            After you confirm, you can sign in and{" "}
+            {next.startsWith("/join") ? "redeem your key" : "go straight to your dashboard"}.
           </p>
           <Link
-            href="/auth/signin"
+            href={signInHref}
             className="mt-8 inline-flex min-h-[48px] w-full items-center justify-center rounded-xl bg-brass-gold px-4 py-3.5 text-center font-medium text-barn-dark transition hover:brightness-110"
           >
             Go to Sign In
@@ -188,11 +204,25 @@ export default function SignUpPage() {
 
         <p className="mt-6 text-center text-sm text-muted-tan">
           Already have an account?{" "}
-          <Link href="/auth/signin" className="font-medium text-brass-gold underline-offset-2 hover:underline">
+          <Link href={signInHref} className="font-medium text-brass-gold underline-offset-2 hover:underline">
             Sign in
           </Link>
         </p>
       </form>
     </div>
+  );
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-full items-center justify-center px-5 py-16 text-muted-tan">
+          Loading…
+        </div>
+      }
+    >
+      <SignUpForm />
+    </Suspense>
   );
 }

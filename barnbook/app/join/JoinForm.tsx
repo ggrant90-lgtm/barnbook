@@ -37,7 +37,7 @@ export function JoinForm() {
   const [reqPending, setReqPending] = useState(false);
 
   const barnParam = sp.get("barn");
-  const kParam = sp.get("k");
+  const kParam = sp.get("k") || sp.get("key");
 
   useEffect(() => {
     if (kParam) setCode(kParam);
@@ -58,7 +58,8 @@ export function JoinForm() {
   }, [refreshUser]);
 
   const qs = new URLSearchParams();
-  if (kParam) qs.set("k", kParam);
+  if (kParam) qs.set("key", kParam);
+  else if (code.trim()) qs.set("key", code.trim());
   if (barnParam) qs.set("barn", barnParam);
   const nextJoin = `/join${qs.toString() ? `?${qs.toString()}` : ""}`;
 

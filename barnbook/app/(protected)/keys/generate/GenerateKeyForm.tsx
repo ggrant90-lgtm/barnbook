@@ -48,10 +48,11 @@ export function GenerateKeyForm({
   }
 
   async function shareKey(code: string) {
-    const text = `Your BarnBook key: ${code}\nRedeem at ${joinUrl}`;
+    const shareUrl = `${joinUrl}?key=${encodeURIComponent(code)}`;
+    const text = `Join ${barnName} on BarnBook: ${shareUrl}`;
     try {
       if (navigator.share) {
-        await navigator.share({ title: "BarnBook key", text, url: joinUrl });
+        await navigator.share({ title: `Join ${barnName} on BarnBook`, text, url: shareUrl });
       } else {
         await navigator.clipboard.writeText(text);
       }
@@ -77,6 +78,12 @@ export function GenerateKeyForm({
           <p className="mt-4 text-sm leading-relaxed text-barn-dark/75">
             Share this key with the person who needs access. They&apos;ll enter it at{" "}
             <span className="font-medium text-barn-dark">{joinUrl}</span>
+          </p>
+          <p className="mt-2 text-xs text-barn-dark/50">
+            Or share the direct link:{" "}
+            <span className="break-all font-mono text-barn-dark/70">
+              {joinUrl}?key={revealed}
+            </span>
           </p>
         </Card>
 
