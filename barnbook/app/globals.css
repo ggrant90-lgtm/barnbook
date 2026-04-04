@@ -3,9 +3,25 @@
 :root {
   --background: #1a1207;
   --foreground: #f5f0e8;
+
+  /* Landing page palette */
+  --cream: #f5efe4;
+  --cream-warm: #ede3d1;
+  --cream-dark: #e2d5bd;
+  --ink: #1c1a14;
+  --ink-soft: #3a362b;
+  --forest: #2a4031;
+  --forest-deep: #1a2a20;
+  --saddle: #8b4a2b;
+  --saddle-light: #a8623d;
+  --ochre: #c9932a;
+  --rust: #b8421f;
+  --line: rgba(28, 26, 20, 0.12);
+  --line-strong: rgba(28, 26, 20, 0.22);
 }
 
 @theme inline {
+  /* App palette (dark barn theme for authenticated pages) */
   --color-barn-dark: #1a1207;
   --color-barn-panel: #2a1f10;
   --color-brass-gold: #c9a84c;
@@ -15,14 +31,90 @@
   --color-barn-red: #8b3a3a;
   --color-barn-warning: #c9a84c;
 
+  /* Landing palette as Tailwind utilities */
+  --color-cream: #f5efe4;
+  --color-cream-warm: #ede3d1;
+  --color-cream-dark: #e2d5bd;
+  --color-ink: #1c1a14;
+  --color-ink-soft: #3a362b;
+  --color-forest: #2a4031;
+  --color-forest-deep: #1a2a20;
+  --color-saddle: #8b4a2b;
+  --color-saddle-light: #a8623d;
+  --color-ochre: #c9932a;
+  --color-rust: #b8421f;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
-  --font-sans: var(--font-barn-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-barn-serif), ui-serif, Georgia, serif;
+  --font-quote: var(--font-barn-quote), 'Instrument Serif', ui-serif, Georgia, serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
+/* ========== LANDING PAGE STYLES ========== */
+
+/* Paper grain texture overlay — must stay in globals, not a component */
+.landing-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(139, 74, 43, 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(42, 64, 49, 0.03) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 1;
 }
+
+.landing-page::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 2;
+  mix-blend-mode: multiply;
+  opacity: 0.08;
+}
+
+.landing-page {
+  background: var(--cream);
+  color: var(--ink);
+  overflow-x: hidden;
+}
+
+.landing-page .landing-content {
+  position: relative;
+  z-index: 3;
+}
+
+/* ========== LANDING ANIMATIONS ========== */
+@keyframes landing-reveal {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes landing-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes landing-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(42, 64, 49, 0.12); }
+  50% { box-shadow: 0 0 0 8px rgba(42, 64, 49, 0.04); }
+}
+
+@keyframes landing-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: landing-reveal 0.9s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+.reveal-1 { animation-delay: 0.1s; }
+.reveal-2 { animation-delay: 0.25s; }
+.reveal-3 { animation-delay: 0.4s; }
+.reveal-4 { animation-delay: 0.55s; }
+.reveal-5 { animation-delay: 0.7s; }
