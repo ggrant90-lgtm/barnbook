@@ -2,6 +2,7 @@
 
 import { updateHorseFormAction } from "@/app/(protected)/actions/horse";
 import { ActivityEntry } from "@/components/ActivityEntry";
+import { CareCard } from "@/components/CareCard";
 import { HealthRecordItem } from "@/components/HealthRecord";
 import { HorsePhoto } from "@/components/HorsePhoto";
 import { Button, linkButtonClass } from "@/components/ui/Button";
@@ -37,6 +38,8 @@ export function HorseProfileClient({
   profileUrl,
   qrSrc,
   listError,
+  lastShoeing,
+  lastWorming,
 }: {
   horse: Horse;
   canEdit: boolean;
@@ -47,6 +50,8 @@ export function HorseProfileClient({
   profileUrl: string;
   qrSrc: string;
   listError?: string;
+  lastShoeing?: HealthRecord | null;
+  lastWorming?: HealthRecord | null;
 }) {
   const router = useRouter();
   const { show } = useToast();
@@ -124,6 +129,11 @@ export function HorseProfileClient({
         </p>
       ) : null}
 
+      {/* Public Care Summary */}
+      <div className="mt-5">
+        <CareCard horse={horse} lastShoeing={lastShoeing} lastWorming={lastWorming} />
+      </div>
+
       <div className="mt-6">
         <Tabs items={[...tabItems]} value={tab} onValueChange={setTab} />
       </div>
@@ -197,6 +207,59 @@ export function HorseProfileClient({
                     disabled={!canEdit}
                   />
                 </div>
+
+                {/* Care info — publicly visible via care card & QR code */}
+                <div className="border-t border-barn-dark/10 pt-4">
+                  <h3 className="mb-3 text-sm font-semibold text-barn-dark/70">
+                    Care info
+                    <span className="ml-2 text-xs font-normal text-barn-dark/40">
+                      (visible on public care card)
+                    </span>
+                  </h3>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-sm font-medium text-barn-dark/70">
+                        Feed regimen
+                      </label>
+                      <textarea
+                        name="feed_regimen"
+                        rows={2}
+                        defaultValue={horse.feed_regimen ?? ""}
+                        disabled={!canEdit}
+                        placeholder="e.g. 2 flakes timothy AM/PM, 1 scoop Strategy"
+                        className="w-full rounded-xl border border-barn-dark/15 bg-white px-4 py-3 text-sm text-barn-dark placeholder:text-barn-dark/30 focus:border-brass-gold focus:ring-brass-gold/25 focus:outline-none disabled:opacity-60"
+                      />
+                    </div>
+                    <Input
+                      label="Supplements"
+                      name="supplements"
+                      defaultValue={horse.supplements ?? ""}
+                      disabled={!canEdit}
+                      placeholder="e.g. SmartPak joint support daily"
+                    />
+                    <Input
+                      label="Turnout schedule"
+                      name="turnout_schedule"
+                      defaultValue={horse.turnout_schedule ?? ""}
+                      disabled={!canEdit}
+                      placeholder="e.g. AM turnout 7a-12p, PM stall"
+                    />
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-sm font-medium text-barn-dark/70">
+                        Special care notes
+                      </label>
+                      <textarea
+                        name="special_care_notes"
+                        rows={2}
+                        defaultValue={horse.special_care_notes ?? ""}
+                        disabled={!canEdit}
+                        placeholder="e.g. Easy keeper — no grain. Muzzle on turnout."
+                        className="w-full rounded-xl border border-barn-dark/15 bg-white px-4 py-3 text-sm text-barn-dark placeholder:text-barn-dark/30 focus:border-brass-gold focus:ring-brass-gold/25 focus:outline-none disabled:opacity-60"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {canEdit ? <Button type="submit">Save changes</Button> : null}
               </form>
             </div>

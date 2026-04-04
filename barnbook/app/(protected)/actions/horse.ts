@@ -107,6 +107,10 @@ export async function updateHorseAction(
       dam: String(formData.get("dam") ?? "").trim() || null,
       registration_number: String(formData.get("registration_number") ?? "").trim() || null,
       microchip_number: String(formData.get("microchip_number") ?? "").trim() || null,
+      feed_regimen: String(formData.get("feed_regimen") ?? "").trim() || null,
+      supplements: String(formData.get("supplements") ?? "").trim() || null,
+      special_care_notes: String(formData.get("special_care_notes") ?? "").trim() || null,
+      turnout_schedule: String(formData.get("turnout_schedule") ?? "").trim() || null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", horseId);

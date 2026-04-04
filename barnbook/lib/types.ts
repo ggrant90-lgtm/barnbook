@@ -118,6 +118,11 @@ export interface Horse {
   microchip_number: string | null;
   photo_url: string | null;
   qr_code: string;
+  /** Care card fields — publicly visible */
+  feed_regimen: string | null;
+  supplements: string | null;
+  special_care_notes: string | null;
+  turnout_schedule: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -238,6 +243,10 @@ export type HorseInsert = {
   microchip_number?: string | null;
   photo_url?: string | null;
   qr_code: string;
+  feed_regimen?: string | null;
+  supplements?: string | null;
+  special_care_notes?: string | null;
+  turnout_schedule?: string | null;
   created_at?: string;
   updated_at?: string;
 };

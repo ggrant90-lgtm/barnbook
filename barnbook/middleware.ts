@@ -3,6 +3,9 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 function isProtectedPath(pathname: string): boolean {
+  // /care/* is the public care card — always allow unauthenticated access
+  if (pathname === "/care" || pathname.startsWith("/care/")) return false;
+
   const prefixes = [
     "/dashboard",
     "/barn",

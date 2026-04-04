@@ -46,18 +46,36 @@ export default async function HorseProfilePage({
   const horse = horseRaw as Horse;
   const canEdit = await canUserEditHorse(supabase, user.id, horse.barn_id);
 
-  const [{ data: activities }, { data: healthRows }] = await Promise.all([
-    supabase
-      .from("activity_log")
-      .select("*")
-      .eq("horse_id", id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("health_records")
-      .select("*")
-      .eq("horse_id", id)
-      .order("record_date", { ascending: false }),
-  ]);
+  const [{ data: activities }, { data: healthRows }, { data: shoeingRows }, { data: wormingRows }] =
+    await Promise.all([
+      supabase
+        .from("activity_log")
+        .select("*")
+        .eq("horse_id", id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("health_records")
+        .select("*")
+        .eq("horse_id", id)
+        .order("record_date", { ascending: false }),
+      supabase
+        .from("health_records")
+        .select("*")
+        .eq("horse_id", id)
+        .eq("record_type", "shoeing")
+        .order("record_date", { ascending: false })
+        .limit(1),
+      supabase
+        .from("health_records")
+        .select("*")
+        .eq("horse_id", id)
+        .eq("record_type", "worming")
+        .order("record_date", { ascending: false })
+        .limit(1),
+    ]);
+
+  const lastShoeing = (shoeingRows?.[0] as HealthRecord) ?? null;
+  const lastWorming = (wormingRows?.[0] as HealthRecord) ?? null;
 
   const { data: barnMembers } = await supabase
     .from("barn_members")
@@ -116,7 +134,8 @@ export default async function HorseProfilePage({
 
   const origin = await getOrigin();
   const profileUrl = `${origin}/horses/${horse.id}`;
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(profileUrl)}`;
+  const careUrl = `${origin}/care/${horse.id}`;
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(careUrl)}`;
 
   return (
     <Suspense fallback={<div className="px-4 py-16 text-center text-barn-dark/70">Loading…</div>}>
@@ -130,6 +149,8 @@ export default async function HorseProfilePage({
         profileUrl={profileUrl}
         qrSrc={qrSrc}
         listError={sp.error}
+        lastShoeing={lastShoeing}
+        lastWorming={lastWorming}
       />
     </Suspense>
   );
