@@ -7,9 +7,11 @@ import { Suspense } from "react";
 import { HorseProfileClient } from "./HorseProfileClient";
 
 async function getOrigin(): Promise<string> {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (siteUrl) return siteUrl.replace(/\/$/, "");
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto = h.get("x-forwarded-proto") ?? "http";
+  const proto = h.get("x-forwarded-proto") ?? "https";
   return `${proto}://${host}`;
 }
 
