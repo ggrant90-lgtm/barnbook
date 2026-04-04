@@ -29,8 +29,26 @@ export interface Barn {
   state: string | null;
   zip: string | null;
   phone: string | null;
+  logo_url: string | null;
+  banner_url: string | null;
+  about: string | null;
+  website: string | null;
+  instagram: string | null;
+  facebook: string | null;
+  public_email: string | null;
+  public_phone: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** public.barn_photos */
+export interface BarnPhoto {
+  id: string;
+  barn_id: string;
+  photo_url: string;
+  caption: string | null;
+  sort_order: number;
+  created_at: string;
 }
 
 /** public.barn_members */
@@ -185,11 +203,28 @@ export type BarnInsert = {
   state?: string | null;
   zip?: string | null;
   phone?: string | null;
+  logo_url?: string | null;
+  banner_url?: string | null;
+  about?: string | null;
+  website?: string | null;
+  instagram?: string | null;
+  facebook?: string | null;
+  public_email?: string | null;
+  public_phone?: string | null;
   created_at?: string;
   updated_at?: string;
 };
 
 export type BarnUpdate = Partial<Omit<Barn, "id">>;
+
+export type BarnPhotoInsert = {
+  id?: string;
+  barn_id: string;
+  photo_url: string;
+  caption?: string | null;
+  sort_order?: number;
+  created_at?: string;
+};
 
 export type BarnMemberInsert = {
   id?: string;
@@ -324,6 +359,12 @@ export type Database = {
         Row: BarnMember & R;
         Insert: BarnMemberInsert & R;
         Update: BarnMemberUpdate & R;
+        Relationships: [];
+      };
+      barn_photos: {
+        Row: BarnPhoto & R;
+        Insert: BarnPhotoInsert & R;
+        Update: Partial<Omit<BarnPhoto, "id">> & R;
         Relationships: [];
       };
       access_keys: {

@@ -6,6 +6,10 @@ function isProtectedPath(pathname: string): boolean {
   // /care/* is the public care card — always allow unauthenticated access
   if (pathname === "/care" || pathname.startsWith("/care/")) return false;
 
+  // /barn/{uuid} is the public barn profile — allow unauthenticated access
+  // But /barn/new is protected (barn creation)
+  if (pathname.startsWith("/barn/") && pathname !== "/barn/new") return false;
+
   const prefixes = [
     "/dashboard",
     "/barn",
