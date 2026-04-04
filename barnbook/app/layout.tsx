@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
-import { Fraunces, Instrument_Serif } from "next/font/google";
+import { DM_Serif_Display, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 
-const fraunces = Fraunces({
+const dmSerif = DM_Serif_Display({
   variable: "--font-barn-serif",
   subsets: ["latin"],
   display: "swap",
-  axes: ["SOFT"],
+  weight: "400",
+  style: ["normal", "italic"],
 });
 
 const instrumentSerif = Instrument_Serif({
@@ -31,7 +32,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${fraunces.variable} ${instrumentSerif.variable} h-full antialiased`}
+      className={`${dmSerif.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />

@@ -9,10 +9,10 @@ export default function Hero() {
             <span style={{ width: 28, height: 1, background: "var(--saddle)", display: "inline-block" }} />
             For horse people &amp; the teams behind them
           </div>
-          <h1 className="reveal reveal-2 font-serif font-light text-ink mb-8 max-[900px]:mb-6" style={{ fontSize: "clamp(48px, 6.2vw, 88px)", lineHeight: 0.98, letterSpacing: "-0.035em" }}>
+          <h1 className="reveal reveal-2 font-serif text-ink mb-8 max-[900px]:mb-6" style={{ fontSize: "clamp(36px, 5.5vw, 80px)", lineHeight: 1.05, letterSpacing: "-0.025em", fontWeight: 400 }}>
             Every Horse.<br />
             Every Professional.<br />
-            <em className="italic text-forest" style={{ fontWeight: 400, fontVariationSettings: '"SOFT" 50' }}>One Book.</em>
+            <em className="italic text-forest">One Book.</em>
           </h1>
           <p className="reveal reveal-3 text-ink-soft mb-11 font-normal max-[900px]:!text-[17px] max-[900px]:!mb-8" style={{ fontSize: 20, lineHeight: 1.55, maxWidth: 520 }}>
             BarnBook puts your horse&apos;s full history at your team&apos;s fingertips.
