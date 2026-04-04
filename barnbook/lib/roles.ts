@@ -1,5 +1,5 @@
 /** Roles that may create/edit horses and logs (editor or higher). */
-const EDITOR_PLUS = new Set(["owner", "manager", "editor"]);
+const EDITOR_PLUS = new Set(["owner", "manager", "editor", "trainer"]);
 
 const OWNER_MANAGER = new Set(["owner", "manager"]);
 

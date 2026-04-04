@@ -1,6 +1,6 @@
 "use client";
 
-import { updateHorseFormAction } from "@/app/(protected)/actions/horse";
+import { updateHorseAction } from "@/app/(protected)/actions/horse";
 import { ActivityEntry } from "@/components/ActivityEntry";
 import { CareCard } from "@/components/CareCard";
 import { HealthRecordItem } from "@/components/HealthRecord";
@@ -17,7 +17,7 @@ import type { ActivityLog, HealthRecord, Horse } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 
 const tabItems = [
   { id: "overview", label: "Overview" },
@@ -56,6 +56,10 @@ export function HorseProfileClient({
   const router = useRouter();
   const { show } = useToast();
   const searchParams = useSearchParams();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   const tabParam = searchParams.get("tab");
   const tab: TabId = ((): TabId => {
     const raw = tabParam ?? initialTab;
@@ -84,7 +88,7 @@ export function HorseProfileClient({
     if (!file || !canEdit) return;
     const up = await uploadHorseProfilePhoto(horse.id, file);
     if ("error" in up) {
-      show("We couldn’t upload that photo. Try a smaller JPG or PNG.", "error");
+      show("We couldn't upload that photo. Try a smaller JPG or PNG.", "error");
       return;
     }
     const { error } = await supabase
@@ -92,12 +96,35 @@ export function HorseProfileClient({
       .update({ photo_url: up.publicUrl, updated_at: new Date().toISOString() })
       .eq("id", horse.id);
     if (error) {
-      show("We couldn’t save the photo. Please try again.", "error");
+      show("We couldn't save the photo. Please try again.", "error");
       return;
     }
     show("Photo updated.", "success");
     router.refresh();
   }
+
+  async function handleSave() {
+    if (!formRef.current) return;
+    setSaving(true);
+    const formData = new FormData(formRef.current);
+    const result = await updateHorseAction(horse.id, formData);
+    setSaving(false);
+    if (result?.error) {
+      show(result.error, "error");
+    } else {
+      show("Horse updated.", "success");
+      setEditing(false);
+      router.refresh();
+    }
+  }
+
+  function handleCancel() {
+    formRef.current?.reset();
+    setEditing(false);
+  }
+
+  /** Fields are disabled unless user has permission AND is in edit mode */
+  const fieldsDisabled = !editing;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
@@ -112,13 +139,27 @@ export function HorseProfileClient({
           <h1 className="font-serif text-3xl font-semibold text-barn-dark">{horse.name}</h1>
           <p className="text-sm text-barn-dark/55">{horse.breed ?? "Horse"}</p>
         </div>
-        <Badge variant="pending">Biometric ID — coming soon</Badge>
+        <div className="flex items-center gap-2">
+          {canEdit && !editing ? (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-brass-gold bg-brass-gold px-4 py-2.5 text-sm font-medium text-barn-dark shadow hover:brightness-110 transition-all"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+              Edit Horse
+            </button>
+          ) : null}
+          <Badge variant="pending">Biometric ID — coming soon</Badge>
+        </div>
       </div>
 
       {listError ? (
         <p className="mt-4 rounded-lg border border-barn-red/40 bg-barn-red/10 px-3 py-2 text-sm text-barn-dark">
           {listError === "no_permission"
-            ? "You don’t have permission for that action."
+            ? "You don't have permission for that action."
             : (() => {
                 try {
                   return decodeURIComponent(listError);
@@ -151,7 +192,7 @@ export function HorseProfileClient({
                     aspectClassName="aspect-[4/3] w-full"
                   />
                 </div>
-                {canEdit ? (
+                {canEdit && editing ? (
                   <label className="mt-3 inline-block cursor-pointer text-sm font-medium text-brass-gold hover:underline">
                     Change photo
                     <input
@@ -164,11 +205,11 @@ export function HorseProfileClient({
                 ) : null}
               </div>
 
-              <form action={updateHorseFormAction.bind(null, horse.id)} className="min-w-0 flex-1 space-y-3">
+              <form ref={formRef} className="min-w-0 flex-1 space-y-3">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Input label="Name" name="name" defaultValue={horse.name} disabled={!canEdit} required />
-                  <Input label="Barn name" name="barn_name" defaultValue={horse.barn_name ?? ""} disabled={!canEdit} />
-                  <Select label="Breed" name="breed" defaultValue={horse.breed ?? ""} disabled={!canEdit}>
+                  <Input label="Name" name="name" defaultValue={horse.name} disabled={fieldsDisabled} required />
+                  <Input label="Barn name" name="barn_name" defaultValue={horse.barn_name ?? ""} disabled={fieldsDisabled} />
+                  <Select label="Breed" name="breed" defaultValue={horse.breed ?? ""} disabled={fieldsDisabled}>
                     <option value="">—</option>
                     {HORSE_BREEDS.map((b) => (
                       <option key={b} value={b}>
@@ -176,7 +217,7 @@ export function HorseProfileClient({
                       </option>
                     ))}
                   </Select>
-                  <Select label="Sex" name="sex" defaultValue={horse.sex ?? ""} disabled={!canEdit}>
+                  <Select label="Sex" name="sex" defaultValue={horse.sex ?? ""} disabled={fieldsDisabled}>
                     <option value="">—</option>
                     {HORSE_SEX_OPTIONS.map((s) => (
                       <option key={s} value={s}>
@@ -184,27 +225,27 @@ export function HorseProfileClient({
                       </option>
                     ))}
                   </Select>
-                  <Input label="Color" name="color" defaultValue={horse.color ?? ""} disabled={!canEdit} />
+                  <Input label="Color" name="color" defaultValue={horse.color ?? ""} disabled={fieldsDisabled} />
                   <Input
                     label="Foal date"
                     name="foal_date"
                     type="date"
                     defaultValue={horse.foal_date?.slice(0, 10) ?? ""}
-                    disabled={!canEdit}
+                    disabled={fieldsDisabled}
                   />
-                  <Input label="Sire" name="sire" defaultValue={horse.sire ?? ""} disabled={!canEdit} />
-                  <Input label="Dam" name="dam" defaultValue={horse.dam ?? ""} disabled={!canEdit} />
+                  <Input label="Sire" name="sire" defaultValue={horse.sire ?? ""} disabled={fieldsDisabled} />
+                  <Input label="Dam" name="dam" defaultValue={horse.dam ?? ""} disabled={fieldsDisabled} />
                   <Input
                     label="Registration #"
                     name="registration_number"
                     defaultValue={horse.registration_number ?? ""}
-                    disabled={!canEdit}
+                    disabled={fieldsDisabled}
                   />
                   <Input
                     label="Microchip"
                     name="microchip_number"
                     defaultValue={horse.microchip_number ?? ""}
-                    disabled={!canEdit}
+                    disabled={fieldsDisabled}
                   />
                 </div>
 
@@ -225,7 +266,7 @@ export function HorseProfileClient({
                         name="feed_regimen"
                         rows={2}
                         defaultValue={horse.feed_regimen ?? ""}
-                        disabled={!canEdit}
+                        disabled={fieldsDisabled}
                         placeholder="e.g. 2 flakes timothy AM/PM, 1 scoop Strategy"
                         className="w-full rounded-xl border border-barn-dark/15 bg-white px-4 py-3 text-sm text-barn-dark placeholder:text-barn-dark/30 focus:border-brass-gold focus:ring-brass-gold/25 focus:outline-none disabled:opacity-60"
                       />
@@ -234,14 +275,14 @@ export function HorseProfileClient({
                       label="Supplements"
                       name="supplements"
                       defaultValue={horse.supplements ?? ""}
-                      disabled={!canEdit}
+                      disabled={fieldsDisabled}
                       placeholder="e.g. SmartPak joint support daily"
                     />
                     <Input
                       label="Turnout schedule"
                       name="turnout_schedule"
                       defaultValue={horse.turnout_schedule ?? ""}
-                      disabled={!canEdit}
+                      disabled={fieldsDisabled}
                       placeholder="e.g. AM turnout 7a-12p, PM stall"
                     />
                     <div className="sm:col-span-2">
@@ -252,7 +293,7 @@ export function HorseProfileClient({
                         name="special_care_notes"
                         rows={2}
                         defaultValue={horse.special_care_notes ?? ""}
-                        disabled={!canEdit}
+                        disabled={fieldsDisabled}
                         placeholder="e.g. Easy keeper — no grain. Muzzle on turnout."
                         className="w-full rounded-xl border border-barn-dark/15 bg-white px-4 py-3 text-sm text-barn-dark placeholder:text-barn-dark/30 focus:border-brass-gold focus:ring-brass-gold/25 focus:outline-none disabled:opacity-60"
                       />
@@ -260,14 +301,33 @@ export function HorseProfileClient({
                   </div>
                 </div>
 
-                {canEdit ? <Button type="submit">Save changes</Button> : null}
+                {/* Save / Cancel buttons — only in edit mode */}
+                {editing ? (
+                  <div className="flex items-center gap-3 pt-2">
+                    <Button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={saving}
+                    >
+                      {saving ? "Saving…" : "Save changes"}
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      disabled={saving}
+                      className="inline-flex min-h-[44px] items-center rounded-xl border border-barn-dark/20 bg-white px-4 py-2.5 text-sm font-medium text-barn-dark hover:border-brass-gold disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : null}
               </form>
             </div>
 
             <section className="border-t border-barn-dark/10 pt-8">
               <h2 className="font-serif text-lg text-barn-dark">QR code</h2>
               <p className="mt-1 text-sm text-barn-dark/65">
-                Scan to open this horse&apos;s profile URL (sign-in required for full app).
+                Scan to open this horse&apos;s public care card (no sign-in required).
               </p>
               <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
                 <div className="rounded-xl border border-barn-dark/10 bg-parchment p-3">
