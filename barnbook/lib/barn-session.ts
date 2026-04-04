@@ -35,6 +35,7 @@ export async function getPrimaryBarnContext(
     .from("barn_members")
     .select("*")
     .eq("user_id", userId)
+    .or("status.eq.active,status.is.null")
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();

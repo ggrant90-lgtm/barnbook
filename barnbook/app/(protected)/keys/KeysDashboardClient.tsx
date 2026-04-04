@@ -2,6 +2,7 @@
 
 import { approveKeyRequestAction, denyKeyRequestAction } from "@/app/(protected)/actions/keys";
 import { KeyCard } from "@/components/KeyCard";
+import { MemberCard, type MemberInfo } from "@/components/MemberCard";
 import { Button, linkButtonClass } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
@@ -63,6 +64,7 @@ export function KeysDashboardClient({
   pendingRequests,
   requesterNames,
   prefillHorseId,
+  members,
 }: {
   barnName: string;
   barnKeys: AccessKey[];
@@ -71,6 +73,7 @@ export function KeysDashboardClient({
   pendingRequests: KeyRequest[];
   requesterNames: Record<string, string>;
   prefillHorseId?: string | null;
+  members: MemberInfo[];
 }) {
   const router = useRouter();
   const { show } = useToast();
@@ -78,11 +81,14 @@ export function KeysDashboardClient({
   const [sel, setSel] = useState(prefillHorseId ?? horseOptions[0]?.id ?? "");
   const joinUrl = getJoinUrl();
 
+  const activeMembers = members.filter((m) => m.status !== "disabled");
+  const disabledMembers = members.filter((m) => m.status === "disabled");
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-semibold text-barn-dark">Keys</h1>
+          <h1 className="font-serif text-3xl font-semibold text-barn-dark">Keys & Members</h1>
           <p className="mt-1 text-sm text-barn-dark/65">{barnName}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -143,7 +149,38 @@ export function KeysDashboardClient({
         )}
       </Modal>
 
+      {/* ─── Members ─── */}
       <section className="mt-10">
+        <h2 className="font-serif text-xl text-barn-dark">Members</h2>
+        <p className="mt-1 text-sm text-barn-dark/60">
+          People with barn access. Change roles, disable, or remove members.
+        </p>
+        {activeMembers.length === 0 ? (
+          <p className="mt-4 text-barn-dark/70">No active members.</p>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {activeMembers.map((m) => (
+              <MemberCard key={m.id} member={m} />
+            ))}
+          </ul>
+        )}
+
+        {disabledMembers.length > 0 ? (
+          <div className="mt-6">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-barn-dark/50">
+              Disabled
+            </h3>
+            <ul className="mt-3 space-y-3">
+              {disabledMembers.map((m) => (
+                <MemberCard key={m.id} member={m} />
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </section>
+
+      {/* ─── Barn Keys ─── */}
+      <section className="mt-12">
         <h2 className="font-serif text-xl text-barn-dark">Barn keys</h2>
         <p className="mt-1 text-sm text-barn-dark/60">Full barn access (no specific horse).</p>
         {barnKeys.length === 0 ? (
@@ -157,6 +194,7 @@ export function KeysDashboardClient({
         )}
       </section>
 
+      {/* ─── Stall Keys ─── */}
       <section className="mt-12">
         <h2 className="font-serif text-xl text-barn-dark">Stall keys</h2>
         <p className="mt-1 text-sm text-barn-dark/60">Access to one horse, grouped below.</p>
@@ -182,6 +220,7 @@ export function KeysDashboardClient({
         )}
       </section>
 
+      {/* ─── Pending Requests ─── */}
       <section className="mt-12">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-serif text-xl text-barn-dark">Pending key requests</h2>

@@ -39,6 +39,7 @@ export interface BarnMember {
   barn_id: string;
   user_id: string;
   role: string;
+  status: "active" | "disabled";
   created_at: string;
 }
 
@@ -195,6 +196,7 @@ export type BarnMemberInsert = {
   barn_id: string;
   user_id: string;
   role?: string;
+  status?: "active" | "disabled";
   created_at?: string;
 };
 
