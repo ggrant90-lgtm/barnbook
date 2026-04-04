@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Footer() {
   return (
@@ -7,13 +8,15 @@ export default function Footer() {
         <div className="flex justify-between items-start flex-wrap gap-10 max-[900px]:flex-col">
           {/* Brand */}
           <div className="max-w-[320px]">
-            <Link href="/" className="flex items-center gap-[10px] font-serif font-medium text-2xl tracking-tight text-cream no-underline mb-3.5" style={{ letterSpacing: "-0.02em" }}>
-              <span className="w-8 h-8 flex items-center justify-center">
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                  <path d="M6 8 L6 26 L16 22 L26 26 L26 8 L16 12 Z" stroke="#f5efe4" strokeWidth="1.8" strokeLinejoin="round" fill="none"/>
-                  <path d="M16 12 L16 22" stroke="#f5efe4" strokeWidth="1.8"/>
-                </svg>
-              </span>
+            <Link href="/" className="flex items-center gap-2.5 font-serif text-2xl tracking-tight text-cream no-underline mb-3.5" style={{ letterSpacing: "-0.02em", fontWeight: 400 }}>
+              <Image
+                src="/logo.png"
+                alt="BarnBook"
+                width={40}
+                height={40}
+                className="rounded-lg"
+                style={{ objectFit: "contain" }}
+              />
               BarnBook
             </Link>
             <p className="text-sm leading-relaxed">
