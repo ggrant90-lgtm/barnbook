@@ -51,7 +51,11 @@ export function LogDetailModal({
     ? formatDateTime((entry as ActivityLog).created_at)
     : formatDateShort((entry as HealthRecord).record_date);
   const notes = entry.notes;
-  const details = entry.details as Record<string, unknown> | null;
+  const rawDetails = entry.details;
+  const details: Record<string, unknown> | null =
+    typeof rawDetails === "string"
+      ? (() => { try { return JSON.parse(rawDetails); } catch { return null; } })()
+      : (rawDetails as Record<string, unknown> | null);
 
   return (
     <div

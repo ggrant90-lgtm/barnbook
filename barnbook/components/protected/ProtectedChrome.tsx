@@ -9,6 +9,8 @@ import { supabase } from "@/lib/supabase";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+export type BarnSummary = { id: string; name: string; barn_type: string };
+
 export function ProtectedChrome({
   children,
   displayName,
@@ -16,6 +18,8 @@ export function ProtectedChrome({
   avatarUrl,
   barnName,
   hasBarn,
+  allBarns,
+  activeBarnId,
 }: {
   children: React.ReactNode;
   displayName: string;
@@ -23,6 +27,8 @@ export function ProtectedChrome({
   avatarUrl: string | null;
   barnName: string | null;
   hasBarn: boolean;
+  allBarns?: BarnSummary[];
+  activeBarnId?: string | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -51,6 +57,8 @@ export function ProtectedChrome({
           pathname={pathname}
           barnName={barnName}
           hasBarn={hasBarn}
+          allBarns={allBarns}
+          activeBarnId={activeBarnId}
         />
         <MobileSidebarDrawer
           open={mobileOpen}
@@ -59,6 +67,8 @@ export function ProtectedChrome({
           pathname={pathname}
           barnName={barnName}
           hasBarn={hasBarn}
+          allBarns={allBarns}
+          activeBarnId={activeBarnId}
         />
 
         <div className="flex min-h-full min-w-0 flex-1 flex-col">

@@ -1,4 +1,4 @@
-import { getPrimaryBarnContext } from "@/lib/barn-session";
+import { getActiveBarnContext } from "@/lib/barn-session";
 import { canUserEditHorse } from "@/lib/horse-access";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import type { Horse } from "@/lib/types";
@@ -12,7 +12,7 @@ export default async function HorsesPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/auth/signin");
 
-  const ctx = await getPrimaryBarnContext(supabase, user.id);
+  const ctx = await getActiveBarnContext(supabase, user.id);
   if (!ctx) redirect("/dashboard");
 
   const { data: horsesRaw, error } = await supabase

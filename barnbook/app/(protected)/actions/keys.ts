@@ -1,6 +1,6 @@
 "use server";
 
-import { getPrimaryBarnContext } from "@/lib/barn-session";
+import { getActiveBarnContext } from "@/lib/barn-session";
 import { generateKeyCode } from "@/lib/key-code";
 import { canManageBarnKeys } from "@/lib/key-access";
 import { createServerComponentClient } from "@/lib/supabase-server";
@@ -28,7 +28,7 @@ export async function generateAccessKeyAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "You must be signed in." };
 
-  const ctx = await getPrimaryBarnContext(supabase, user.id);
+  const ctx = await getActiveBarnContext(supabase, user.id);
   if (!ctx) return { error: "No barn context." };
 
   const barnId = ctx.barn.id;

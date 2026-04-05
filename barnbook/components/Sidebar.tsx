@@ -1,6 +1,8 @@
 "use client";
 
+import { BarnSwitcher } from "@/components/BarnSwitcher";
 import { isNavActive, navLinkClass, type NavItem } from "@/components/nav-config";
+import type { BarnSummary } from "@/components/protected/ProtectedChrome";
 import Link from "next/link";
 
 export function SidebarBrand({
@@ -60,11 +62,15 @@ export function DesktopSidebar({
   pathname,
   barnName,
   hasBarn,
+  allBarns,
+  activeBarnId,
 }: {
   navItems: NavItem[];
   pathname: string;
   barnName: string | null;
   hasBarn: boolean;
+  allBarns?: BarnSummary[];
+  activeBarnId?: string | null;
 }) {
   return (
     <aside
@@ -72,6 +78,9 @@ export function DesktopSidebar({
       aria-label="Sidebar"
     >
       <SidebarBrand barnName={barnName} hasBarn={hasBarn} />
+      {allBarns && allBarns.length > 0 ? (
+        <BarnSwitcher allBarns={allBarns} activeBarnId={activeBarnId} />
+      ) : null}
       <SidebarNavList items={navItems} pathname={pathname} />
     </aside>
   );
@@ -85,6 +94,8 @@ export function MobileSidebarDrawer({
   pathname,
   barnName,
   hasBarn,
+  allBarns,
+  activeBarnId,
 }: {
   open: boolean;
   onClose: () => void;
@@ -92,6 +103,8 @@ export function MobileSidebarDrawer({
   pathname: string;
   barnName: string | null;
   hasBarn: boolean;
+  allBarns?: BarnSummary[];
+  activeBarnId?: string | null;
 }) {
   return (
     <>
@@ -126,7 +139,9 @@ export function MobileSidebarDrawer({
             <span className="text-lg leading-none">×</span>
           </button>
         </div>
-        {hasBarn && barnName ? (
+        {allBarns && allBarns.length > 0 ? (
+          <BarnSwitcher allBarns={allBarns} activeBarnId={activeBarnId} />
+        ) : hasBarn && barnName ? (
           <p className="truncate px-4 py-2 text-xs text-muted-tan">{barnName}</p>
         ) : null}
         <SidebarNavList items={navItems} pathname={pathname} onNavigate={onClose} />

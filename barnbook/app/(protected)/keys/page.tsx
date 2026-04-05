@@ -1,4 +1,4 @@
-import { getPrimaryBarnContext } from "@/lib/barn-session";
+import { getActiveBarnContext } from "@/lib/barn-session";
 import { canManageBarnKeys } from "@/lib/key-access";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import type { AccessKey, KeyRequest } from "@/lib/types";
@@ -18,7 +18,7 @@ export default async function KeysPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/auth/signin");
 
-  const ctx = await getPrimaryBarnContext(supabase, user.id);
+  const ctx = await getActiveBarnContext(supabase, user.id);
   if (!ctx) redirect("/dashboard");
 
   const barnId = ctx.barn.id;

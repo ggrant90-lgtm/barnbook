@@ -1,6 +1,6 @@
 "use server";
 
-import { getPrimaryBarnContext } from "@/lib/barn-session";
+import { getActiveBarnContext } from "@/lib/barn-session";
 import { canUserEditHorse } from "@/lib/horse-access";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
@@ -22,7 +22,7 @@ export async function createHorseAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "You must be signed in." };
 
-  const ctx = await getPrimaryBarnContext(supabase, user.id);
+  const ctx = await getActiveBarnContext(supabase, user.id);
   if (!ctx) return { error: "Join or create a barn first." };
 
   const canEdit = await canUserEditHorse(supabase, user.id, ctx.barn.id);
