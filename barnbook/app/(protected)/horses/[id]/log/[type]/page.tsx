@@ -1,18 +1,14 @@
-import { submitHorseLogAction } from "@/app/(protected)/actions/horse-log";
+import { createLogAction } from "@/app/(protected)/actions/create-log";
 import { canUserAccessHorse, canUserEditHorse } from "@/lib/horse-access";
 import {
   EXERCISE_SUBTYPES,
-  BREED_DATA_SUBTYPES,
-  BREED_DATA_SUBTYPE_LABELS,
-  BREEDING_METHODS,
-  ULTRASOUND_RESULTS,
   isLogType,
   logTypeLabel,
   type LogType,
-  type BreedDataSubtype,
 } from "@/lib/horse-form-constants";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import { BreedDataForm } from "@/components/BreedDataForm";
+import { LogFormWrapper } from "@/components/LogFormWrapper";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
@@ -55,7 +51,6 @@ export default async function HorseLogPage({
     redirect(`/horses/${horseId}?error=no_permission`);
   }
 
-  const bound = submitHorseLogAction.bind(null, horseId, logType);
   const tab =
     logType === "shoeing" || logType === "worming" || logType === "vet_visit"
       ? "health"
@@ -73,7 +68,12 @@ export default async function HorseLogPage({
         Log: {logTypeLabel(logType)}
       </h1>
 
-      <form action={bound} className="mt-8 space-y-4">
+      <LogFormWrapper
+        horseId={horseId}
+        logType={logType}
+        redirectTab={tab}
+        createLogAction={createLogAction}
+      >
         {(logType === "exercise" ||
           logType === "feed" ||
           logType === "medication" ||
@@ -128,13 +128,7 @@ export default async function HorseLogPage({
               <label htmlFor="duration_minutes" className="mb-1.5 block text-sm text-barn-dark/75">
                 Duration (minutes)
               </label>
-              <input
-                id="duration_minutes"
-                name="duration_minutes"
-                type="number"
-                min={0}
-                className={inputClass}
-              />
+              <input id="duration_minutes" name="duration_minutes" type="number" min={0} className={inputClass} />
             </div>
             <div>
               <label htmlFor="distance" className="mb-1.5 block text-sm text-barn-dark/75">
@@ -332,14 +326,7 @@ export default async function HorseLogPage({
         ) : null}
 
         {logType === "breed_data" ? <BreedDataForm /> : null}
-
-        <button
-          type="submit"
-          className="mt-4 flex min-h-[48px] w-full items-center justify-center rounded-xl bg-brass-gold px-4 py-3 font-medium text-barn-dark shadow hover:brightness-110"
-        >
-          Save entry
-        </button>
-      </form>
+      </LogFormWrapper>
     </div>
   );
 }
