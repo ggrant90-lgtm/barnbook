@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
 import type { Barn, BarnMember, Database } from "./types";
 
 export type PrimaryBarnContext = {
@@ -91,7 +92,6 @@ export async function userHasAnyBarn(
  */
 export async function getActiveBarnId(): Promise<string | null> {
   try {
-    const { cookies } = await import("next/headers");
     const cookieStore = await cookies();
     return cookieStore.get("active_barn_id")?.value ?? null;
   } catch {

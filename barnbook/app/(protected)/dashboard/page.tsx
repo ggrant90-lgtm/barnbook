@@ -1,5 +1,6 @@
 import { HorseCard } from "@/components/HorseCard";
 import { HorsePhoto } from "@/components/HorsePhoto";
+import { getActiveBarnId } from "@/lib/barn-session";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import type { ActivityLog, Barn, Horse } from "@/lib/types";
 import Link from "next/link";
@@ -91,8 +92,12 @@ export default async function DashboardPage() {
     );
   }
 
-  // ── For the primary owned barn, fetch dashboard data ──
-  const primaryBarn = (ownedBarns ?? [])[0] ?? null;
+  // ── Determine which barn to show (active barn from cookie, or first owned) ──
+  const activeBarnId = await getActiveBarnId();
+  const allUserBarns = [...(ownedBarns ?? []) as Barn[], ...accessBarns];
+  const primaryBarn = activeBarnId
+    ? allUserBarns.find((b) => b.id === activeBarnId) ?? (ownedBarns ?? [])[0] ?? null
+    : (ownedBarns ?? [])[0] ?? null;
   let horses: Pick<Horse, "id" | "name" | "photo_url" | "breed" | "sex" | "color" | "updated_at">[] = [];
   let horseCount = 0;
   let activeKeys = 0;
