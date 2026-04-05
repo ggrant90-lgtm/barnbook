@@ -23,6 +23,8 @@ export async function createBarnAction(
   const state = String(formData.get("state") ?? "").trim() || null;
   const zip = String(formData.get("zip") ?? "").trim() || null;
   const phone = String(formData.get("phone") ?? "").trim() || null;
+  const barnTypeRaw = String(formData.get("barn_type") ?? "standard").trim();
+  const barn_type = barnTypeRaw === "mare_motel" ? "mare_motel" : "standard";
 
   if (!name) {
     return { error: "Barn name is required." };
@@ -38,6 +40,7 @@ export async function createBarnAction(
       state,
       zip,
       phone,
+      barn_type,
     })
     .select("id")
     .single();

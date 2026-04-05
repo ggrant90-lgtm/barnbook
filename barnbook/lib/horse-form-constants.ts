@@ -30,6 +30,44 @@ export const LOG_TYPES = [
   "feed",
   "medication",
   "note",
+  "breed_data",
+] as const;
+
+export const BREED_DATA_SUBTYPES = [
+  "custom",
+  "heat_detected",
+  "bred_ai",
+  "flush_embryo",
+  "embryo_transfer",
+  "ultrasound",
+  "foaling",
+] as const;
+
+export type BreedDataSubtype = (typeof BREED_DATA_SUBTYPES)[number];
+
+export const BREED_DATA_SUBTYPE_LABELS: Record<BreedDataSubtype, string> = {
+  custom: "Custom Entry",
+  heat_detected: "Heat Detected",
+  bred_ai: "Bred / AI",
+  flush_embryo: "Flush / Embryo Recovery",
+  embryo_transfer: "Embryo Transfer",
+  ultrasound: "Ultrasound / Pregnancy Check",
+  foaling: "Foaling",
+};
+
+export const BREEDING_METHODS = [
+  "Live Cover",
+  "AI Fresh",
+  "AI Cooled",
+  "AI Frozen",
+] as const;
+
+export const ULTRASOUND_RESULTS = [
+  "Open",
+  "Bred Confirmed",
+  "Pregnancy Confirmed",
+  "Loss Detected",
+  "Inconclusive",
 ] as const;
 
 export type LogType = (typeof LOG_TYPES)[number];
@@ -47,6 +85,7 @@ export function logTypeLabel(type: string): string {
     feed: "Feed",
     medication: "Medication",
     note: "Note",
+    breed_data: "Breed Data",
   };
   return map[type] ?? type;
 }

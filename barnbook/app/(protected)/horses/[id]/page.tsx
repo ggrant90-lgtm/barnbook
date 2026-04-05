@@ -1,6 +1,6 @@
 import { canUserAccessHorse, canUserEditHorse } from "@/lib/horse-access";
 import { createServerComponentClient } from "@/lib/supabase-server";
-import type { ActivityLog, HealthRecord, Horse } from "@/lib/types";
+import type { ActivityLog, HealthRecord, Horse, HorseStay, LogMedia } from "@/lib/types";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -132,6 +132,63 @@ export default async function HorseProfilePage({
     }
   }
 
+  // Fetch active stay for this horse
+  const { data: activeStayRaw } = await supabase
+    .from("horse_stays")
+    .select("*")
+    .eq("horse_id", id)
+    .eq("status", "active")
+    .maybeSingle();
+  const activeStay = (activeStayRaw as HorseStay) ?? null;
+
+  // Fetch log media
+  const actIds = (activities ?? []).map((a) => (a as ActivityLog).id);
+  const healthIds = (healthRows ?? []).map((h) => (h as HealthRecord).id);
+  const allLogIds = [...actIds, ...healthIds];
+  let logMedia: LogMedia[] = [];
+  if (allLogIds.length > 0) {
+    const { data: mediaRaw } = await supabase
+      .from("log_media")
+      .select("*")
+      .in("log_id", allLogIds);
+    logMedia = (mediaRaw ?? []) as LogMedia[];
+  }
+
+  // Build user name and barn name lookup maps for provenance
+  const allUserIds = new Set<string>();
+  const allBarnIds = new Set<string>();
+  for (const a of (activities ?? []) as ActivityLog[]) {
+    if (a.logged_by) allUserIds.add(a.logged_by);
+    if (a.logged_at_barn_id) allBarnIds.add(a.logged_at_barn_id);
+  }
+  for (const h of (healthRows ?? []) as HealthRecord[]) {
+    if (h.logged_by) allUserIds.add(h.logged_by);
+    if (h.logged_at_barn_id) allBarnIds.add(h.logged_at_barn_id);
+  }
+  if (activeStay) allBarnIds.add(activeStay.host_barn_id);
+
+  const userNames: Record<string, string> = {};
+  if (allUserIds.size > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", [...allUserIds]);
+    for (const p of profiles ?? []) {
+      userNames[p.id] = p.full_name?.trim() || "Member";
+    }
+  }
+
+  const barnNames: Record<string, string> = {};
+  if (allBarnIds.size > 0) {
+    const { data: barns } = await supabase
+      .from("barns")
+      .select("id, name")
+      .in("id", [...allBarnIds]);
+    for (const b of barns ?? []) {
+      barnNames[b.id] = b.name;
+    }
+  }
+
   const origin = await getOrigin();
   const profileUrl = `${origin}/horses/${horse.id}`;
   const careUrl = `${origin}/care/${horse.id}`;
@@ -151,6 +208,10 @@ export default async function HorseProfilePage({
         listError={sp.error}
         lastShoeing={lastShoeing}
         lastWorming={lastWorming}
+        activeStay={activeStay}
+        logMedia={logMedia}
+        userNames={userNames}
+        barnNames={barnNames}
       />
     </Suspense>
   );

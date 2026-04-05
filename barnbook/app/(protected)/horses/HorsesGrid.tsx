@@ -11,9 +11,13 @@ import { useMemo, useState } from "react";
 export function HorsesGrid({
   horses,
   canAdd,
+  visitingInfo,
+  awayInfo,
 }: {
   horses: Horse[];
   canAdd: boolean;
+  visitingInfo?: Record<string, string>;
+  awayInfo?: Record<string, string>;
 }) {
   const [q, setQ] = useState("");
   const [breedFilter, setBreedFilter] = useState("");
@@ -95,7 +99,17 @@ export function HorsesGrid({
         <ul className="mt-8 grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((h) => (
             <li key={h.id}>
-              <HorseCard horse={h} href={`/horses/${h.id}`} />
+              <HorseCard
+                horse={h}
+                href={`/horses/${h.id}`}
+                badge={
+                  visitingInfo?.[h.id]
+                    ? `Visiting from ${visitingInfo[h.id]}`
+                    : awayInfo?.[h.id]
+                      ? `At ${awayInfo[h.id]}`
+                      : undefined
+                }
+              />
             </li>
           ))}
         </ul>

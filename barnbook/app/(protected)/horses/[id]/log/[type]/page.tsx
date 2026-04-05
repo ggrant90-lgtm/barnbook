@@ -2,11 +2,17 @@ import { submitHorseLogAction } from "@/app/(protected)/actions/horse-log";
 import { canUserAccessHorse, canUserEditHorse } from "@/lib/horse-access";
 import {
   EXERCISE_SUBTYPES,
+  BREED_DATA_SUBTYPES,
+  BREED_DATA_SUBTYPE_LABELS,
+  BREEDING_METHODS,
+  ULTRASOUND_RESULTS,
   isLogType,
   logTypeLabel,
   type LogType,
+  type BreedDataSubtype,
 } from "@/lib/horse-form-constants";
 import { createServerComponentClient } from "@/lib/supabase-server";
+import { BreedDataForm } from "@/components/BreedDataForm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
@@ -324,6 +330,8 @@ export default async function HorseLogPage({
             </div>
           </>
         ) : null}
+
+        {logType === "breed_data" ? <BreedDataForm /> : null}
 
         <button
           type="submit"

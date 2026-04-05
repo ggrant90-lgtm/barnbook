@@ -37,6 +37,7 @@ export interface Barn {
   facebook: string | null;
   public_email: string | null;
   public_phone: string | null;
+  barn_type: "standard" | "mare_motel";
   created_at: string;
   updated_at: string;
 }
@@ -157,6 +158,9 @@ export interface ActivityLog {
   duration_minutes: number;
   speed_avg: number | null;
   details: Json | null;
+  logged_at_barn_id: string | null;
+  updated_at: string | null;
+  updated_by_user_id: string | null;
   created_at: string;
 }
 
@@ -172,6 +176,38 @@ export interface HealthRecord {
   next_due_date: string | null;
   document_url: string | null;
   details: Json | null;
+  logged_by: string | null;
+  logged_at_barn_id: string | null;
+  updated_at: string | null;
+  updated_by_user_id: string | null;
+  created_at: string;
+}
+
+/** public.horse_stays */
+export interface HorseStay {
+  id: string;
+  horse_id: string;
+  home_barn_id: string;
+  host_barn_id: string;
+  start_date: string;
+  end_date: string | null;
+  status: "active" | "completed" | "cancelled";
+  created_by_user_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** public.log_media */
+export interface LogMedia {
+  id: string;
+  log_type: "activity" | "health";
+  log_id: string;
+  media_type: "photo" | "video";
+  url: string;
+  thumbnail_url: string | null;
+  caption: string | null;
+  sort_order: number;
   created_at: string;
 }
 
@@ -211,6 +247,7 @@ export type BarnInsert = {
   facebook?: string | null;
   public_email?: string | null;
   public_phone?: string | null;
+  barn_type?: "standard" | "mare_motel";
   created_at?: string;
   updated_at?: string;
 };
@@ -290,6 +327,32 @@ export type HorseInsert = {
 
 export type HorseUpdate = Partial<Omit<Horse, "id" | "created_at">>;
 
+export type HorseStayInsert = {
+  id?: string;
+  horse_id: string;
+  home_barn_id: string;
+  host_barn_id: string;
+  start_date?: string;
+  end_date?: string | null;
+  status?: "active" | "completed" | "cancelled";
+  created_by_user_id?: string | null;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type LogMediaInsert = {
+  id?: string;
+  log_type: "activity" | "health";
+  log_id: string;
+  media_type: "photo" | "video";
+  url: string;
+  thumbnail_url?: string | null;
+  caption?: string | null;
+  sort_order?: number;
+  created_at?: string;
+};
+
 export type ActivityLogInsert = {
   id?: string;
   horse_id: string;
@@ -300,6 +363,7 @@ export type ActivityLogInsert = {
   duration_minutes: number;
   speed_avg?: number | null;
   details?: Json | null;
+  logged_at_barn_id?: string | null;
   created_at?: string;
 };
 
@@ -318,6 +382,8 @@ export type HealthRecordInsert = {
   next_due_date?: string | null;
   document_url?: string | null;
   details?: Json | null;
+  logged_by?: string | null;
+  logged_at_barn_id?: string | null;
   created_at?: string;
 };
 
@@ -434,6 +500,18 @@ export type Database = {
         Row: HealthRecord & R;
         Insert: HealthRecordInsert & R;
         Update: HealthRecordUpdate & R;
+        Relationships: [];
+      };
+      horse_stays: {
+        Row: HorseStay & R;
+        Insert: HorseStayInsert & R;
+        Update: Partial<Omit<HorseStay, "id">> & R;
+        Relationships: [];
+      };
+      log_media: {
+        Row: LogMedia & R;
+        Insert: LogMediaInsert & R;
+        Update: Partial<Omit<LogMedia, "id">> & R;
         Relationships: [];
       };
       horse_biometric_embeddings: {

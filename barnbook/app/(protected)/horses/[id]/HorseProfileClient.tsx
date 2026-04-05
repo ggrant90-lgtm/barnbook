@@ -5,6 +5,8 @@ import { ActivityEntry } from "@/components/ActivityEntry";
 import { CareCard } from "@/components/CareCard";
 import { HealthRecordItem } from "@/components/HealthRecord";
 import { HorsePhoto } from "@/components/HorsePhoto";
+import { LogDetailModal } from "@/components/LogDetailModal";
+import { LogFilters } from "@/components/LogFilters";
 import { Button, linkButtonClass } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
@@ -13,11 +15,11 @@ import { Tabs } from "@/components/ui/Tabs";
 import { useToast } from "@/components/ui/Toast";
 import { HORSE_BREEDS, HORSE_SEX_OPTIONS } from "@/lib/horse-form-constants";
 import { uploadHorseProfilePhoto } from "@/lib/horse-photo";
-import type { ActivityLog, HealthRecord, Horse } from "@/lib/types";
+import type { ActivityLog, HealthRecord, Horse, HorseStay, LogMedia } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 const tabItems = [
   { id: "overview", label: "Overview" },
@@ -40,6 +42,10 @@ export function HorseProfileClient({
   listError,
   lastShoeing,
   lastWorming,
+  activeStay,
+  logMedia,
+  userNames,
+  barnNames,
 }: {
   horse: Horse;
   canEdit: boolean;
@@ -52,6 +58,10 @@ export function HorseProfileClient({
   listError?: string;
   lastShoeing?: HealthRecord | null;
   lastWorming?: HealthRecord | null;
+  activeStay?: HorseStay | null;
+  logMedia?: LogMedia[];
+  userNames?: Record<string, string>;
+  barnNames?: Record<string, string>;
 }) {
   const router = useRouter();
   const { show } = useToast();
@@ -59,6 +69,14 @@ export function HorseProfileClient({
   const formRef = useRef<HTMLFormElement>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<{
+    kind: "activity" | "health";
+    entry: ActivityLog | HealthRecord;
+  } | null>(null);
+  const [activityTypeFilter, setActivityTypeFilter] = useState<string | null>(null);
+  const [activityDateRange, setActivityDateRange] = useState("all");
+  const [healthTypeFilter, setHealthTypeFilter] = useState<string | null>(null);
+  const [healthDateRange, setHealthDateRange] = useState("all");
 
   const tabParam = searchParams.get("tab");
   const tab: TabId = ((): TabId => {
@@ -123,6 +141,55 @@ export function HorseProfileClient({
     setEditing(false);
   }
 
+  const filterByDate = useCallback((date: string, range: string) => {
+    if (range === "all") return true;
+    const d = new Date(date);
+    const now = new Date();
+    if (range === "week") {
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return d >= weekAgo;
+    }
+    if (range === "month") {
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }
+    if (range === "year") {
+      return d.getFullYear() === now.getFullYear();
+    }
+    return true;
+  }, []);
+
+  const activityTypes = useMemo(
+    () => [...new Set(activities.map((a) => a.activity_type))],
+    [activities],
+  );
+  const filteredActivities = useMemo(
+    () =>
+      activities.filter((a) => {
+        if (activityTypeFilter && a.activity_type !== activityTypeFilter) return false;
+        return filterByDate(a.created_at, activityDateRange);
+      }),
+    [activities, activityTypeFilter, activityDateRange, filterByDate],
+  );
+
+  const healthTypes = useMemo(
+    () => [...new Set(healthRows.map((h) => h.record_type))],
+    [healthRows],
+  );
+  const filteredHealth = useMemo(
+    () =>
+      healthRows.filter((h) => {
+        if (healthTypeFilter && h.record_type !== healthTypeFilter) return false;
+        return filterByDate(h.record_date, healthDateRange);
+      }),
+    [healthRows, healthTypeFilter, healthDateRange, filterByDate],
+  );
+
+  const getMediaForLog = useCallback(
+    (logType: "activity" | "health", logId: string) =>
+      (logMedia ?? []).filter((m) => m.log_type === logType && m.log_id === logId),
+    [logMedia],
+  );
+
   /** Fields are disabled unless user has permission AND is in edit mode */
   const fieldsDisabled = !editing;
 
@@ -168,6 +235,21 @@ export function HorseProfileClient({
                 }
               })()}
         </p>
+      ) : null}
+
+      {/* Active stay indicator */}
+      {activeStay ? (
+        <div className="mt-4 flex items-center gap-2 rounded-xl border border-brass-gold/30 bg-brass-gold/10 px-4 py-2.5">
+          <svg className="h-4 w-4 text-brass-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+          </svg>
+          <p className="text-sm text-barn-dark">
+            Currently at{" "}
+            <span className="font-medium">
+              {barnNames?.[activeStay.host_barn_id] ?? "Mare Motel"}
+            </span>
+          </p>
+        </div>
       ) : null}
 
       {/* Public Care Summary */}
@@ -344,35 +426,54 @@ export function HorseProfileClient({
         ) : null}
 
         {tab === "activity" ? (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {canEdit ? (
               <div>
                 <h3 className="text-sm font-medium text-barn-dark">Add entry</h3>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {(["exercise", "feed", "medication", "note"] as const).map((x) => (
+                  {(["exercise", "feed", "medication", "note", "breed_data"] as const).map((x) => (
                     <Link
                       key={x}
                       href={`/horses/${horse.id}/log/${x}`}
                       className={linkButtonClass("secondary", "min-h-0 px-3 py-1.5 capitalize")}
                     >
-                      {x}
+                      {x === "breed_data" ? "Breed Data" : x}
                     </Link>
                   ))}
                 </div>
               </div>
             ) : null}
+            {activities.length > 0 ? (
+              <LogFilters
+                types={activityTypes}
+                selectedType={activityTypeFilter}
+                onTypeChange={setActivityTypeFilter}
+                dateRange={activityDateRange}
+                onDateRangeChange={setActivityDateRange}
+              />
+            ) : null}
             <ul className="divide-y divide-barn-dark/10">
-              {activities.length === 0 ? (
-                <li className="py-4 text-barn-dark/60">No activity yet.</li>
+              {filteredActivities.length === 0 ? (
+                <li className="py-4 text-barn-dark/60">
+                  {activities.length === 0 ? "No activity yet." : "No entries match your filters."}
+                </li>
               ) : (
-                activities.map((a) => <ActivityEntry key={a.id} activity={a} />)
+                filteredActivities.map((a) => (
+                  <ActivityEntry
+                    key={a.id}
+                    activity={a}
+                    loggerName={a.logged_by ? (userNames?.[a.logged_by] ?? null) : null}
+                    loggerBarn={a.logged_at_barn_id ? (barnNames?.[a.logged_at_barn_id] ?? null) : null}
+                    onClick={() => setSelectedLog({ kind: "activity", entry: a })}
+                  />
+                ))
               )}
             </ul>
           </div>
         ) : null}
 
         {tab === "health" ? (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {canEdit ? (
               <div>
                 <h3 className="text-sm font-medium text-barn-dark">Add record</h3>
@@ -389,11 +490,30 @@ export function HorseProfileClient({
                 </div>
               </div>
             ) : null}
+            {healthRows.length > 0 ? (
+              <LogFilters
+                types={healthTypes}
+                selectedType={healthTypeFilter}
+                onTypeChange={setHealthTypeFilter}
+                dateRange={healthDateRange}
+                onDateRangeChange={setHealthDateRange}
+              />
+            ) : null}
             <ul className="divide-y divide-barn-dark/10">
-              {healthRows.length === 0 ? (
-                <li className="py-4 text-barn-dark/60">No health records yet.</li>
+              {filteredHealth.length === 0 ? (
+                <li className="py-4 text-barn-dark/60">
+                  {healthRows.length === 0 ? "No health records yet." : "No records match your filters."}
+                </li>
               ) : (
-                healthRows.map((h) => <HealthRecordItem key={h.id} record={h} />)
+                filteredHealth.map((h) => (
+                  <HealthRecordItem
+                    key={h.id}
+                    record={h}
+                    loggerName={h.logged_by ? (userNames?.[h.logged_by] ?? null) : null}
+                    loggerBarn={h.logged_at_barn_id ? (barnNames?.[h.logged_at_barn_id] ?? null) : null}
+                    onClick={() => setSelectedLog({ kind: "health", entry: h })}
+                  />
+                ))
               )}
             </ul>
           </div>
@@ -423,6 +543,39 @@ export function HorseProfileClient({
           </div>
         ) : null}
       </div>
+
+      {/* Log detail modal */}
+      {selectedLog ? (
+        <LogDetailModal
+          item={
+            selectedLog.kind === "activity"
+              ? { kind: "activity", entry: selectedLog.entry as ActivityLog }
+              : { kind: "health", entry: selectedLog.entry as HealthRecord }
+          }
+          media={getMediaForLog(selectedLog.kind, selectedLog.entry.id)}
+          loggerName={
+            selectedLog.kind === "activity"
+              ? ((selectedLog.entry as ActivityLog).logged_by
+                  ? userNames?.[(selectedLog.entry as ActivityLog).logged_by!] ?? null
+                  : null)
+              : ((selectedLog.entry as HealthRecord).logged_by
+                  ? userNames?.[(selectedLog.entry as HealthRecord).logged_by!] ?? null
+                  : null)
+          }
+          loggerBarn={
+            selectedLog.kind === "activity"
+              ? ((selectedLog.entry as ActivityLog).logged_at_barn_id
+                  ? barnNames?.[(selectedLog.entry as ActivityLog).logged_at_barn_id!] ?? null
+                  : null)
+              : ((selectedLog.entry as HealthRecord).logged_at_barn_id
+                  ? barnNames?.[(selectedLog.entry as HealthRecord).logged_at_barn_id!] ?? null
+                  : null)
+          }
+          onClose={() => setSelectedLog(null)}
+          canEdit={canEdit}
+          canDelete={canEdit}
+        />
+      ) : null}
     </div>
   );
 }

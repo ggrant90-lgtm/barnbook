@@ -42,7 +42,35 @@ export async function canUserAccessHorse(
     .eq("user_id", userId)
     .maybeSingle();
 
-  return !!mem;
+  if (mem) return true;
+
+  // Check if user is in a host barn with an active stay for this horse
+  const { data: stays } = await supabase
+    .from("horse_stays")
+    .select("host_barn_id")
+    .eq("horse_id", horseId)
+    .eq("status", "active");
+
+  if (stays && stays.length > 0) {
+    for (const stay of stays) {
+      const { data: hostBarn } = await supabase
+        .from("barns")
+        .select("owner_id")
+        .eq("id", stay.host_barn_id)
+        .maybeSingle();
+      if (hostBarn?.owner_id === userId) return true;
+
+      const { data: hostMem } = await supabase
+        .from("barn_members")
+        .select("id")
+        .eq("barn_id", stay.host_barn_id)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (hostMem) return true;
+    }
+  }
+
+  return false;
 }
 
 /**

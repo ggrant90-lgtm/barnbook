@@ -41,13 +41,9 @@ export async function submitHorseLogAction(
 
   const logType = t as LogType;
 
-  if (
-    logType === "exercise" ||
-    logType === "feed" ||
-    logType === "medication" ||
-    logType === "note"
-  ) {
-    const err = await insertActivity(supabase, horseId, user.id, logType, formData);
+  const activityTypes = ["exercise", "feed", "medication", "note", "breed_data"] as const;
+  if ((activityTypes as readonly string[]).includes(logType)) {
+    const err = await insertActivity(supabase, horseId, user.id, horse.barn_id, logType as "exercise" | "feed" | "medication" | "note" | "breed_data", formData);
     if (err) {
       redirect(
         `/horses/${horseId}?tab=activity&error=${encodeURIComponent(err)}`,
@@ -57,7 +53,7 @@ export async function submitHorseLogAction(
     redirect(`/horses/${horseId}?tab=activity`);
   }
 
-  const err = await insertHealth(supabase, horseId, logType, formData);
+  const err = await insertHealth(supabase, horseId, user.id, horse.barn_id, logType as "shoeing" | "worming" | "vet_visit", formData);
   if (err) {
     redirect(
       `/horses/${horseId}?tab=health&error=${encodeURIComponent(err)}`,
@@ -71,7 +67,8 @@ async function insertActivity(
   supabase: SupabaseClient<Database>,
   horseId: string,
   userId: string,
-  logType: "exercise" | "feed" | "medication" | "note",
+  barnId: string,
+  logType: "exercise" | "feed" | "medication" | "note" | "breed_data",
   formData: FormData,
 ): Promise<string | undefined> {
   let details: Json = {};
@@ -113,6 +110,38 @@ async function insertActivity(
       start_date: String(formData.get("start_date") ?? "").trim() || null,
       end_date: String(formData.get("end_date") ?? "").trim() || null,
     };
+  } else if (logType === "breed_data") {
+    notes = String(formData.get("notes") ?? "").trim() || null;
+    const breed_subtype = String(formData.get("breed_subtype") ?? "custom").trim();
+    const breedDetails: Record<string, Json | undefined> = { breed_subtype };
+
+    if (breed_subtype === "bred_ai") {
+      breedDetails.stallion_name = String(formData.get("stallion_name") ?? "").trim() || null;
+      breedDetails.breeding_method = String(formData.get("breeding_method") ?? "").trim() || null;
+    } else if (breed_subtype === "flush_embryo") {
+      breedDetails.vet = String(formData.get("vet") ?? "").trim() || null;
+      const recovered = parseInt(String(formData.get("embryos_recovered") ?? ""), 10);
+      breedDetails.embryos_recovered = Number.isNaN(recovered) ? null : recovered;
+      const viable = parseInt(String(formData.get("embryos_viable") ?? ""), 10);
+      breedDetails.embryos_viable = Number.isNaN(viable) ? null : viable;
+      breedDetails.storage_location = String(formData.get("storage_location") ?? "").trim() || null;
+    } else if (breed_subtype === "embryo_transfer") {
+      breedDetails.vet = String(formData.get("vet") ?? "").trim() || null;
+      breedDetails.recipient_mare = String(formData.get("recipient_mare") ?? "").trim() || null;
+      breedDetails.embryo_source = String(formData.get("embryo_source") ?? "").trim() || null;
+    } else if (breed_subtype === "ultrasound") {
+      breedDetails.vet = String(formData.get("vet") ?? "").trim() || null;
+      const daysBred = parseInt(String(formData.get("days_bred") ?? ""), 10);
+      breedDetails.days_bred = Number.isNaN(daysBred) ? null : daysBred;
+      breedDetails.result = String(formData.get("result") ?? "").trim() || null;
+    } else if (breed_subtype === "foaling") {
+      breedDetails.foal_sex = String(formData.get("foal_sex") ?? "").trim() || null;
+      breedDetails.foal_color = String(formData.get("foal_color") ?? "").trim() || null;
+      breedDetails.alive = formData.get("alive") === "true" || formData.get("alive") === "on";
+      breedDetails.vet = String(formData.get("vet") ?? "").trim() || null;
+    }
+    // heat_detected and custom only have notes + date
+    details = breedDetails;
   } else {
     const title = String(formData.get("title") ?? "").trim();
     notes = String(formData.get("notes") ?? "").trim() || null;
@@ -128,6 +157,7 @@ async function insertActivity(
     duration_minutes,
     speed_avg: null,
     details,
+    logged_at_barn_id: barnId,
     created_at,
   });
 
@@ -137,6 +167,8 @@ async function insertActivity(
 async function insertHealth(
   supabase: SupabaseClient<Database>,
   horseId: string,
+  userId: string,
+  barnId: string,
   logType: "shoeing" | "worming" | "vet_visit",
   formData: FormData,
 ): Promise<string | undefined> {
@@ -186,6 +218,8 @@ async function insertHealth(
     next_due_date,
     document_url: null,
     details,
+    logged_by: userId,
+    logged_at_barn_id: barnId,
   });
 
   return error?.message;

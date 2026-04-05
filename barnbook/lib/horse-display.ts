@@ -14,6 +14,18 @@ export function getActivitySummary(a: ActivityLog): string {
   if (a.activity_type === "note" && d?.title) {
     return String(d.title);
   }
+  if (a.activity_type === "breed_data" && d?.breed_subtype) {
+    const subtypeLabels: Record<string, string> = {
+      custom: "Custom Entry",
+      heat_detected: "Heat Detected",
+      bred_ai: "Bred / AI",
+      flush_embryo: "Flush / Embryo Recovery",
+      embryo_transfer: "Embryo Transfer",
+      ultrasound: "Ultrasound / Pregnancy Check",
+      foaling: "Foaling",
+    };
+    return subtypeLabels[String(d.breed_subtype)] ?? "Breed Data";
+  }
   return a.activity_type;
 }
 

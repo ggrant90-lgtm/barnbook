@@ -9,9 +9,11 @@ export type HorseCardProps = {
   href: string;
   /** Shown next to name line — default "Active" */
   statusLabel?: string;
+  /** Stay badge (e.g. "Visiting from X" or "At X") */
+  badge?: string;
 };
 
-export function HorseCard({ horse, href, statusLabel = "Active" }: HorseCardProps) {
+export function HorseCard({ horse, href, statusLabel = "Active", badge }: HorseCardProps) {
   return (
     <Link href={href} className="block transition hover:opacity-[0.98]">
       <Card padding="none" className="overflow-hidden transition hover:border-brass-gold/40">
@@ -20,8 +22,11 @@ export function HorseCard({ horse, href, statusLabel = "Active" }: HorseCardProp
           <p className="font-semibold text-barn-dark">{horse.name}</p>
           <p className="text-sm text-barn-dark/60">{horse.breed ?? "—"}</p>
           <p className="text-xs text-barn-dark/50">{horse.sex ?? "—"}</p>
-          <div className="mt-2">
+          <div className="mt-2 flex flex-wrap gap-1.5">
             <Badge variant="active">{statusLabel}</Badge>
+            {badge ? (
+              <Badge variant="pending">{badge}</Badge>
+            ) : null}
           </div>
         </div>
       </Card>
