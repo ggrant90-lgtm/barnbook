@@ -189,6 +189,32 @@ export default async function HorseProfilePage({
     }
   }
 
+  // Fetch all barns user has access to (for "Move to Barn")
+  const { data: userOwnedBarns } = await supabase
+    .from("barns")
+    .select("id, name")
+    .eq("owner_id", user.id);
+  const { data: userMemberships } = await supabase
+    .from("barn_members")
+    .select("barn_id")
+    .eq("user_id", user.id)
+    .or("status.eq.active,status.is.null");
+  const memberBarnIds = (userMemberships ?? [])
+    .map((m) => m.barn_id)
+    .filter((bid) => !(userOwnedBarns ?? []).some((b) => b.id === bid));
+  let memberBarnsForMove: { id: string; name: string }[] = [];
+  if (memberBarnIds.length > 0) {
+    const { data: mBarns } = await supabase
+      .from("barns")
+      .select("id, name")
+      .in("id", memberBarnIds);
+    memberBarnsForMove = (mBarns ?? []) as { id: string; name: string }[];
+  }
+  const allBarnsForMove = [
+    ...((userOwnedBarns ?? []) as { id: string; name: string }[]),
+    ...memberBarnsForMove,
+  ];
+
   const origin = await getOrigin();
   const profileUrl = `${origin}/horses/${horse.id}`;
   const careUrl = `${origin}/care/${horse.id}`;
@@ -212,6 +238,7 @@ export default async function HorseProfilePage({
         logMedia={logMedia}
         userNames={userNames}
         barnNames={barnNames}
+        allBarns={allBarnsForMove}
       />
     </Suspense>
   );

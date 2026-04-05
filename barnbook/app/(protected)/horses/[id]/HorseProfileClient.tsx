@@ -1,6 +1,7 @@
 "use client";
 
 import { updateHorseAction } from "@/app/(protected)/actions/horse";
+import { moveHorseAction } from "@/app/(protected)/actions/move-horse";
 import { ActivityEntry } from "@/components/ActivityEntry";
 import { CareCard } from "@/components/CareCard";
 import { HealthRecordItem } from "@/components/HealthRecord";
@@ -46,6 +47,7 @@ export function HorseProfileClient({
   logMedia,
   userNames,
   barnNames,
+  allBarns,
 }: {
   horse: Horse;
   canEdit: boolean;
@@ -62,6 +64,7 @@ export function HorseProfileClient({
   logMedia?: LogMedia[];
   userNames?: Record<string, string>;
   barnNames?: Record<string, string>;
+  allBarns?: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const { show } = useToast();
@@ -73,6 +76,8 @@ export function HorseProfileClient({
     kind: "activity" | "health";
     entry: ActivityLog | HealthRecord;
   } | null>(null);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [moving, setMoving] = useState(false);
   const [activityTypeFilter, setActivityTypeFilter] = useState<string | null>(null);
   const [activityDateRange, setActivityDateRange] = useState("all");
   const [healthTypeFilter, setHealthTypeFilter] = useState<string | null>(null);
@@ -141,6 +146,24 @@ export function HorseProfileClient({
     setEditing(false);
   }
 
+  async function handleMove(targetBarnId: string) {
+    setMoving(true);
+    const result = await moveHorseAction(horse.id, targetBarnId);
+    setMoving(false);
+    if (result?.error) {
+      show(result.error, "error");
+    } else {
+      show("Horse moved successfully.", "success");
+      setShowMoveModal(false);
+      router.refresh();
+    }
+  }
+
+  const otherBarns = useMemo(
+    () => (allBarns ?? []).filter((b) => b.id !== horse.barn_id),
+    [allBarns, horse.barn_id],
+  );
+
   const filterByDate = useCallback((date: string, range: string) => {
     if (range === "all") return true;
     const d = new Date(date);
@@ -208,16 +231,30 @@ export function HorseProfileClient({
         </div>
         <div className="flex items-center gap-2">
           {canEdit && !editing ? (
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-brass-gold bg-brass-gold px-4 py-2.5 text-sm font-medium text-barn-dark shadow hover:brightness-110 transition-all"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-              Edit Horse
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-brass-gold bg-brass-gold px-4 py-2.5 text-sm font-medium text-barn-dark shadow hover:brightness-110 transition-all"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+                Edit Horse
+              </button>
+              {otherBarns.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowMoveModal(true)}
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-barn-dark/20 bg-white px-4 py-2.5 text-sm font-medium text-barn-dark shadow hover:border-brass-gold transition-all"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                  </svg>
+                  Move
+                </button>
+              ) : null}
+            </div>
           ) : null}
           <Badge variant="pending">Biometric ID — coming soon</Badge>
         </div>
@@ -543,6 +580,41 @@ export function HorseProfileClient({
           </div>
         ) : null}
       </div>
+
+      {/* Move horse modal */}
+      {showMoveModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowMoveModal(false)}>
+          <div className="fixed inset-0 bg-black/40" />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-serif text-lg font-semibold text-barn-dark">Move {horse.name}</h3>
+            <p className="mt-1 text-sm text-barn-dark/60">Select which barn to move this horse to.</p>
+            <ul className="mt-4 space-y-2">
+              {otherBarns.map((barn) => (
+                <li key={barn.id}>
+                  <button
+                    type="button"
+                    disabled={moving}
+                    onClick={() => handleMove(barn.id)}
+                    className="flex w-full items-center justify-between rounded-xl border border-barn-dark/15 bg-parchment/50 px-4 py-3 text-left text-sm font-medium text-barn-dark transition hover:border-brass-gold hover:bg-brass-gold/10 disabled:opacity-50"
+                  >
+                    <span>{barn.name}</span>
+                    <svg className="h-4 w-4 text-barn-dark/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              onClick={() => setShowMoveModal(false)}
+              className="mt-4 w-full rounded-xl border border-barn-dark/20 bg-white px-4 py-2.5 text-sm font-medium text-barn-dark hover:border-brass-gold"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/* Log detail modal */}
       {selectedLog ? (
