@@ -402,6 +402,7 @@ export function HorseProfileClient({
                     defaultValue={horse.foal_date?.slice(0, 10) ?? ""}
                     disabled={fieldsDisabled}
                   />
+                  <Input label="Owner" name="owner_name" defaultValue={horse.owner_name ?? ""} disabled={fieldsDisabled} />
                   <Input label="Sire" name="sire" defaultValue={horse.sire ?? ""} disabled={fieldsDisabled} />
                   <Input label="Dam" name="dam" defaultValue={horse.dam ?? ""} disabled={fieldsDisabled} />
                   <Input

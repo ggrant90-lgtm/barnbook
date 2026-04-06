@@ -141,6 +141,7 @@ export interface Horse {
   sex: string | null;
   color: string | null;
   foal_date: string | null;
+  owner_name: string | null;
   sire: string | null;
   dam: string | null;
   registration_number: string | null;
@@ -376,6 +377,7 @@ export type HorseInsert = {
   sex?: string | null;
   color?: string | null;
   foal_date?: string | null;
+  owner_name?: string | null;
   sire?: string | null;
   dam?: string | null;
   registration_number?: string | null;

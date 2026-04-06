@@ -14,7 +14,7 @@ import { getLogTypeColor } from "@/lib/logTypeColors";
 type ReportType = ReportParams["reportType"];
 
 interface BarnMember { id: string; name: string; role: string }
-interface BarnHorse { id: string; name: string; breed: string | null }
+interface BarnHorse { id: string; name: string; breed: string | null; owner_name: string | null }
 
 const REPORT_TYPES: { key: ReportType; label: string; desc: string; icon: string }[] = [
   { key: "horse_summary", label: "Horse Summary", desc: "Activity, costs, and history for one or more horses", icon: "🐴" },
@@ -294,12 +294,45 @@ export function ReportsClient({
                 {selectedType === "owner_statement" && (
                   <>
                     <div>
-                      <label className="mb-1.5 block text-sm text-barn-dark/75">Bill to (name)</label>
-                      <input value={billToName} onChange={(e) => setBillToName(e.target.value)} className={inputClass} placeholder="Horse owner name" />
+                      <label className="mb-1.5 block text-sm text-barn-dark/75">Horse Owner</label>
+                      <select
+                        value={billToName}
+                        onChange={(e) => {
+                          const ownerName = e.target.value;
+                          setBillToName(ownerName);
+                          // Auto-select horses belonging to this owner
+                          if (ownerName) {
+                            const ownerHorseIds = barnHorses
+                              .filter((h) => h.owner_name === ownerName)
+                              .map((h) => h.id);
+                            if (ownerHorseIds.length > 0) setHorseIds(ownerHorseIds);
+                          } else {
+                            setHorseIds([]);
+                          }
+                        }}
+                        className={inputClass}
+                      >
+                        <option value="">Select an owner...</option>
+                        {[...new Set(barnHorses.map((h) => h.owner_name).filter(Boolean))].map((name) => (
+                          <option key={name} value={name!}>{name}</option>
+                        ))}
+                        <option value="__custom__">Other (type manually)...</option>
+                      </select>
                     </div>
+                    {billToName === "__custom__" && (
+                      <div>
+                        <label className="mb-1.5 block text-sm text-barn-dark/75">Bill to (name)</label>
+                        <input
+                          value=""
+                          onChange={(e) => setBillToName(e.target.value)}
+                          className={inputClass}
+                          placeholder="Enter owner name"
+                        />
+                      </div>
+                    )}
                     <div>
                       <label className="mb-1.5 block text-sm text-barn-dark/75">Bill to (address)</label>
-                      <input value={billToAddress} onChange={(e) => setBillToAddress(e.target.value)} className={inputClass} placeholder="Address" />
+                      <input value={billToAddress} onChange={(e) => setBillToAddress(e.target.value)} className={inputClass} placeholder="Address (optional)" />
                     </div>
                   </>
                 )}

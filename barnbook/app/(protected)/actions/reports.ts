@@ -79,12 +79,13 @@ export async function generateReportData(params: ReportParams): Promise<ReportDa
   // Get horses in this barn
   const { data: barnHorses } = await supabase
     .from("horses")
-    .select("id, name")
+    .select("id, name, owner_name")
     .eq("barn_id", params.barnId)
     .eq("archived", false);
 
   const allHorseIds = (barnHorses ?? []).map((h) => h.id);
   const horseNameMap = new Map((barnHorses ?? []).map((h) => [h.id, h.name]));
+  const horseOwnerMap = new Map((barnHorses ?? []).map((h) => [h.id, (h as { owner_name?: string }).owner_name ?? null]));
 
   const targetHorseIds = params.horseIds?.length
     ? params.horseIds.filter((id) => allHorseIds.includes(id))
@@ -371,9 +372,9 @@ export async function getBarnHorses(barnId: string) {
   const supabase = await createServerComponentClient();
   const { data } = await supabase
     .from("horses")
-    .select("id, name, breed")
+    .select("id, name, breed, owner_name")
     .eq("barn_id", barnId)
     .eq("archived", false)
     .order("name");
-  return data ?? [];
+  return (data ?? []) as { id: string; name: string; breed: string | null; owner_name: string | null }[];
 }
