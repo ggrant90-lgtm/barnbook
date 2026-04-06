@@ -1,3 +1,4 @@
+import { InstallPrompt } from "@/components/InstallPrompt";
 import { ProtectedChrome } from "@/components/protected/ProtectedChrome";
 import { getActiveBarnContext } from "@/lib/barn-session";
 import { createServerComponentClient } from "@/lib/supabase-server";
@@ -82,6 +83,7 @@ export default async function ProtectedLayout({
       allBarns={allBarns.map((b) => ({ id: b.id, name: b.name, barn_type: b.barn_type }))}
       activeBarnId={activeBarn?.id ?? null}
     >
+      <InstallPrompt />
       {children}
     </ProtectedChrome>
   );

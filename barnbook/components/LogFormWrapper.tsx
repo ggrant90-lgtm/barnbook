@@ -233,6 +233,7 @@ export function LogFormWrapper({
           ref={inputRef}
           type="file"
           accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/x-m4v"
+          capture="environment"
           multiple
           className="hidden"
           onChange={handleFileChange}

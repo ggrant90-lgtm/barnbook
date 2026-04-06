@@ -6,6 +6,9 @@ function isProtectedPath(pathname: string): boolean {
   // /care/* is the public care card — always allow unauthenticated access
   if (pathname === "/care" || pathname.startsWith("/care/")) return false;
 
+  // /offline is the PWA offline fallback — always allow
+  if (pathname === "/offline") return false;
+
   // /barn/{id} is the public barn profile — allow unauthenticated access
   // But /barn/new and /barn/{id}/edit are protected
   if (pathname.startsWith("/barn/") && pathname !== "/barn/new" && !pathname.endsWith("/edit")) return false;

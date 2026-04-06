@@ -4,6 +4,12 @@
   --background: #1a1207;
   --foreground: #f5f0e8;
 
+  /* Safe area insets for iPhone notch / dynamic island */
+  --safe-area-inset-top: env(safe-area-inset-top);
+  --safe-area-inset-right: env(safe-area-inset-right);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom);
+  --safe-area-inset-left: env(safe-area-inset-left);
+
   /* Landing page palette */
   --cream: #f5efe4;
   --cream-warm: #ede3d1;
@@ -75,6 +81,14 @@
   z-index: 2;
   mix-blend-mode: multiply;
   opacity: 0.08;
+}
+
+/* PWA: Safe area padding for iPhone notch/dynamic island */
+@supports (padding-top: env(safe-area-inset-top)) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }
 
 .landing-page {

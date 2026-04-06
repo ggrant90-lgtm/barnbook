@@ -159,6 +159,7 @@ export default function NewHorsePage() {
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp"
+            capture="environment"
             className="text-sm text-barn-dark"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />

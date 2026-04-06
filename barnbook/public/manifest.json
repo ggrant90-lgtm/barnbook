@@ -1,0 +1,56 @@
+{
+  "name": "BarnBook",
+  "short_name": "BarnBook",
+  "description": "Every horse. Every professional. One book.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5efe4",
+  "theme_color": "#2a4031",
+  "categories": ["productivity", "business", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "My Barns",
+      "short_name": "Barns",
+      "description": "View your barns",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icons/shortcut-barns.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Calendar",
+      "short_name": "Calendar",
+      "description": "Today's schedule",
+      "url": "/calendar",
+      "icons": [{ "src": "/icons/shortcut-calendar.png", "sizes": "96x96" }]
+    }
+  ]
+}
