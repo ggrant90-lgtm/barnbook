@@ -1,6 +1,6 @@
 import { canUserAccessHorse, canUserEditHorse } from "@/lib/horse-access";
 import { createServerComponentClient } from "@/lib/supabase-server";
-import type { ActivityLog, HealthRecord, Horse, HorseStay, LogMedia } from "@/lib/types";
+import type { ActivityLog, HealthRecord, Horse, HorseStay, LogMedia, LogEntryLineItem } from "@/lib/types";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -154,6 +154,17 @@ export default async function HorseProfilePage({
     logMedia = (mediaRaw ?? []) as LogMedia[];
   }
 
+  // Fetch line items for all logs
+  let logLineItems: LogEntryLineItem[] = [];
+  if (allLogIds.length > 0) {
+    const { data: liRaw } = await supabase
+      .from("log_entry_line_items")
+      .select("*")
+      .in("log_id", allLogIds)
+      .order("sort_order", { ascending: true });
+    logLineItems = (liRaw ?? []) as LogEntryLineItem[];
+  }
+
   // Build user name and barn name lookup maps for provenance
   const allUserIds = new Set<string>();
   const allBarnIds = new Set<string>();
@@ -236,6 +247,7 @@ export default async function HorseProfilePage({
         lastWorming={lastWorming}
         activeStay={activeStay}
         logMedia={logMedia}
+        lineItems={logLineItems}
         userNames={userNames}
         barnNames={barnNames}
         allBarns={allBarnsForMove}

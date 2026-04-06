@@ -16,7 +16,8 @@ import { Tabs } from "@/components/ui/Tabs";
 import { useToast } from "@/components/ui/Toast";
 import { HORSE_BREEDS, HORSE_SEX_OPTIONS } from "@/lib/horse-form-constants";
 import { uploadHorseProfilePhoto } from "@/lib/horse-photo";
-import type { ActivityLog, HealthRecord, Horse, HorseStay, LogMedia } from "@/lib/types";
+import { LogSummaryBar } from "@/components/LogSummaryBar";
+import type { ActivityLog, HealthRecord, Horse, HorseStay, LogMedia, LogEntryLineItem } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -45,6 +46,7 @@ export function HorseProfileClient({
   lastWorming,
   activeStay,
   logMedia,
+  lineItems,
   userNames,
   barnNames,
   allBarns,
@@ -62,6 +64,7 @@ export function HorseProfileClient({
   lastWorming?: HealthRecord | null;
   activeStay?: HorseStay | null;
   logMedia?: LogMedia[];
+  lineItems?: LogEntryLineItem[];
   userNames?: Record<string, string>;
   barnNames?: Record<string, string>;
   allBarns?: { id: string; name: string }[];
@@ -212,6 +215,52 @@ export function HorseProfileClient({
       (logMedia ?? []).filter((m) => m.log_type === logType && m.log_id === logId),
     [logMedia],
   );
+
+  const getLineItemsForLog = useCallback(
+    (logType: "activity" | "health", logId: string) =>
+      (lineItems ?? []).filter((li) => li.log_type === logType && li.log_id === logId),
+    [lineItems],
+  );
+
+  const getPerformerInfo = useCallback(
+    (entry: ActivityLog | HealthRecord) => {
+      if (entry.performed_by_name) return { name: entry.performed_by_name, role: null };
+      if (entry.performed_by_user_id && userNames?.[entry.performed_by_user_id]) {
+        return { name: userNames[entry.performed_by_user_id], role: null };
+      }
+      return { name: null, role: null };
+    },
+    [userNames],
+  );
+
+  // Summary stats for filtered entries
+  const activitySummary = useMemo(() => {
+    const entries = filteredActivities;
+    const totalCost = entries.reduce((s, a) => s + (a.total_cost ?? 0), 0);
+    const dates = entries
+      .map((a) => a.performed_at ?? a.created_at)
+      .filter(Boolean)
+      .sort();
+    return {
+      count: entries.length,
+      totalCost: totalCost > 0 ? totalCost : null,
+      dateRange: dates.length > 0 ? { earliest: dates[0], latest: dates[dates.length - 1] } : null,
+    };
+  }, [filteredActivities]);
+
+  const healthSummary = useMemo(() => {
+    const entries = filteredHealth;
+    const totalCost = entries.reduce((s, h) => s + (h.total_cost ?? 0), 0);
+    const dates = entries
+      .map((h) => h.performed_at ?? h.record_date)
+      .filter(Boolean)
+      .sort();
+    return {
+      count: entries.length,
+      totalCost: totalCost > 0 ? totalCost : null,
+      dateRange: dates.length > 0 ? { earliest: dates[0], latest: dates[dates.length - 1] } : null,
+    };
+  }, [filteredHealth]);
 
   /** Fields are disabled unless user has permission AND is in edit mode */
   const fieldsDisabled = !editing;
@@ -489,6 +538,11 @@ export function HorseProfileClient({
                 onDateRangeChange={setActivityDateRange}
               />
             ) : null}
+            <LogSummaryBar
+              entryCount={activitySummary.count}
+              totalCost={activitySummary.totalCost}
+              dateRange={activitySummary.dateRange}
+            />
             <ul className="divide-y divide-barn-dark/10">
               {filteredActivities.length === 0 ? (
                 <li className="py-4 text-barn-dark/60">
@@ -536,6 +590,11 @@ export function HorseProfileClient({
                 onDateRangeChange={setHealthDateRange}
               />
             ) : null}
+            <LogSummaryBar
+              entryCount={healthSummary.count}
+              totalCost={healthSummary.totalCost}
+              dateRange={healthSummary.dateRange}
+            />
             <ul className="divide-y divide-barn-dark/10">
               {filteredHealth.length === 0 ? (
                 <li className="py-4 text-barn-dark/60">
@@ -625,6 +684,9 @@ export function HorseProfileClient({
               : { kind: "health", entry: selectedLog.entry as HealthRecord }
           }
           media={getMediaForLog(selectedLog.kind, selectedLog.entry.id)}
+          lineItems={getLineItemsForLog(selectedLog.kind, selectedLog.entry.id)}
+          performerName={getPerformerInfo(selectedLog.entry).name}
+          performerRole={getPerformerInfo(selectedLog.entry).role}
           loggerName={
             selectedLog.kind === "activity"
               ? ((selectedLog.entry as ActivityLog).logged_by

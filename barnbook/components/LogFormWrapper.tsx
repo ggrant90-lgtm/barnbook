@@ -4,6 +4,8 @@ import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { uploadLogMedia } from "@/lib/log-media";
+import { PerformedBySelect } from "./PerformedBySelect";
+import { CostInput } from "./CostInput";
 
 interface MediaFile {
   file: File;
@@ -11,11 +13,19 @@ interface MediaFile {
   type: "photo" | "video";
 }
 
+interface BarnMember {
+  id: string;
+  name: string;
+  role: string;
+}
+
 export function LogFormWrapper({
   horseId,
   logType,
   redirectTab,
   createLogAction,
+  barnMembers,
+  currentUserId,
   children,
 }: {
   horseId: string;
@@ -26,6 +36,8 @@ export function LogFormWrapper({
     logType: string,
     formData: FormData,
   ) => Promise<{ id: string; error?: string } | { id?: never; error: string }>;
+  barnMembers: BarnMember[];
+  currentUserId: string;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -134,6 +146,36 @@ export function LogFormWrapper({
   return (
     <form onSubmit={handleSubmit} className="mt-8 space-y-4">
       {children}
+
+      {/* ── Who / When / Cost ── */}
+      <div className="space-y-4 rounded-xl border border-barn-dark/10 bg-parchment/30 p-4">
+        <div className="text-xs font-medium uppercase tracking-wider text-barn-dark/40">
+          Details
+        </div>
+
+        {/* Who */}
+        <PerformedBySelect
+          barnMembers={barnMembers}
+          currentUserId={currentUserId}
+        />
+
+        {/* When — performed_at datetime */}
+        <div>
+          <label htmlFor="performed_at" className="mb-1.5 block text-sm text-barn-dark/75">
+            Performed at
+          </label>
+          <input
+            id="performed_at"
+            name="performed_at"
+            type="datetime-local"
+            defaultValue={new Date().toISOString().slice(0, 16)}
+            className="w-full rounded-xl border border-barn-dark/15 bg-white px-4 py-3 text-barn-dark outline-none focus:border-brass-gold focus:ring-2 focus:ring-brass-gold/25"
+          />
+        </div>
+
+        {/* Cost */}
+        <CostInput />
+      </div>
 
       {/* Media upload section */}
       <div className="space-y-3">

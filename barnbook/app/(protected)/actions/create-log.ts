@@ -11,6 +11,37 @@ function todayISODate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** Extract the Who/When/Cost CRM fields from FormData */
+function extractCrmFields(formData: FormData) {
+  const performed_by_user_id =
+    String(formData.get("performed_by_user_id") ?? "").trim() || null;
+  const performed_by_name =
+    String(formData.get("performed_by_name") ?? "").trim() || null;
+  const performedAtRaw = String(formData.get("performed_at") ?? "").trim();
+  const performed_at = performedAtRaw
+    ? new Date(performedAtRaw).toISOString()
+    : new Date().toISOString();
+  const totalCostRaw = String(formData.get("total_cost") ?? "").trim();
+  const total_cost = totalCostRaw ? parseFloat(totalCostRaw) : null;
+
+  return { performed_by_user_id, performed_by_name, performed_at, total_cost };
+}
+
+/** Extract line items from FormData (line_item_desc_0, line_item_amt_0, etc.) */
+function extractLineItems(formData: FormData): { description: string; amount: number }[] {
+  const items: { description: string; amount: number }[] = [];
+  for (let i = 0; i < 50; i++) {
+    const desc = String(formData.get(`line_item_desc_${i}`) ?? "").trim();
+    const amtRaw = String(formData.get(`line_item_amt_${i}`) ?? "").trim();
+    if (!desc && !amtRaw) break;
+    const amt = parseFloat(amtRaw);
+    if (desc && !Number.isNaN(amt) && amt > 0) {
+      items.push({ description: desc, amount: amt });
+    }
+  }
+  return items;
+}
+
 /**
  * Creates a log entry and returns the ID (no redirect).
  * Used by the client-side LogFormWrapper for media upload flow.
@@ -46,6 +77,9 @@ export async function createLogAction(
   const activityTypes = ["exercise", "feed", "medication", "note", "breed_data"] as const;
 
   if ((activityTypes as readonly string[]).includes(logType)) {
+    const crm = extractCrmFields(formData);
+    const lineItems = extractLineItems(formData);
+
     const result = await insertActivity(
       supabase,
       horseId,
@@ -53,11 +87,30 @@ export async function createLogAction(
       horse.barn_id,
       logType as "exercise" | "feed" | "medication" | "note" | "breed_data",
       formData,
+      crm,
     );
     if (result.error) return { error: result.error };
+
+    // Insert line items if any
+    if (lineItems.length > 0 && result.id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("log_entry_line_items").insert(
+        lineItems.map((li, i) => ({
+          log_type: "activity",
+          log_id: result.id!,
+          description: li.description,
+          amount: li.amount,
+          sort_order: i,
+        })),
+      );
+    }
+
     revalidatePath(`/horses/${horseId}`);
     return { id: result.id! };
   }
+
+  const crm = extractCrmFields(formData);
+  const lineItems = extractLineItems(formData);
 
   const result = await insertHealth(
     supabase,
@@ -66,8 +119,24 @@ export async function createLogAction(
     horse.barn_id,
     logType as "shoeing" | "worming" | "vet_visit",
     formData,
+    crm,
   );
   if (result.error) return { error: result.error };
+
+  // Insert line items if any
+  if (lineItems.length > 0 && result.id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from("log_entry_line_items").insert(
+      lineItems.map((li, i) => ({
+        log_type: "health",
+        log_id: result.id!,
+        description: li.description,
+        amount: li.amount,
+        sort_order: i,
+      })),
+    );
+  }
+
   revalidatePath(`/horses/${horseId}`);
   return { id: result.id! };
 }
@@ -79,6 +148,7 @@ async function insertActivity(
   barnId: string,
   logType: "exercise" | "feed" | "medication" | "note" | "breed_data",
   formData: FormData,
+  crm: { performed_by_user_id: string | null; performed_by_name: string | null; performed_at: string; total_cost: number | null },
 ): Promise<{ id: string; error?: string } | { id?: never; error: string }> {
   let details: Json = {};
   let notes: string | null = null;
@@ -164,6 +234,10 @@ async function insertActivity(
       details,
       logged_at_barn_id: barnId,
       created_at,
+      performed_by_user_id: crm.performed_by_user_id,
+      performed_by_name: crm.performed_by_name,
+      performed_at: crm.performed_at,
+      total_cost: crm.total_cost,
     })
     .select("id")
     .single();
@@ -179,6 +253,7 @@ async function insertHealth(
   barnId: string,
   logType: "shoeing" | "worming" | "vet_visit",
   formData: FormData,
+  crm: { performed_by_user_id: string | null; performed_by_name: string | null; performed_at: string; total_cost: number | null },
 ): Promise<{ id: string; error?: string } | { id?: never; error: string }> {
   const record_date = String(formData.get("record_date") ?? "").trim() || todayISODate();
   let record_type = "";
@@ -229,6 +304,10 @@ async function insertHealth(
       details,
       logged_by: userId,
       logged_at_barn_id: barnId,
+      performed_by_user_id: crm.performed_by_user_id,
+      performed_by_name: crm.performed_by_name,
+      performed_at: crm.performed_at,
+      total_cost: crm.total_cost,
     })
     .select("id")
     .single();

@@ -161,6 +161,10 @@ export interface ActivityLog {
   logged_at_barn_id: string | null;
   updated_at: string | null;
   updated_by_user_id: string | null;
+  performed_by_user_id: string | null;
+  performed_by_name: string | null;
+  performed_at: string | null;
+  total_cost: number | null;
   created_at: string;
 }
 
@@ -180,6 +184,21 @@ export interface HealthRecord {
   logged_at_barn_id: string | null;
   updated_at: string | null;
   updated_by_user_id: string | null;
+  performed_by_user_id: string | null;
+  performed_by_name: string | null;
+  performed_at: string | null;
+  total_cost: number | null;
+  created_at: string;
+}
+
+/** public.log_entry_line_items */
+export interface LogEntryLineItem {
+  id: string;
+  log_type: "activity" | "health";
+  log_id: string;
+  description: string;
+  amount: number;
+  sort_order: number;
   created_at: string;
 }
 

@@ -51,6 +51,36 @@ export default async function HorseLogPage({
     redirect(`/horses/${horseId}?error=no_permission`);
   }
 
+  // Fetch barn members for "Performed by" dropdown
+  const { data: barnMembers } = await supabase
+    .from("barn_members")
+    .select("user_id, role")
+    .eq("barn_id", horse.barn_id)
+    .or("status.eq.active,status.is.null");
+
+  const memberIds = [...new Set((barnMembers ?? []).map((m) => m.user_id))];
+  let memberProfiles: { id: string; full_name: string | null }[] = [];
+  if (memberIds.length > 0) {
+    const { data: mp } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", memberIds);
+    memberProfiles = mp ?? [];
+  }
+
+  const nameByUser = new Map(
+    memberProfiles.map((p) => [p.id, p.full_name?.trim() || "Member"]),
+  );
+  const roleByUser = new Map(
+    (barnMembers ?? []).map((m) => [m.user_id, m.role]),
+  );
+
+  const barnMembersList = memberIds.map((id) => ({
+    id,
+    name: nameByUser.get(id) ?? "Member",
+    role: roleByUser.get(id) ?? "member",
+  }));
+
   const tab =
     logType === "shoeing" || logType === "worming" || logType === "vet_visit"
       ? "health"
@@ -73,6 +103,8 @@ export default async function HorseLogPage({
         logType={logType}
         redirectTab={tab}
         createLogAction={createLogAction}
+        barnMembers={barnMembersList}
+        currentUserId={user.id}
       >
         {(logType === "exercise" ||
           logType === "feed" ||

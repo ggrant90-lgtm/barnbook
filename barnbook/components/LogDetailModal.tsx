@@ -3,16 +3,28 @@
 import { logTypeLabel } from "@/lib/horse-form-constants";
 import { getActivitySummary, getHealthSummary } from "@/lib/horse-display";
 import { formatDateTime, formatDateShort } from "@/lib/format-date";
-import type { ActivityLog, HealthRecord, LogMedia } from "@/lib/types";
+import type { ActivityLog, HealthRecord, LogMedia, LogEntryLineItem } from "@/lib/types";
 import { useCallback, useEffect } from "react";
 
 type LogItem =
   | { kind: "activity"; entry: ActivityLog }
   | { kind: "health"; entry: HealthRecord };
 
+function formatCurrency(val: number): string {
+  return val.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 interface LogDetailModalProps {
   item: LogItem;
   media: LogMedia[];
+  lineItems?: LogEntryLineItem[];
+  performerName?: string | null;
+  performerRole?: string | null;
   loggerName?: string | null;
   loggerBarn?: string | null;
   onClose: () => void;
@@ -24,6 +36,9 @@ interface LogDetailModalProps {
 export function LogDetailModal({
   item,
   media,
+  lineItems,
+  performerName,
+  performerRole,
   loggerName,
   loggerBarn,
   onClose,
@@ -91,6 +106,55 @@ export function LogDetailModal({
             ? getActivitySummary(entry as ActivityLog)
             : getHealthSummary(entry as HealthRecord)}
         </p>
+
+        {/* Performed by / Performed at */}
+        {(performerName || entry.performed_at) && (
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {performerName && (
+              <span className="text-barn-dark/70">
+                <span className="text-barn-dark/40">By:</span>{" "}
+                {performerName}
+                {performerRole ? (
+                  <span className="text-barn-dark/40"> ({performerRole})</span>
+                ) : null}
+              </span>
+            )}
+            {entry.performed_at && (
+              <span className="text-barn-dark/70">
+                <span className="text-barn-dark/40">At:</span>{" "}
+                {formatDateTime(entry.performed_at)}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Cost */}
+        {entry.total_cost != null && entry.total_cost > 0 && (
+          <div className="mt-3 rounded-lg border border-brass-gold/20 bg-brass-gold/5 p-3">
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs font-medium uppercase tracking-wider text-barn-dark/40">
+                Cost
+              </span>
+              <span className="text-lg font-semibold text-barn-dark">
+                {formatCurrency(entry.total_cost)}
+              </span>
+            </div>
+            {lineItems && lineItems.length > 0 && (
+              <div className="mt-2 space-y-1 border-t border-barn-dark/10 pt-2">
+                {lineItems.map((li, i) => (
+                  <div key={li.id} className="flex justify-between text-sm">
+                    <span className="text-barn-dark/60">
+                      {i < lineItems.length - 1 ? "├" : "└"} {li.description}
+                    </span>
+                    <span className="text-barn-dark/80">
+                      {formatCurrency(li.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Full notes */}
         {notes ? (
