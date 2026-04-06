@@ -32,7 +32,9 @@ function SignUpForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [consentError, setConsentError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -57,6 +59,12 @@ function SignUpForm() {
       setError("Passwords do not match.");
       return;
     }
+    if (!agreedToTerms) {
+      setConsentError(true);
+      setError("You must agree to the Terms of Service and Privacy Policy.");
+      return;
+    }
+    setConsentError(false);
 
     setLoading(true);
     const origin = window.location.origin;
@@ -75,6 +83,23 @@ function SignUpForm() {
     if (signUpError) {
       setError(mapAuthError(signUpError.message));
       return;
+    }
+
+    // Record consent (non-blocking — don't fail signup if this fails)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
+      if (userId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any).from("user_consents").insert({
+          user_id: userId,
+          terms_version: "2026-04-06",
+          privacy_version: "2026-04-06",
+          user_agent: navigator.userAgent,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to record consent:", err);
     }
 
     setSuccess(true);
@@ -185,6 +210,55 @@ function SignUpForm() {
           </div>
         </div>
 
+        {/* Terms consent checkbox */}
+        <div className="mt-5">
+          <label
+            htmlFor="consent"
+            className="flex items-start gap-3 cursor-pointer"
+          >
+            <input
+              id="consent"
+              type="checkbox"
+              checked={agreedToTerms}
+              onChange={(e) => {
+                setAgreedToTerms(e.target.checked);
+                if (e.target.checked) setConsentError(false);
+              }}
+              aria-describedby={consentError ? "consent-error" : undefined}
+              className="mt-1 h-4 w-4 shrink-0 rounded border-brass-gold/40 bg-barn-dark text-brass-gold accent-brass-gold focus:ring-2 focus:ring-brass-gold/30"
+            />
+            <span className="text-sm text-muted-tan leading-relaxed">
+              I agree to the{" "}
+              <a
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-brass-gold underline-offset-2 hover:underline"
+              >
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-brass-gold underline-offset-2 hover:underline"
+              >
+                Privacy Policy
+              </a>
+            </span>
+          </label>
+          {consentError && (
+            <p
+              id="consent-error"
+              className="mt-1.5 ml-7 text-xs text-barn-red"
+              role="alert"
+            >
+              You must agree to continue
+            </p>
+          )}
+        </div>
+
         {error ? (
           <p
             className="mt-4 rounded-lg border border-barn-red/40 bg-barn-red/15 px-3 py-2 text-sm text-parchment"
@@ -196,8 +270,8 @@ function SignUpForm() {
 
         <button
           type="submit"
-          disabled={loading}
-          className="mt-6 flex min-h-[48px] w-full items-center justify-center rounded-xl bg-brass-gold px-4 py-3.5 font-medium text-barn-dark shadow-md transition hover:brightness-110 disabled:opacity-50"
+          disabled={loading || !agreedToTerms}
+          className="mt-6 flex min-h-[48px] w-full items-center justify-center rounded-xl bg-brass-gold px-4 py-3.5 font-medium text-barn-dark shadow-md transition hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? "Creating account…" : "Sign up"}
         </button>

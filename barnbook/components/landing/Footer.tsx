@@ -41,15 +41,15 @@ export default function Footer() {
             </div>
             <div>
               <h4 className="text-cream text-[13px] font-semibold uppercase tracking-[0.06em] mb-3.5">Legal</h4>
-              <a href="#" className="block text-sm mb-2 no-underline transition-colors hover:text-cream" style={{ color: "rgba(245, 239, 228, 0.6)" }}>Privacy</a>
-              <a href="#" className="block text-sm mb-2 no-underline transition-colors hover:text-cream" style={{ color: "rgba(245, 239, 228, 0.6)" }}>Terms</a>
+              <Link href="/privacy" className="block text-sm mb-2 no-underline transition-colors hover:text-cream" style={{ color: "rgba(245, 239, 228, 0.6)" }}>Privacy Policy</Link>
+              <Link href="/terms" className="block text-sm mb-2 no-underline transition-colors hover:text-cream" style={{ color: "rgba(245, 239, 228, 0.6)" }}>Terms of Service</Link>
             </div>
           </div>
         </div>
 
         {/* Bottom bar */}
         <div className="mt-12 pt-6 flex justify-between flex-wrap gap-3 text-[13px]" style={{ borderTop: "1px solid rgba(245, 239, 228, 0.1)", color: "rgba(245, 239, 228, 0.5)" }}>
-          <div>&copy; 2026 BarnBook. Made with care for horse people.</div>
+          <div>&copy; 2026 BarnBook. All rights reserved.</div>
           <div>Prescott, Arizona</div>
         </div>
       </div>

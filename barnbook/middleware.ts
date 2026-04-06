@@ -9,6 +9,9 @@ function isProtectedPath(pathname: string): boolean {
   // /offline is the PWA offline fallback — always allow
   if (pathname === "/offline") return false;
 
+  // Legal pages are public
+  if (pathname === "/terms" || pathname === "/privacy") return false;
+
   // /barn/{id} is the public barn profile — allow unauthenticated access
   // But /barn/new and /barn/{id}/edit are protected
   if (pathname.startsWith("/barn/") && pathname !== "/barn/new" && !pathname.endsWith("/edit")) return false;
