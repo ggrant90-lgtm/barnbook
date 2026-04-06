@@ -1,6 +1,7 @@
 import { HorseCard } from "@/components/HorseCard";
 import { HorsePhoto } from "@/components/HorsePhoto";
 import { getActiveBarnId } from "@/lib/barn-session";
+import { getTodayAndUpcoming } from "@/app/(protected)/actions/calendar";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import type { ActivityLog, Barn, Horse } from "@/lib/types";
 import Link from "next/link";
@@ -148,6 +149,12 @@ export default async function DashboardPage() {
     }
   }
 
+  // Fetch today's schedule for the TodayWidget
+  let todayEvents: Awaited<ReturnType<typeof getTodayAndUpcoming>> = { today: [], upcoming: [] };
+  if (primaryBarn) {
+    todayEvents = await getTodayAndUpcoming(primaryBarn.id);
+  }
+
   // Fetch horses for each access barn
   const accessBarnHorses: Record<string, Pick<Horse, "id" | "name" | "breed" | "photo_url">[]> = {};
   if (accessBarnIds.length > 0) {
@@ -175,6 +182,8 @@ export default async function DashboardPage() {
       activeKeys={activeKeys}
       pendingRequests={pendingRequests}
       recentActivity={recentActivity}
+      todayEvents={todayEvents.today}
+      upcomingEvents={todayEvents.upcoming}
     />
   );
 }

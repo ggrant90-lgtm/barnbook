@@ -4,6 +4,8 @@ import { CapacityBar } from "@/components/CapacityBar";
 import { HorseCard } from "@/components/HorseCard";
 import { HorsePhoto } from "@/components/HorsePhoto";
 import { PlanBadge } from "@/components/PlanBadge";
+import { TodayWidget } from "@/components/TodayWidget";
+import type { CalendarEvent } from "@/app/(protected)/actions/calendar";
 import type { ActivityLog, Barn, Horse } from "@/lib/types";
 import Link from "next/link";
 import { useState } from "react";
@@ -23,6 +25,8 @@ export function DashboardTabs({
   activeKeys,
   pendingRequests,
   recentActivity,
+  todayEvents,
+  upcomingEvents,
 }: {
   ownedBarns: Barn[];
   accessBarns: (Barn & { userRole: string })[];
@@ -33,6 +37,8 @@ export function DashboardTabs({
   activeKeys: number;
   pendingRequests: number;
   recentActivity: { log: ActivityLog; horseName: string }[];
+  todayEvents?: CalendarEvent[];
+  upcomingEvents?: CalendarEvent[];
 }) {
   const [tab, setTab] = useState<"my" | "access">("my");
 
@@ -179,6 +185,13 @@ export function DashboardTabs({
                   </ul>
                 )}
               </section>
+
+              {/* Today's Schedule */}
+              {(todayEvents?.length || upcomingEvents?.length) ? (
+                <section className="mt-8">
+                  <TodayWidget today={todayEvents ?? []} upcoming={upcomingEvents ?? []} />
+                </section>
+              ) : null}
 
               <section className="mt-12">
                 <h2 className="font-serif text-xl text-barn-dark">Recent activity</h2>
