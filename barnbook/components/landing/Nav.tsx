@@ -19,7 +19,7 @@ export default function Nav() {
         <div className="flex items-center gap-9 max-[900px]:gap-[18px]">
           <a href="#how" className="text-ink-soft no-underline text-[15px] font-medium transition-colors hover:text-forest max-[900px]:hidden">How it works</a>
           <a href="#features" className="text-ink-soft no-underline text-[15px] font-medium transition-colors hover:text-forest max-[900px]:hidden">Features</a>
-          <Link href="/auth/signin" className="text-ink-soft no-underline text-[15px] font-medium transition-colors hover:text-forest max-[560px]:hidden">Sign in</Link>
+          <Link href="/auth/signin" className="text-ink-soft no-underline text-[15px] font-medium transition-colors hover:text-forest">Sign in</Link>
           <Link href="/auth/signup" className="inline-flex items-center gap-2 px-[22px] py-3 rounded-full font-sans font-medium text-[15px] no-underline bg-forest text-cream transition-all hover:bg-forest-deep hover:-translate-y-px" style={{ boxShadow: "none" }}>
             Sign up free
           </Link>
