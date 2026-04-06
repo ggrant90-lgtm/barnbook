@@ -6,9 +6,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-/** Only select publicly-safe columns — never expose owner data or internal IDs */
+/** Only select publicly-safe columns + barn_id for key requests */
 const PUBLIC_HORSE_FIELDS =
-  "id, name, breed, photo_url, feed_regimen, supplements, special_care_notes, turnout_schedule" as const;
+  "id, name, breed, photo_url, barn_id, feed_regimen, supplements, special_care_notes, turnout_schedule" as const;
 
 export async function generateMetadata({
   params,
@@ -113,6 +113,25 @@ export default async function PublicCareCardPage({
             lastWorming={lastWorming}
             standalone
           />
+        </div>
+
+        {/* Request Stall Key */}
+        <div className="mt-5 rounded-2xl border border-barn-dark/10 bg-white p-5 shadow-sm text-center">
+          <p className="text-sm text-barn-dark/60 mb-3">
+            Want ongoing access to {horse.name}&apos;s records?
+          </p>
+          <Link
+            href={`/join?request=stall&horse=${id}&barn=${horse.barn_id}`}
+            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-brass-gold px-6 py-3 font-medium text-barn-dark shadow hover:brightness-110 transition"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />
+            </svg>
+            Request Stall Key
+          </Link>
+          <p className="mt-2 text-xs text-barn-dark/40">
+            The barn owner will be notified of your request
+          </p>
         </div>
 
         <p className="mt-6 text-center text-xs text-barn-dark/40">
