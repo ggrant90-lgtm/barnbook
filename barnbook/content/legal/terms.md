@@ -2,8 +2,6 @@
 
 **Last Updated: April 6, 2026**
 
-> **⚠️ PLACEHOLDER NOTICE:** This document is a starting-point draft generated for BarnBook and has **not** been reviewed by a licensed attorney. It should be reviewed and customized by qualified legal counsel before being relied upon in production. Nothing in this document constitutes legal advice.
-
 Welcome to BarnBook. These Terms of Service ("Terms") govern your access to and use of BarnBook, a horse management and customer relationship platform operated at barnbook.us (the "Service"). Please read these Terms carefully. By creating an account or using the Service, you agree to be bound by these Terms.
 
 ## 1. Acceptance of Terms

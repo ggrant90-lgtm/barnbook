@@ -2,8 +2,6 @@
 
 **Last Updated: April 6, 2026**
 
-> **⚠️ PLACEHOLDER NOTICE:** This document is a starting-point draft generated for BarnBook and has **not** been reviewed by a licensed attorney. It should be reviewed and customized by qualified legal counsel before being relied upon in production. Nothing in this document constitutes legal advice.
-
 BarnBook ("we," "us," or "our") respects your privacy. This Privacy Policy explains what information we collect, how we use it, who we share it with, and the rights you have over your information when you use barnbook.us and related services (the "Service").
 
 By using the Service, you agree to the collection and use of information in accordance with this Privacy Policy.
