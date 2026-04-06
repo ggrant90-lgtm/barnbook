@@ -11,6 +11,7 @@ function isProtectedPath(pathname: string): boolean {
   if (pathname.startsWith("/barn/") && pathname !== "/barn/new" && !pathname.endsWith("/edit")) return false;
 
   const prefixes = [
+    "/admin",
     "/dashboard",
     "/barn",
     "/horses",

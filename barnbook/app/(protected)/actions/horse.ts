@@ -2,6 +2,7 @@
 
 import { getActiveBarnContext } from "@/lib/barn-session";
 import { canUserEditHorse } from "@/lib/horse-access";
+import { getBarnCapacitySnapshot } from "@/lib/plans.server";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -27,6 +28,12 @@ export async function createHorseAction(
 
   const canEdit = await canUserEditHorse(supabase, user.id, ctx.barn.id);
   if (!canEdit) return { error: "You don’t have permission to add horses." };
+
+  // Capacity check
+  const snapshot = await getBarnCapacitySnapshot(supabase, ctx.barn.id);
+  if (snapshot && !snapshot.canAddHorse) {
+    return { error: "BARN_FULL" };
+  }
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Name is required." };

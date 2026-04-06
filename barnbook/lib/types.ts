@@ -16,6 +16,7 @@ export interface Profile {
   full_name: string | null;
   phone: string | null;
   avatar_url: string | null;
+  is_platform_admin: boolean;
   updated_at: string;
 }
 
@@ -38,6 +39,14 @@ export interface Barn {
   public_email: string | null;
   public_phone: string | null;
   barn_type: "standard" | "mare_motel";
+  plan_tier: "free" | "paid" | "comped";
+  stall_capacity: number;
+  plan_started_at: string | null;
+  plan_expires_at: string | null;
+  plan_notes: string | null;
+  plan_updated_by_user_id: string | null;
+  plan_updated_at: string | null;
+  grace_period_ends_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -143,8 +152,45 @@ export interface Horse {
   supplements: string | null;
   special_care_notes: string | null;
   turnout_schedule: string | null;
+  archived: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/** public.barn_stall_blocks */
+export interface BarnStallBlock {
+  id: string;
+  barn_id: string;
+  block_size: number;
+  price_cents: number;
+  stripe_subscription_item_id: string | null;
+  status: "active" | "pending_cancel" | "cancelled";
+  added_at: string;
+  added_by_user_id: string | null;
+  cancelled_at: string | null;
+}
+
+/** public.paywall_interest */
+export interface PaywallInterest {
+  id: string;
+  user_id: string | null;
+  barn_id: string | null;
+  plan_requested: string;
+  email: string;
+  message: string | null;
+  created_at: string;
+  contacted_at: string | null;
+}
+
+/** public.admin_audit_log */
+export interface AdminAuditLog {
+  id: string;
+  admin_user_id: string;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  details: Json | null;
+  created_at: string;
 }
 
 /** public.activity_log */

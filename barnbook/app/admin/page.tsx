@@ -1,0 +1,201 @@
+import { createAdminClient } from "@/lib/supabase-admin";
+import { PlanBadge } from "@/components/PlanBadge";
+import Link from "next/link";
+
+export default async function AdminPage() {
+  let adminClient;
+  try {
+    adminClient = createAdminClient();
+  } catch {
+    return (
+      <div className="rounded-xl bg-red-50 p-6 text-red-700">
+        <h2 className="font-semibold">Admin client not configured</h2>
+        <p className="mt-2 text-sm">
+          Set SUPABASE_SERVICE_ROLE_KEY in your environment variables to enable
+          the admin panel.
+        </p>
+      </div>
+    );
+  }
+
+  // Fetch metrics
+  const [barnsRes, horsesRes, paidRes, compedRes, interestRes] =
+    await Promise.all([
+      adminClient.from("barns").select("id", { count: "exact", head: true }),
+      adminClient.from("horses").select("id", { count: "exact", head: true }).eq("archived", false),
+      adminClient
+        .from("barns")
+        .select("id", { count: "exact", head: true })
+        .eq("plan_tier", "paid"),
+      adminClient
+        .from("barns")
+        .select("id", { count: "exact", head: true })
+        .eq("plan_tier", "comped"),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (adminClient as any)
+        .from("paywall_interest")
+        .select("id", { count: "exact", head: true })
+        .is("contacted_at", null),
+    ]);
+
+  const totalBarns = barnsRes.count ?? 0;
+  const totalHorses = horsesRes.count ?? 0;
+  const paidBarns = paidRes.count ?? 0;
+  const compedBarns = compedRes.count ?? 0;
+  const pendingInterest = interestRes.count ?? 0;
+
+  // Fetch all barns with owner info
+  const { data: barns } = await adminClient
+    .from("barns")
+    .select("id, name, owner_id, plan_tier, stall_capacity, grace_period_ends_at, created_at")
+    .order("created_at", { ascending: false });
+
+  // Get horse counts per barn
+  const barnIds = (barns ?? []).map((b) => b.id);
+  let horseCounts: Record<string, number> = {};
+  if (barnIds.length > 0) {
+    const { data: counts } = await adminClient
+      .from("horses")
+      .select("barn_id")
+      .in("barn_id", barnIds)
+      .eq("archived", false);
+
+    horseCounts = (counts ?? []).reduce(
+      (acc, h) => {
+        acc[h.barn_id] = (acc[h.barn_id] ?? 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+  }
+
+  // Get owner emails
+  const ownerIds = [...new Set((barns ?? []).map((b) => b.owner_id).filter(Boolean))];
+  let ownerEmails: Record<string, string> = {};
+  if (ownerIds.length > 0) {
+    const { data: users } = await adminClient.auth.admin.listUsers();
+    ownerEmails = (users?.users ?? []).reduce(
+      (acc, u) => {
+        if (u.email) acc[u.id] = u.email;
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Metrics */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-5">
+        {[
+          { label: "Total Barns", value: totalBarns },
+          { label: "Total Horses", value: totalHorses },
+          { label: "Paid Barns", value: paidBarns },
+          { label: "Comped Barns", value: compedBarns },
+          {
+            label: "Pending Interest",
+            value: pendingInterest,
+            href: "/admin/interest",
+          },
+        ].map((m) => (
+          <div
+            key={m.label}
+            className="rounded-xl border border-barn-dark/10 bg-white p-4 shadow-sm"
+          >
+            <p className="text-xs text-barn-dark/50">{m.label}</p>
+            <p className="mt-1 text-2xl font-bold text-barn-dark">
+              {m.value}
+            </p>
+            {m.href && m.value > 0 ? (
+              <Link
+                href={m.href}
+                className="mt-1 text-xs text-brass-gold hover:underline"
+              >
+                View →
+              </Link>
+            ) : null}
+          </div>
+        ))}
+      </div>
+
+      {/* Barns table */}
+      <div className="rounded-xl border border-barn-dark/10 bg-white shadow-sm">
+        <div className="border-b border-barn-dark/10 px-6 py-4">
+          <h2 className="font-serif text-lg font-semibold text-barn-dark">
+            All Barns
+          </h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-barn-dark/10 text-left">
+                <th className="px-6 py-3 font-medium text-barn-dark/60">
+                  Barn
+                </th>
+                <th className="px-6 py-3 font-medium text-barn-dark/60">
+                  Owner
+                </th>
+                <th className="px-6 py-3 font-medium text-barn-dark/60">
+                  Plan
+                </th>
+                <th className="px-6 py-3 font-medium text-barn-dark/60">
+                  Capacity
+                </th>
+                <th className="px-6 py-3 font-medium text-barn-dark/60">
+                  Created
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {(barns ?? []).map((barn) => {
+                const hc = horseCounts[barn.id] ?? 0;
+                const isOver = hc > barn.stall_capacity;
+                const inGrace =
+                  barn.grace_period_ends_at &&
+                  new Date(barn.grace_period_ends_at) > new Date();
+
+                return (
+                  <tr
+                    key={barn.id}
+                    className="border-b border-barn-dark/5 hover:bg-parchment/30"
+                  >
+                    <td className="px-6 py-3 font-medium text-barn-dark">
+                      {barn.name}
+                    </td>
+                    <td className="px-6 py-3 text-barn-dark/60">
+                      {barn.owner_id
+                        ? ownerEmails[barn.owner_id] ?? "—"
+                        : "—"}
+                    </td>
+                    <td className="px-6 py-3">
+                      <PlanBadge tier={barn.plan_tier} />
+                    </td>
+                    <td className="px-6 py-3">
+                      <span
+                        className={
+                          isOver
+                            ? "font-medium text-red-600"
+                            : "text-barn-dark/70"
+                        }
+                      >
+                        {hc}/{barn.stall_capacity >= 999 ? "∞" : barn.stall_capacity}
+                      </span>
+                      {inGrace && (
+                        <span className="ml-2 text-xs text-red-500">
+                          Grace
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-3 text-barn-dark/50">
+                      {new Date(barn.created_at).toLocaleDateString()}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

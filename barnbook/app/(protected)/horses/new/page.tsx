@@ -2,6 +2,7 @@
 
 import { createHorseAction } from "@/app/(protected)/actions/horse";
 import { updateHorsePhotoUrlAction } from "@/app/(protected)/actions/horse";
+import { UpgradeModal } from "@/components/UpgradeModal";
 import { HORSE_BREEDS, HORSE_SEX_OPTIONS } from "@/lib/horse-form-constants";
 import { uploadHorseProfilePhoto } from "@/lib/horse-photo";
 import Link from "next/link";
@@ -16,6 +17,7 @@ export default function NewHorsePage() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -25,6 +27,11 @@ export default function NewHorsePage() {
     const fd = new FormData(e.currentTarget);
     const res = await createHorseAction(null, fd);
     if (res?.error) {
+      if (res.error === "BARN_FULL") {
+        setShowUpgrade(true);
+        setPending(false);
+        return;
+      }
       setError(res.error);
       setPending(false);
       return;
@@ -57,6 +64,14 @@ export default function NewHorsePage() {
 
   return (
     <div className="mx-auto max-w-xl px-4 py-10 sm:px-6">
+      {showUpgrade && (
+        <UpgradeModal
+          barnName="Your barn"
+          barnId=""
+          currentCapacity={5}
+          onClose={() => setShowUpgrade(false)}
+        />
+      )}
       <Link href="/horses" className="text-sm text-barn-dark/70 hover:text-brass-gold">
         ← Horses
       </Link>

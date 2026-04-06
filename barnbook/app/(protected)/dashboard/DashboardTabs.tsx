@@ -1,7 +1,9 @@
 "use client";
 
+import { CapacityBar } from "@/components/CapacityBar";
 import { HorseCard } from "@/components/HorseCard";
 import { HorsePhoto } from "@/components/HorsePhoto";
+import { PlanBadge } from "@/components/PlanBadge";
 import type { ActivityLog, Barn, Horse } from "@/lib/types";
 import Link from "next/link";
 import { useState } from "react";
@@ -102,8 +104,14 @@ export function DashboardTabs({
             <>
               <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h1 className="font-serif text-3xl font-semibold text-barn-dark">{primaryBarn.name}</h1>
+                  <div className="flex items-center gap-3">
+                    <h1 className="font-serif text-3xl font-semibold text-barn-dark">{primaryBarn.name}</h1>
+                    <PlanBadge tier={primaryBarn.plan_tier} />
+                  </div>
                   <p className="text-sm text-barn-dark/65">Barn dashboard</p>
+                  <div className="mt-1 max-w-xs">
+                    <CapacityBar stallCapacity={primaryBarn.stall_capacity} horseCount={horseCount} compact />
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <Link
