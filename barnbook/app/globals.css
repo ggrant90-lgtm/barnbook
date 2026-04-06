@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Print styles for reports */
+@media print {
+  body { padding: 0 !important; background: white !important; }
+  nav, .print\\:hidden, header { display: none !important; }
+  main { padding: 0 !important; max-width: 100% !important; }
+  #report-preview { border: none !important; box-shadow: none !important; padding: 0 !important; border-radius: 0 !important; }
+}
+
 :root {
   --background: #1a1207;
   --foreground: #f5f0e8;
