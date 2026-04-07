@@ -3,6 +3,7 @@ import Hero from "@/components/landing/Hero";
 import Marquee from "@/components/landing/Marquee";
 import HowItWorks from "@/components/landing/HowItWorks";
 import Features from "@/components/landing/Features";
+import HomesteadTeaser from "@/components/landing/HomesteadTeaser";
 import Quote from "@/components/landing/Quote";
 import FinalCTA from "@/components/landing/FinalCTA";
 import Footer from "@/components/landing/Footer";
@@ -16,6 +17,7 @@ export default function Home() {
         <Marquee />
         <HowItWorks />
         <Features />
+        <HomesteadTeaser />
         <Quote />
         <FinalCTA />
         <Footer />
