@@ -69,6 +69,28 @@ export function CalendarClient({
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [quickAdd, setQuickAdd] = useState<{ date: string; time: string } | null>(null);
+  const [calendarDate, setCalendarDate] = useState(() => new Date());
+
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  const goToMonth = (monthIndex: number) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const api = (calendarRef.current as any)?.getApi?.();
+    if (!api) return;
+    const year = calendarDate.getFullYear();
+    api.gotoDate(new Date(year, monthIndex, 1));
+    setCalendarDate(new Date(year, monthIndex, 1));
+  };
+
+  const changeYear = (delta: number) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const api = (calendarRef.current as any)?.getApi?.();
+    if (!api) return;
+    const newYear = calendarDate.getFullYear() + delta;
+    const month = calendarDate.getMonth();
+    api.gotoDate(new Date(newYear, month, 1));
+    setCalendarDate(new Date(newYear, month, 1));
+  };
 
   // Parse filters from URL
   const [filters, setFilters] = useState(() => ({
@@ -176,6 +198,9 @@ export function CalendarClient({
   const handleDatesSet = useCallback(
     (dateInfo: { start: Date; end: Date }) => {
       fetchEvents(dateInfo.start.toISOString(), dateInfo.end.toISOString());
+      // Sync the displayed month (midpoint of the visible range)
+      const mid = new Date((dateInfo.start.getTime() + dateInfo.end.getTime()) / 2);
+      setCalendarDate(mid);
     },
     [fetchEvents],
   );
@@ -281,6 +306,53 @@ export function CalendarClient({
         </div>
       </div>
 
+      {/* Month picker */}
+      <div className="rounded-xl border border-barn-dark/10 bg-white p-3">
+        <div className="flex items-center justify-between mb-2">
+          <button
+            type="button"
+            onClick={() => changeYear(-1)}
+            className="rounded-lg px-2 py-1 text-sm font-medium text-barn-dark/50 hover:bg-parchment hover:text-barn-dark transition"
+            aria-label="Previous year"
+          >
+            ‹ {calendarDate.getFullYear() - 1}
+          </button>
+          <span className="text-sm font-semibold text-barn-dark">
+            {calendarDate.getFullYear()}
+          </span>
+          <button
+            type="button"
+            onClick={() => changeYear(1)}
+            className="rounded-lg px-2 py-1 text-sm font-medium text-barn-dark/50 hover:bg-parchment hover:text-barn-dark transition"
+            aria-label="Next year"
+          >
+            {calendarDate.getFullYear() + 1} ›
+          </button>
+        </div>
+        <div className="grid grid-cols-6 gap-1 sm:grid-cols-12">
+          {MONTHS.map((m, i) => {
+            const isActive = calendarDate.getMonth() === i;
+            const isCurrentMonth = new Date().getMonth() === i && new Date().getFullYear() === calendarDate.getFullYear();
+            return (
+              <button
+                key={m}
+                type="button"
+                onClick={() => goToMonth(i)}
+                className={`rounded-lg px-1 py-1.5 text-xs font-medium transition ${
+                  isActive
+                    ? "bg-brass-gold text-barn-dark"
+                    : isCurrentMonth
+                      ? "bg-brass-gold/15 text-barn-dark hover:bg-brass-gold/25"
+                      : "text-barn-dark/60 hover:bg-parchment"
+                }`}
+              >
+                {m}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Calendar */}
       <div className="rounded-xl border border-barn-dark/10 bg-white p-2 sm:p-4 overflow-hidden">
         <style jsx global>{`
@@ -304,6 +376,8 @@ export function CalendarClient({
             .fc .fc-toolbar-title { font-size: 0.95rem; }
             .fc .fc-header-toolbar { display: none; }
           }
+          .fc .fc-multimonth-button,
+          .fc .fc-dayGridYear-button { display: none; }
         `}</style>
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <FullCalendar
