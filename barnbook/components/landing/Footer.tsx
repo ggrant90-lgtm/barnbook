@@ -34,12 +34,7 @@ export default function Footer() {
               <Link href="/auth/signup" className="block text-sm mb-2 no-underline transition-colors hover:text-cream" style={{ color: "rgba(245, 239, 228, 0.6)" }}>Sign up</Link>
               <Link href="/auth/signin" className="block text-sm mb-2 no-underline transition-colors hover:text-cream" style={{ color: "rgba(245, 239, 228, 0.6)" }}>Sign in</Link>
             </div>
-            <div>
-              <h4 className="text-cream text-[13px] font-semibold uppercase tracking-[0.06em] mb-3.5">Company</h4>
-              <a href="#" className="block text-sm mb-2 no-underline transition-colors hover:text-cream" style={{ color: "rgba(245, 239, 228, 0.6)" }}>About</a>
-              <a href="#" className="block text-sm mb-2 no-underline transition-colors hover:text-cream" style={{ color: "rgba(245, 239, 228, 0.6)" }}>Contact</a>
-              <a href="#" className="block text-sm mb-2 no-underline transition-colors hover:text-cream" style={{ color: "rgba(245, 239, 228, 0.6)" }}>Blog</a>
-            </div>
+            {/* Company links hidden until pages are built */}
             <div>
               <h4 className="text-cream text-[13px] font-semibold uppercase tracking-[0.06em] mb-3.5">Legal</h4>
               <Link href="/privacy" className="block text-sm mb-2 no-underline transition-colors hover:text-cream" style={{ color: "rgba(245, 239, 228, 0.6)" }}>Privacy Policy</Link>
