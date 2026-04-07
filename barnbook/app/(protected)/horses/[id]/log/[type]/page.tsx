@@ -81,6 +81,22 @@ export default async function HorseLogPage({
     role: roleByUser.get(id) ?? "member",
   }));
 
+  // Fetch saved performers (sorted by most used)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: savedPerformersRaw } = await (supabase as any)
+    .from("saved_performers")
+    .select("id, name, specialty, use_count")
+    .eq("barn_id", horse.barn_id)
+    .order("use_count", { ascending: false })
+    .limit(20);
+
+  const savedPerformers = (savedPerformersRaw ?? []) as {
+    id: string;
+    name: string;
+    specialty: string | null;
+    use_count: number;
+  }[];
+
   const tab =
     logType === "shoeing" || logType === "worming" || logType === "vet_visit"
       ? "health"
@@ -105,6 +121,7 @@ export default async function HorseLogPage({
         createLogAction={createLogAction}
         barnMembers={barnMembersList}
         currentUserId={user.id}
+        savedPerformers={savedPerformers}
       >
         {(logType === "exercise" ||
           logType === "feed" ||

@@ -50,6 +50,8 @@ export function HorseProfileClient({
   userNames,
   barnNames,
   allBarns,
+  prevHorse,
+  nextHorse,
 }: {
   horse: Horse;
   canEdit: boolean;
@@ -68,6 +70,8 @@ export function HorseProfileClient({
   userNames?: Record<string, string>;
   barnNames?: Record<string, string>;
   allBarns?: { id: string; name: string }[];
+  prevHorse?: { id: string; name: string } | null;
+  nextHorse?: { id: string; name: string } | null;
 }) {
   const router = useRouter();
   const { show } = useToast();
@@ -267,10 +271,40 @@ export function HorseProfileClient({
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between">
         <Link href="/horses" className="text-sm text-barn-dark/70 hover:text-brass-gold">
           ← Horses
         </Link>
+        <div className="flex items-center gap-1">
+          {prevHorse ? (
+            <Link
+              href={`/horses/${prevHorse.id}`}
+              className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm text-barn-dark/60 hover:bg-barn-dark/5 hover:text-barn-dark transition"
+              title={prevHorse.name}
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+              </svg>
+              <span className="hidden sm:inline max-w-[80px] truncate">{prevHorse.name}</span>
+            </Link>
+          ) : (
+            <span className="w-8" />
+          )}
+          {nextHorse ? (
+            <Link
+              href={`/horses/${nextHorse.id}`}
+              className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm text-barn-dark/60 hover:bg-barn-dark/5 hover:text-barn-dark transition"
+              title={nextHorse.name}
+            >
+              <span className="hidden sm:inline max-w-[80px] truncate">{nextHorse.name}</span>
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+              </svg>
+            </Link>
+          ) : (
+            <span className="w-8" />
+          )}
+        </div>
       </div>
 
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -366,7 +400,6 @@ export function HorseProfileClient({
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
-                      capture="environment"
                       className="sr-only"
                       onChange={onPhotoChange}
                     />

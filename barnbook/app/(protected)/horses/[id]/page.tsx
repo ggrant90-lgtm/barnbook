@@ -226,6 +226,19 @@ export default async function HorseProfilePage({
     ...memberBarnsForMove,
   ];
 
+  // Fetch sibling horses for prev/next navigation
+  const { data: siblingHorses } = await supabase
+    .from("horses")
+    .select("id, name")
+    .eq("barn_id", horse.barn_id)
+    .eq("archived", false)
+    .order("name", { ascending: true });
+
+  const siblings = (siblingHorses ?? []) as { id: string; name: string }[];
+  const currentIndex = siblings.findIndex((h) => h.id === id);
+  const prevHorse = currentIndex > 0 ? siblings[currentIndex - 1] : null;
+  const nextHorse = currentIndex < siblings.length - 1 ? siblings[currentIndex + 1] : null;
+
   const origin = await getOrigin();
   const profileUrl = `${origin}/horses/${horse.id}`;
   const careUrl = `${origin}/care/${horse.id}`;
@@ -251,6 +264,8 @@ export default async function HorseProfilePage({
         userNames={userNames}
         barnNames={barnNames}
         allBarns={allBarnsForMove}
+        prevHorse={prevHorse}
+        nextHorse={nextHorse}
       />
     </Suspense>
   );

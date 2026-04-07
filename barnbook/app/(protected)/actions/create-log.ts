@@ -76,6 +76,35 @@ export async function createLogAction(
   const logType = t as LogType;
   const activityTypes = ["exercise", "feed", "medication", "note", "breed_data"] as const;
 
+  // Save new "Other" performer to saved_performers for future reuse
+  const savePerformer = formData.get("save_performer") === "true";
+  const performerName = String(formData.get("performed_by_name") ?? "").trim();
+  const performerSpecialty = String(formData.get("performer_specialty") ?? "").trim() || null;
+
+  if (savePerformer && performerName) {
+    // Upsert: increment use_count if exists, insert if new
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existing } = await (supabase as any)
+      .from("saved_performers")
+      .select("id, use_count")
+      .eq("barn_id", horse.barn_id)
+      .eq("name", performerName)
+      .maybeSingle();
+
+    if (existing) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from("saved_performers")
+        .update({ use_count: existing.use_count + 1, last_used_at: new Date().toISOString(), specialty: performerSpecialty ?? undefined })
+        .eq("id", existing.id);
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from("saved_performers")
+        .insert({ barn_id: horse.barn_id, name: performerName, specialty: performerSpecialty });
+    }
+  }
+
   if ((activityTypes as readonly string[]).includes(logType)) {
     const crm = extractCrmFields(formData);
     const lineItems = extractLineItems(formData);

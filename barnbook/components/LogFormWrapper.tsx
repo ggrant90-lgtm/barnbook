@@ -19,6 +19,13 @@ interface BarnMember {
   role: string;
 }
 
+interface SavedPerformer {
+  id: string;
+  name: string;
+  specialty: string | null;
+  use_count: number;
+}
+
 export function LogFormWrapper({
   horseId,
   logType,
@@ -26,6 +33,7 @@ export function LogFormWrapper({
   createLogAction,
   barnMembers,
   currentUserId,
+  savedPerformers = [],
   children,
 }: {
   horseId: string;
@@ -38,6 +46,7 @@ export function LogFormWrapper({
   ) => Promise<{ id: string; error?: string } | { id?: never; error: string }>;
   barnMembers: BarnMember[];
   currentUserId: string;
+  savedPerformers?: SavedPerformer[];
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -157,6 +166,7 @@ export function LogFormWrapper({
         <PerformedBySelect
           barnMembers={barnMembers}
           currentUserId={currentUserId}
+          savedPerformers={savedPerformers}
         />
 
         {/* When — performed_at datetime */}
@@ -233,8 +243,7 @@ export function LogFormWrapper({
           ref={inputRef}
           type="file"
           accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/x-m4v"
-          capture="environment"
-          multiple
+                    multiple
           className="hidden"
           onChange={handleFileChange}
         />
