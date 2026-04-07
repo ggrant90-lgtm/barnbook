@@ -1,4 +1,5 @@
 import { createLogAction } from "@/app/(protected)/actions/create-log";
+import { updateLogAction } from "@/app/(protected)/actions/update-log";
 import { canUserAccessHorse, canUserEditHorse } from "@/lib/horse-access";
 import {
   EXERCISE_SUBTYPES,
@@ -21,10 +22,13 @@ function today(): string {
 
 export default async function HorseLogPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; type: string }>;
+  searchParams: Promise<{ edit?: string }>;
 }) {
   const { id: horseId, type: typeRaw } = await params;
+  const { edit: editId } = await searchParams;
   const t = typeRaw.toLowerCase();
   if (!isLogType(t)) notFound();
   const logType = t as LogType;
@@ -97,7 +101,63 @@ export default async function HorseLogPage({
     use_count: number;
   }[];
 
+  // ── Edit mode: fetch existing entry ──
+  type ExistingEntry = Record<string, unknown> | null;
+  let existing: ExistingEntry = null;
+  let existingLineItems: { description: string; amount: number }[] = [];
+
+  const activityTypes = ["exercise", "feed", "medication", "note", "breed_data"];
+  const isActivity = activityTypes.includes(logType);
+
+  if (editId) {
+    if (isActivity) {
+      const { data } = await supabase
+        .from("activity_log")
+        .select("*")
+        .eq("id", editId)
+        .eq("horse_id", horseId)
+        .single();
+      existing = data as ExistingEntry;
+    } else {
+      const { data } = await supabase
+        .from("health_records")
+        .select("*")
+        .eq("id", editId)
+        .eq("horse_id", horseId)
+        .single();
+      existing = data as ExistingEntry;
+    }
+
+    if (existing) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: liData } = await (supabase as any)
+        .from("log_entry_line_items")
+        .select("description, amount, sort_order")
+        .eq("log_type", isActivity ? "activity" : "health")
+        .eq("log_id", editId)
+        .order("sort_order", { ascending: true });
+      existingLineItems = (liData ?? []) as { description: string; amount: number }[];
+    }
+  }
+
+  // Helper to extract details fields
+  const details: Record<string, unknown> =
+    existing?.details && typeof existing.details === "object"
+      ? (existing.details as Record<string, unknown>)
+      : existing?.details && typeof existing.details === "string"
+        ? (() => { try { return JSON.parse(existing.details as string); } catch { return {}; } })()
+        : {};
+
+  const isEditing = !!editId && !!existing;
   const tab = "logs";
+
+  // Default values for form fields
+  const dv = (key: string, fallback = "") => {
+    // Check details first, then top-level entry
+    if (details[key] != null && details[key] !== "") return String(details[key]);
+    if (existing && existing[key] != null && existing[key] !== "") return String(existing[key]);
+    return fallback;
+  };
 
   return (
     <div className="mx-auto max-w-lg px-4 py-10 sm:px-6">
@@ -108,7 +168,7 @@ export default async function HorseLogPage({
         ← {horse.name}
       </Link>
       <h1 className="mt-6 font-serif text-2xl font-semibold text-barn-dark">
-        Log: {logTypeLabel(logType)}
+        {isEditing ? "Edit" : "Log"}: {logTypeLabel(logType)}
       </h1>
 
       <LogFormWrapper
@@ -116,9 +176,16 @@ export default async function HorseLogPage({
         logType={logType}
         redirectTab={tab}
         createLogAction={createLogAction}
+        updateLogAction={isEditing ? updateLogAction : undefined}
+        editId={isEditing ? editId! : undefined}
         barnMembers={barnMembersList}
         currentUserId={user.id}
         savedPerformers={savedPerformers}
+        initialPerformedByUserId={existing?.performed_by_user_id as string | null ?? null}
+        initialPerformedByName={existing?.performed_by_name as string | null ?? null}
+        initialPerformedAt={existing?.performed_at ? (existing.performed_at as string).slice(0, 16) : undefined}
+        initialTotalCost={existing?.total_cost as number | null ?? null}
+        initialLineItems={existingLineItems}
       >
         {(logType === "exercise" ||
           logType === "feed" ||
@@ -132,7 +199,9 @@ export default async function HorseLogPage({
               id="logged_at"
               name="logged_at"
               type="date"
-              defaultValue={today()}
+              defaultValue={isEditing && existing?.created_at
+                ? (existing.created_at as string).slice(0, 10)
+                : today()}
               className={inputClass}
             />
           </div>
@@ -149,7 +218,7 @@ export default async function HorseLogPage({
               id="record_date"
               name="record_date"
               type="date"
-              defaultValue={today()}
+              defaultValue={isEditing ? dv("record_date", today()) : today()}
               required
               className={inputClass}
             />
@@ -162,7 +231,7 @@ export default async function HorseLogPage({
               <label htmlFor="subtype" className="mb-1.5 block text-sm text-barn-dark/75">
                 Type
               </label>
-              <select id="subtype" name="subtype" className={inputClass} required>
+              <select id="subtype" name="subtype" className={inputClass} required defaultValue={dv("subtype", "walk")}>
                 {EXERCISE_SUBTYPES.map((s) => (
                   <option key={s} value={s}>
                     {s}
@@ -174,25 +243,25 @@ export default async function HorseLogPage({
               <label htmlFor="duration_minutes" className="mb-1.5 block text-sm text-barn-dark/75">
                 Duration (minutes)
               </label>
-              <input id="duration_minutes" name="duration_minutes" type="number" min={0} className={inputClass} />
+              <input id="duration_minutes" name="duration_minutes" type="number" min={0} className={inputClass} defaultValue={dv("duration_minutes")} />
             </div>
             <div>
               <label htmlFor="distance" className="mb-1.5 block text-sm text-barn-dark/75">
                 Distance (optional)
               </label>
-              <input id="distance" name="distance" type="text" className={inputClass} />
+              <input id="distance" name="distance" type="text" className={inputClass} defaultValue={dv("distance")} />
             </div>
             <div>
               <label htmlFor="track_condition" className="mb-1.5 block text-sm text-barn-dark/75">
                 Track condition
               </label>
-              <input id="track_condition" name="track_condition" type="text" className={inputClass} />
+              <input id="track_condition" name="track_condition" type="text" className={inputClass} defaultValue={dv("track_condition")} />
             </div>
             <div>
               <label htmlFor="notes" className="mb-1.5 block text-sm text-barn-dark/75">
                 Notes
               </label>
-              <textarea id="notes" name="notes" rows={3} className={inputClass} />
+              <textarea id="notes" name="notes" rows={3} className={inputClass} defaultValue={dv("notes")} />
             </div>
           </>
         ) : null}
@@ -203,19 +272,19 @@ export default async function HorseLogPage({
               <label htmlFor="feed_type" className="mb-1.5 block text-sm text-barn-dark/75">
                 Feed type
               </label>
-              <input id="feed_type" name="feed_type" type="text" className={inputClass} required />
+              <input id="feed_type" name="feed_type" type="text" className={inputClass} required defaultValue={dv("feed_type")} />
             </div>
             <div>
               <label htmlFor="amount" className="mb-1.5 block text-sm text-barn-dark/75">
                 Amount
               </label>
-              <input id="amount" name="amount" type="text" className={inputClass} />
+              <input id="amount" name="amount" type="text" className={inputClass} defaultValue={dv("amount")} />
             </div>
             <div>
               <label htmlFor="notes" className="mb-1.5 block text-sm text-barn-dark/75">
                 Notes
               </label>
-              <textarea id="notes" name="notes" rows={3} className={inputClass} />
+              <textarea id="notes" name="notes" rows={3} className={inputClass} defaultValue={dv("notes")} />
             </div>
           </>
         ) : null}
@@ -226,37 +295,37 @@ export default async function HorseLogPage({
               <label htmlFor="medication_name" className="mb-1.5 block text-sm text-barn-dark/75">
                 Medication
               </label>
-              <input id="medication_name" name="medication_name" type="text" className={inputClass} required />
+              <input id="medication_name" name="medication_name" type="text" className={inputClass} required defaultValue={dv("medication_name")} />
             </div>
             <div>
               <label htmlFor="dosage" className="mb-1.5 block text-sm text-barn-dark/75">
                 Dosage
               </label>
-              <input id="dosage" name="dosage" type="text" className={inputClass} />
+              <input id="dosage" name="dosage" type="text" className={inputClass} defaultValue={dv("dosage")} />
             </div>
             <div>
               <label htmlFor="frequency" className="mb-1.5 block text-sm text-barn-dark/75">
                 Frequency
               </label>
-              <input id="frequency" name="frequency" type="text" className={inputClass} />
+              <input id="frequency" name="frequency" type="text" className={inputClass} defaultValue={dv("frequency")} />
             </div>
             <div>
               <label htmlFor="start_date" className="mb-1.5 block text-sm text-barn-dark/75">
                 Start date
               </label>
-              <input id="start_date" name="start_date" type="date" className={inputClass} />
+              <input id="start_date" name="start_date" type="date" className={inputClass} defaultValue={dv("start_date")} />
             </div>
             <div>
               <label htmlFor="end_date" className="mb-1.5 block text-sm text-barn-dark/75">
                 End date
               </label>
-              <input id="end_date" name="end_date" type="date" className={inputClass} />
+              <input id="end_date" name="end_date" type="date" className={inputClass} defaultValue={dv("end_date")} />
             </div>
             <div>
               <label htmlFor="notes" className="mb-1.5 block text-sm text-barn-dark/75">
                 Notes
               </label>
-              <textarea id="notes" name="notes" rows={3} className={inputClass} />
+              <textarea id="notes" name="notes" rows={3} className={inputClass} defaultValue={dv("notes")} />
             </div>
           </>
         ) : null}
@@ -267,13 +336,13 @@ export default async function HorseLogPage({
               <label htmlFor="title" className="mb-1.5 block text-sm text-barn-dark/75">
                 Title
               </label>
-              <input id="title" name="title" type="text" className={inputClass} required />
+              <input id="title" name="title" type="text" className={inputClass} required defaultValue={dv("title")} />
             </div>
             <div>
               <label htmlFor="notes" className="mb-1.5 block text-sm text-barn-dark/75">
                 Notes
               </label>
-              <textarea id="notes" name="notes" rows={4} className={inputClass} />
+              <textarea id="notes" name="notes" rows={4} className={inputClass} defaultValue={dv("notes")} />
             </div>
           </>
         ) : null}
@@ -284,25 +353,25 @@ export default async function HorseLogPage({
               <label htmlFor="farrier_name" className="mb-1.5 block text-sm text-barn-dark/75">
                 Farrier name
               </label>
-              <input id="farrier_name" name="farrier_name" type="text" className={inputClass} required />
+              <input id="farrier_name" name="farrier_name" type="text" className={inputClass} required defaultValue={dv("farrier_name")} />
             </div>
             <div>
               <label htmlFor="shoe_type" className="mb-1.5 block text-sm text-barn-dark/75">
                 Shoe type
               </label>
-              <input id="shoe_type" name="shoe_type" type="text" className={inputClass} />
+              <input id="shoe_type" name="shoe_type" type="text" className={inputClass} defaultValue={dv("shoe_type")} />
             </div>
             <div>
               <label htmlFor="notes" className="mb-1.5 block text-sm text-barn-dark/75">
                 Notes
               </label>
-              <textarea id="notes" name="notes" rows={3} className={inputClass} />
+              <textarea id="notes" name="notes" rows={3} className={inputClass} defaultValue={dv("notes")} />
             </div>
             <div>
               <label htmlFor="next_due_date" className="mb-1.5 block text-sm text-barn-dark/75">
                 Next due
               </label>
-              <input id="next_due_date" name="next_due_date" type="date" className={inputClass} />
+              <input id="next_due_date" name="next_due_date" type="date" className={inputClass} defaultValue={dv("next_due_date")} />
             </div>
           </>
         ) : null}
@@ -313,19 +382,19 @@ export default async function HorseLogPage({
               <label htmlFor="product_name" className="mb-1.5 block text-sm text-barn-dark/75">
                 Product
               </label>
-              <input id="product_name" name="product_name" type="text" className={inputClass} required />
+              <input id="product_name" name="product_name" type="text" className={inputClass} required defaultValue={dv("product_name")} />
             </div>
             <div>
               <label htmlFor="notes" className="mb-1.5 block text-sm text-barn-dark/75">
                 Notes
               </label>
-              <textarea id="notes" name="notes" rows={3} className={inputClass} />
+              <textarea id="notes" name="notes" rows={3} className={inputClass} defaultValue={dv("notes")} />
             </div>
             <div>
               <label htmlFor="next_due_date" className="mb-1.5 block text-sm text-barn-dark/75">
                 Next due
               </label>
-              <input id="next_due_date" name="next_due_date" type="date" className={inputClass} />
+              <input id="next_due_date" name="next_due_date" type="date" className={inputClass} defaultValue={dv("next_due_date")} />
             </div>
           </>
         ) : null}
@@ -336,37 +405,37 @@ export default async function HorseLogPage({
               <label htmlFor="vet_name" className="mb-1.5 block text-sm text-barn-dark/75">
                 Vet name
               </label>
-              <input id="vet_name" name="vet_name" type="text" className={inputClass} required />
+              <input id="vet_name" name="vet_name" type="text" className={inputClass} required defaultValue={dv("vet_name")} />
             </div>
             <div>
               <label htmlFor="reason" className="mb-1.5 block text-sm text-barn-dark/75">
                 Reason
               </label>
-              <input id="reason" name="reason" type="text" className={inputClass} />
+              <input id="reason" name="reason" type="text" className={inputClass} defaultValue={dv("reason")} />
             </div>
             <div>
               <label htmlFor="diagnosis" className="mb-1.5 block text-sm text-barn-dark/75">
                 Diagnosis
               </label>
-              <textarea id="diagnosis" name="diagnosis" rows={2} className={inputClass} />
+              <textarea id="diagnosis" name="diagnosis" rows={2} className={inputClass} defaultValue={dv("diagnosis")} />
             </div>
             <div>
               <label htmlFor="treatment" className="mb-1.5 block text-sm text-barn-dark/75">
                 Treatment
               </label>
-              <textarea id="treatment" name="treatment" rows={2} className={inputClass} />
+              <textarea id="treatment" name="treatment" rows={2} className={inputClass} defaultValue={dv("treatment")} />
             </div>
             <div>
               <label htmlFor="notes" className="mb-1.5 block text-sm text-barn-dark/75">
                 Notes
               </label>
-              <textarea id="notes" name="notes" rows={3} className={inputClass} />
+              <textarea id="notes" name="notes" rows={3} className={inputClass} defaultValue={dv("notes")} />
             </div>
             <div>
               <label htmlFor="follow_up_date" className="mb-1.5 block text-sm text-barn-dark/75">
                 Follow-up date
               </label>
-              <input id="follow_up_date" name="follow_up_date" type="date" className={inputClass} />
+              <input id="follow_up_date" name="follow_up_date" type="date" className={inputClass} defaultValue={dv("follow_up_date")} />
             </div>
           </>
         ) : null}

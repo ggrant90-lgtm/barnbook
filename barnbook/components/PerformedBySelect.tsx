@@ -30,14 +30,24 @@ export function PerformedBySelect({
   barnMembers,
   currentUserId,
   savedPerformers = [],
+  initialUserId,
+  initialName,
 }: {
   barnMembers: BarnMember[];
   currentUserId: string;
   savedPerformers?: SavedPerformer[];
+  initialUserId?: string | null;
+  initialName?: string | null;
 }) {
-  const [mode, setMode] = useState<"member" | "saved" | "other">("member");
-  const [selectedId, setSelectedId] = useState(currentUserId);
-  const [otherName, setOtherName] = useState("");
+  // Determine initial mode
+  const initMode = initialUserId
+    ? "member"
+    : initialName
+      ? (savedPerformers.some((sp) => sp.name === initialName) ? "saved" : "other")
+      : "member";
+  const [mode, setMode] = useState<"member" | "saved" | "other">(initMode);
+  const [selectedId, setSelectedId] = useState(initialUserId ?? currentUserId);
+  const [otherName, setOtherName] = useState(initialName ?? "");
 
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;

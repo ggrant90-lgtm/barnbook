@@ -19,10 +19,23 @@ function formatCurrency(val: number): string {
   });
 }
 
-export function CostInput() {
-  const [totalCost, setTotalCost] = useState("");
-  const [showBreakdown, setShowBreakdown] = useState(false);
-  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+export function CostInput({
+  initialTotal,
+  initialLineItems,
+}: {
+  initialTotal?: number | null;
+  initialLineItems?: { description: string; amount: number }[];
+} = {}) {
+  const [totalCost, setTotalCost] = useState(
+    initialTotal != null && initialTotal > 0 ? initialTotal.toFixed(2) : "",
+  );
+  const hasInitialLineItems = initialLineItems && initialLineItems.length > 0;
+  const [showBreakdown, setShowBreakdown] = useState(!!hasInitialLineItems);
+  const [lineItems, setLineItems] = useState<LineItem[]>(
+    hasInitialLineItems
+      ? initialLineItems.map((li) => ({ description: li.description, amount: li.amount.toFixed(2) }))
+      : [],
+  );
 
   const lineItemTotal = lineItems.reduce((sum, item) => {
     const amt = parseFloat(item.amount);

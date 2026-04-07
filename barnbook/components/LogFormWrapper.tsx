@@ -31,9 +31,16 @@ export function LogFormWrapper({
   logType,
   redirectTab,
   createLogAction,
+  updateLogAction,
+  editId,
   barnMembers,
   currentUserId,
   savedPerformers = [],
+  initialPerformedByUserId,
+  initialPerformedByName,
+  initialPerformedAt,
+  initialTotalCost,
+  initialLineItems,
   children,
 }: {
   horseId: string;
@@ -44,11 +51,24 @@ export function LogFormWrapper({
     logType: string,
     formData: FormData,
   ) => Promise<{ id: string; error?: string } | { id?: never; error: string }>;
+  updateLogAction?: (
+    logId: string,
+    horseId: string,
+    logType: string,
+    formData: FormData,
+  ) => Promise<{ error?: string }>;
+  editId?: string;
   barnMembers: BarnMember[];
   currentUserId: string;
   savedPerformers?: SavedPerformer[];
+  initialPerformedByUserId?: string | null;
+  initialPerformedByName?: string | null;
+  initialPerformedAt?: string;
+  initialTotalCost?: number | null;
+  initialLineItems?: { description: string; amount: number }[];
   children: React.ReactNode;
 }) {
+  const isEditing = !!editId && !!updateLogAction;
   const router = useRouter();
   const [files, setFiles] = useState<MediaFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -96,24 +116,35 @@ export function LogFormWrapper({
     const formData = new FormData(e.currentTarget);
 
     try {
-      // Step 1: Create the log entry via server action
-      const result = await createLogAction(horseId, logType, formData);
+      let logId: string | undefined;
 
-      if (result.error) {
-        setError(result.error);
-        setSubmitting(false);
-        return;
+      if (isEditing) {
+        // Update existing entry
+        const result = await updateLogAction(editId, horseId, logType, formData);
+        if (result.error) {
+          setError(result.error);
+          setSubmitting(false);
+          return;
+        }
+        logId = editId;
+      } else {
+        // Create new entry
+        const result = await createLogAction(horseId, logType, formData);
+        if (result.error) {
+          setError(result.error);
+          setSubmitting(false);
+          return;
+        }
+        logId = result.id;
+        if (!logId) {
+          setError("Failed to create log entry.");
+          setSubmitting(false);
+          return;
+        }
       }
 
-      const logId = result.id;
-      if (!logId) {
-        setError("Failed to create log entry.");
-        setSubmitting(false);
-        return;
-      }
-
-      // Step 2: Upload media files if any
-      if (files.length > 0) {
+      // Upload media files if any
+      if (files.length > 0 && logId) {
         const logCategory =
           logType === "shoeing" || logType === "worming" || logType === "vet_visit"
             ? "health"
@@ -129,10 +160,9 @@ export function LogFormWrapper({
 
           if ("error" in uploadResult) {
             console.error("Media upload error:", uploadResult.error);
-            continue; // Don't block on media upload failure
+            continue;
           }
 
-          // Insert log_media record
           await supabase.from("log_media").insert({
             log_type: logCategory,
             log_id: logId,
@@ -143,7 +173,7 @@ export function LogFormWrapper({
         }
       }
 
-      // Step 3: Redirect to horse profile
+      // Redirect to horse profile
       router.push(`/horses/${horseId}?tab=${redirectTab}`);
       router.refresh();
     } catch (err) {
@@ -167,6 +197,8 @@ export function LogFormWrapper({
           barnMembers={barnMembers}
           currentUserId={currentUserId}
           savedPerformers={savedPerformers}
+          initialUserId={initialPerformedByUserId}
+          initialName={initialPerformedByName}
         />
 
         {/* When — performed_at datetime */}
@@ -178,13 +210,16 @@ export function LogFormWrapper({
             id="performed_at"
             name="performed_at"
             type="datetime-local"
-            defaultValue={new Date().toISOString().slice(0, 16)}
+            defaultValue={initialPerformedAt ?? new Date().toISOString().slice(0, 16)}
             className="w-full rounded-xl border border-barn-dark/15 bg-white px-4 py-3 text-barn-dark outline-none focus:border-brass-gold focus:ring-2 focus:ring-brass-gold/25"
           />
         </div>
 
         {/* Cost */}
-        <CostInput />
+        <CostInput
+          initialTotal={initialTotalCost}
+          initialLineItems={initialLineItems}
+        />
       </div>
 
       {/* Media upload section */}
@@ -263,7 +298,7 @@ export function LogFormWrapper({
         disabled={submitting}
         className="mt-4 flex min-h-[48px] w-full items-center justify-center rounded-xl bg-brass-gold px-4 py-3 font-medium text-barn-dark shadow hover:brightness-110 disabled:opacity-50"
       >
-        {submitting ? "Saving…" : "Save entry"}
+        {submitting ? "Saving…" : isEditing ? "Update entry" : "Save entry"}
       </button>
     </form>
   );
