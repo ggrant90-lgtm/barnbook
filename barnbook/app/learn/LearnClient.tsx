@@ -15,6 +15,21 @@ function PlayIcon() {
   );
 }
 
+function getThumbnail(video: Video): string {
+  if (video.source === "youtube") {
+    return `https://img.youtube.com/vi/${video.youtubeId}/hqdefault.jpg`;
+  }
+  // Loom CDN thumbnail
+  return `https://cdn.loom.com/sessions/thumbnails/${video.loomId}-with-play.gif`;
+}
+
+function getEmbedUrl(video: Video): string {
+  if (video.source === "youtube") {
+    return `https://www.youtube.com/embed/${video.youtubeId}?autoplay=1&rel=0`;
+  }
+  return `https://www.loom.com/embed/${video.loomId}?autoplay=1`;
+}
+
 function VideoCard({ video, onPlay }: { video: Video; onPlay: () => void }) {
   return (
     <button
@@ -23,8 +38,9 @@ function VideoCard({ video, onPlay }: { video: Video; onPlay: () => void }) {
       className="group cursor-pointer overflow-hidden rounded-2xl border border-[var(--line)] bg-white text-left shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
     >
       <div className="relative aspect-video w-full overflow-hidden bg-[var(--cream-dark)]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={`https://img.youtube.com/vi/${video.youtubeId}/hqdefault.jpg`}
+          src={getThumbnail(video)}
           alt={video.title}
           className="h-full w-full object-cover"
         />
@@ -62,7 +78,7 @@ function VideoModal({ video, onClose }: { video: Video; onClose: () => void }) {
         </button>
         <div className="aspect-video w-full overflow-hidden rounded-xl">
           <iframe
-            src={`https://www.youtube.com/embed/${video.youtubeId}?autoplay=1&rel=0`}
+            src={getEmbedUrl(video)}
             title={video.title}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
