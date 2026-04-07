@@ -1,100 +1,22 @@
-"use client";
+import { createServerComponentClient } from "@/lib/supabase-server";
+import { redirect } from "next/navigation";
+import { NewBarnClient } from "./NewBarnClient";
 
-import { createBarnAction } from "@/app/(protected)/actions/barn";
-import Link from "next/link";
-import { useActionState } from "react";
+export default async function NewBarnPage() {
+  const supabase = await createServerComponentClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/auth/signin");
 
-const fieldClass =
-  "w-full rounded-xl border border-barn-dark/15 bg-white px-4 py-3 text-barn-dark outline-none transition focus:border-brass-gold focus:ring-2 focus:ring-brass-gold/25";
+  // Check if user already has a free barn
+  const { count } = await supabase
+    .from("barns")
+    .select("id", { count: "exact", head: true })
+    .eq("owner_id", user.id)
+    .eq("plan_tier", "free");
 
-export default function NewBarnPage() {
-  const [state, formAction, pending] = useActionState(createBarnAction, null);
+  const hasFreeBarn = (count ?? 0) > 0;
 
-  return (
-    <div className="mx-auto max-w-lg px-4 py-10 sm:px-6">
-      <Link href="/dashboard" className="text-sm font-medium text-barn-dark/70 hover:text-brass-gold">
-        ← Dashboard
-      </Link>
-      <h1 className="mt-6 font-serif text-3xl font-semibold text-barn-dark">Create your barn</h1>
-      <p className="mt-2 text-barn-dark/70">
-        Add your facility so you can manage horses, keys, and team access in one place.
-      </p>
-
-      <form action={formAction} className="mt-10 space-y-4">
-        <div>
-          <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-barn-dark/80">
-            Barn name <span className="text-barn-red">*</span>
-          </label>
-          <input id="name" name="name" type="text" required className={fieldClass} placeholder="Oak Hollow Stables" />
-        </div>
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-barn-dark/80">Barn type</label>
-          <div className="mt-1 space-y-2">
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-barn-dark/15 bg-white px-4 py-3 transition hover:border-brass-gold">
-              <input type="radio" name="barn_type" value="standard" defaultChecked className="mt-0.5 accent-[#c9a84c]" />
-              <div>
-                <p className="text-sm font-medium text-barn-dark">Standard Barn</p>
-                <p className="text-xs text-barn-dark/55">A regular barn for managing your horses and team</p>
-              </div>
-            </label>
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-barn-dark/15 bg-white px-4 py-3 transition hover:border-brass-gold">
-              <input type="radio" name="barn_type" value="mare_motel" className="mt-0.5 accent-[#c9a84c]" />
-              <div>
-                <p className="text-sm font-medium text-barn-dark">Mare Motel</p>
-                <p className="text-xs text-barn-dark/55">A breeding facility where horses come and go. Designed for sharing horses between barns.</p>
-              </div>
-            </label>
-          </div>
-        </div>
-        <div>
-          <label htmlFor="address" className="mb-1.5 block text-sm font-medium text-barn-dark/80">
-            Address
-          </label>
-          <input id="address" name="address" type="text" className={fieldClass} />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="city" className="mb-1.5 block text-sm font-medium text-barn-dark/80">
-              City
-            </label>
-            <input id="city" name="city" type="text" className={fieldClass} />
-          </div>
-          <div>
-            <label htmlFor="state" className="mb-1.5 block text-sm font-medium text-barn-dark/80">
-              State
-            </label>
-            <input id="state" name="state" type="text" className={fieldClass} />
-          </div>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="zip" className="mb-1.5 block text-sm font-medium text-barn-dark/80">
-              ZIP
-            </label>
-            <input id="zip" name="zip" type="text" className={fieldClass} />
-          </div>
-          <div>
-            <label htmlFor="phone" className="mb-1.5 block text-sm font-medium text-barn-dark/80">
-              Phone
-            </label>
-            <input id="phone" name="phone" type="tel" className={fieldClass} />
-          </div>
-        </div>
-
-        {state?.error ? (
-          <p className="rounded-lg border border-barn-red/40 bg-barn-red/10 px-3 py-2 text-sm text-barn-dark" role="alert">
-            {state.error}
-          </p>
-        ) : null}
-
-        <button
-          type="submit"
-          disabled={pending}
-          className="mt-2 flex min-h-[48px] w-full items-center justify-center rounded-xl bg-brass-gold px-4 py-3 font-medium text-barn-dark shadow transition hover:brightness-110 disabled:opacity-60"
-        >
-          {pending ? "Creating…" : "Create barn"}
-        </button>
-      </form>
-    </div>
-  );
+  return <NewBarnClient hasFreeBarn={hasFreeBarn} />;
 }

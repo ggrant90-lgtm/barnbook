@@ -25,11 +25,23 @@ export async function createBarnAction(
   const phone = String(formData.get("phone") ?? "").trim() || null;
   const barnTypeRaw = String(formData.get("barn_type") ?? "standard").trim();
   const barn_type = barnTypeRaw === "mare_motel" ? "mare_motel" : "standard";
+  const planTierSelected = String(formData.get("plan_tier_selected") ?? "free").trim();
 
   if (!name) {
     return { error: "Barn name is required." };
   }
 
+  // Check one-free-barn rule: user can only have ONE free barn
+  const { count: freeBarns } = await supabase
+    .from("barns")
+    .select("id", { count: "exact", head: true })
+    .eq("owner_id", user.id)
+    .eq("plan_tier", "free");
+
+  const isFirstBarn = (freeBarns ?? 0) === 0;
+
+  // During Homestead: all barns are free with 999 stalls
+  // But record the tier they selected for when Homestead ends
   const { data: barn, error: barnErr } = await supabase
     .from("barns")
     .insert({
@@ -41,9 +53,28 @@ export async function createBarnAction(
       zip,
       phone,
       barn_type,
+      plan_tier: "free",
+      stall_capacity: 999,
+      plan_notes: planTierSelected !== "free"
+        ? `Homestead build — selected ${planTierSelected} tier`
+        : isFirstBarn
+          ? "First free barn"
+          : "Additional free barn (Homestead)",
+      plan_started_at: new Date().toISOString(),
     })
     .select("id")
     .single();
+
+  // If they selected a paid tier, capture interest for when Homestead ends
+  if (planTierSelected !== "free" && barn) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from("paywall_interest").insert({
+      user_id: user.id,
+      barn_id: barn.id,
+      plan_requested: `tier_${planTierSelected}_barn`,
+      email: user.email ?? "",
+    });
+  }
 
   if (barnErr || !barn) {
     return { error: barnErr?.message ?? "Could not create barn." };
