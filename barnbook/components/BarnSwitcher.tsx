@@ -10,9 +10,11 @@ import { useState } from "react";
 export function BarnSwitcher({
   allBarns,
   activeBarnId,
+  onSwitch,
 }: {
   allBarns: BarnSummary[];
   activeBarnId?: string | null;
+  onSwitch?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -23,7 +25,9 @@ export function BarnSwitcher({
 
   async function handleSwitch(barnId: string) {
     setOpen(false);
+    onSwitch?.();
     await switchBarnAction(barnId);
+    router.push(window.location.pathname);
     router.refresh();
   }
 

@@ -169,7 +169,7 @@ export function MobileSidebarDrawer({
           </button>
         </div>
         {allBarns && allBarns.length > 0 ? (
-          <BarnSwitcher allBarns={allBarns} activeBarnId={activeBarnId} />
+          <BarnSwitcher allBarns={allBarns} activeBarnId={activeBarnId} onSwitch={onClose} />
         ) : hasBarn && barnName ? (
           <p className="truncate px-4 py-2 text-xs text-muted-tan">{barnName}</p>
         ) : null}
