@@ -1,9 +1,11 @@
 import {
   IconCalendar,
   IconCamera,
+  IconChat,
   IconHome,
   IconHorses,
   IconKey,
+  IconPlay,
   IconReports,
   IconUser,
 } from "@/components/protected/nav-icons";
@@ -13,6 +15,7 @@ export type NavItem = {
   href: string;
   label: string;
   icon: ReactNode;
+  external?: boolean;
 };
 
 export function navLinkClass(active: boolean): string {
@@ -31,6 +34,11 @@ export const fullNav: NavItem[] = [
   { href: "/calendar", label: "Calendar", icon: <IconCalendar className="h-5 w-5" /> },
   { href: "/reports", label: "Reports", icon: <IconReports className="h-5 w-5" /> },
   { href: "/identify", label: "Identify", icon: <IconCamera className="h-5 w-5" /> },
+  { href: "/learn", label: "Learn", icon: <IconPlay className="h-5 w-5" /> },
+];
+
+export const supportNav: NavItem[] = [
+  { href: "https://wa.me/19289103669", label: "Support", icon: <IconChat className="h-5 w-5" />, external: true },
 ];
 
 export const reducedNav: NavItem[] = [

@@ -1,7 +1,7 @@
 "use client";
 
 import { BarnSwitcher } from "@/components/BarnSwitcher";
-import { isNavActive, navLinkClass, type NavItem } from "@/components/nav-config";
+import { isNavActive, navLinkClass, supportNav, type NavItem } from "@/components/nav-config";
 import type { BarnSummary } from "@/components/protected/ProtectedChrome";
 import Link from "next/link";
 
@@ -41,17 +41,46 @@ export function SidebarNavList({
 }) {
   return (
     <nav className="flex flex-1 flex-col gap-0.5 p-3" aria-label="Main navigation">
-      {items.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          onClick={onNavigate}
-          className={navLinkClass(isNavActive(pathname, item.href))}
-        >
-          {item.icon}
-          {item.label}
-        </Link>
-      ))}
+      {items.map((item) =>
+        item.external ? (
+          <a
+            key={item.href}
+            href={item.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={navLinkClass(false)}
+          >
+            {item.icon}
+            {item.label}
+          </a>
+        ) : (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={onNavigate}
+            className={navLinkClass(isNavActive(pathname, item.href))}
+          >
+            {item.icon}
+            {item.label}
+          </Link>
+        )
+      )}
+
+      {/* Support section */}
+      <div className="mt-auto border-t border-brass-gold/10 pt-2">
+        {supportNav.map((item) => (
+          <a
+            key={item.href}
+            href={item.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={navLinkClass(false)}
+          >
+            {item.icon}
+            {item.label}
+          </a>
+        ))}
+      </div>
     </nav>
   );
 }

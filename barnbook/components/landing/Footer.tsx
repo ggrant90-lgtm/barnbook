@@ -31,6 +31,7 @@ export default function Footer() {
               <a href="#how" className="block text-sm mb-2 no-underline transition-colors hover:text-cream" style={{ color: "rgba(245, 239, 228, 0.6)" }}>How it works</a>
               <a href="#features" className="block text-sm mb-2 no-underline transition-colors hover:text-cream" style={{ color: "rgba(245, 239, 228, 0.6)" }}>Features</a>
               <Link href="/pricing" className="block text-sm mb-2 no-underline transition-colors hover:text-cream" style={{ color: "rgba(245, 239, 228, 0.6)" }}>Pricing</Link>
+              <Link href="/learn" className="block text-sm mb-2 no-underline transition-colors hover:text-cream" style={{ color: "rgba(245, 239, 228, 0.6)" }}>Learn</Link>
               <Link href="/auth/signup" className="block text-sm mb-2 no-underline transition-colors hover:text-cream" style={{ color: "rgba(245, 239, 228, 0.6)" }}>Sign up</Link>
               <Link href="/auth/signin" className="block text-sm mb-2 no-underline transition-colors hover:text-cream" style={{ color: "rgba(245, 239, 228, 0.6)" }}>Sign in</Link>
             </div>
