@@ -4,7 +4,8 @@ import { logTypeLabel } from "@/lib/horse-form-constants";
 import { getActivitySummary, getHealthSummary } from "@/lib/horse-display";
 import { formatDateTime, formatDateShort } from "@/lib/format-date";
 import type { ActivityLog, HealthRecord, LogMedia, LogEntryLineItem } from "@/lib/types";
-import { useCallback, useEffect } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 
 type LogItem =
   | { kind: "activity"; entry: ActivityLog }
@@ -31,6 +32,7 @@ interface LogDetailModalProps {
   canEdit?: boolean;
   canDelete?: boolean;
   onDelete?: () => void;
+  horseId?: string;
 }
 
 export function LogDetailModal({
@@ -42,9 +44,13 @@ export function LogDetailModal({
   loggerName,
   loggerBarn,
   onClose,
+  canEdit,
   canDelete,
   onDelete,
+  horseId,
 }: LogDetailModalProps) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -215,16 +221,53 @@ export function LogDetailModal({
           </p>
         </div>
 
-        {/* Delete */}
-        {canDelete ? (
-          <div className="mt-4 border-t border-barn-dark/10 pt-3">
-            <button
-              type="button"
-              onClick={onDelete}
-              className="text-sm text-red-600 hover:text-red-700"
-            >
-              Delete entry
-            </button>
+        {/* Edit / Delete */}
+        {(canEdit || canDelete) ? (
+          <div className="mt-4 border-t border-barn-dark/10 pt-3 flex items-center justify-between">
+            {canEdit && horseId ? (
+              <Link
+                href={`/horses/${horseId}/log/${isActivity ? (entry as ActivityLog).activity_type : (entry as HealthRecord).record_type === "Shoeing" ? "shoeing" : (entry as HealthRecord).record_type === "Worming" ? "worming" : "vet_visit"}?edit=${entry.id}`}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-brass-gold/10 px-3 py-1.5 text-sm font-medium text-brass-gold hover:bg-brass-gold/20 transition"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                </svg>
+                Edit
+              </Link>
+            ) : <span />}
+            {canDelete ? (
+              confirmingDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-barn-dark/50">Delete this entry?</span>
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={async () => {
+                      setDeleting(true);
+                      onDelete?.();
+                    }}
+                    className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50 transition"
+                  >
+                    {deleting ? "Deleting…" : "Yes, delete"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingDelete(false)}
+                    className="rounded-lg bg-barn-dark/5 px-3 py-1.5 text-xs font-medium text-barn-dark/60 hover:bg-barn-dark/10 transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingDelete(true)}
+                  className="text-sm text-red-500/70 hover:text-red-600 transition"
+                >
+                  Delete
+                </button>
+              )
+            ) : null}
           </div>
         ) : null}
       </div>

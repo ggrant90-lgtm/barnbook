@@ -1,6 +1,7 @@
 "use client";
 
 import { updateHorseAction } from "@/app/(protected)/actions/horse";
+import { deleteLogAction } from "@/app/(protected)/actions/delete-log";
 import { moveHorseAction } from "@/app/(protected)/actions/move-horse";
 import { ActivityEntry } from "@/components/ActivityEntry";
 import { CareCard } from "@/components/CareCard";
@@ -749,6 +750,18 @@ export function HorseProfileClient({
           onClose={() => setSelectedLog(null)}
           canEdit={canEdit}
           canDelete={canEdit}
+          horseId={horse.id}
+          onDelete={async () => {
+            const logType = selectedLog.kind === "activity" ? "activity" as const : "health" as const;
+            const result = await deleteLogAction(selectedLog.entry.id, logType, horse.id);
+            if (result.error) {
+              show(result.error, "error");
+            } else {
+              show("Log entry deleted.", "success");
+              setSelectedLog(null);
+              router.refresh();
+            }
+          }}
         />
       ) : null}
     </div>
