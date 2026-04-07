@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Serif_Display, Instrument_Serif } from "next/font/google";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import "./globals.css";
 
@@ -81,6 +82,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col font-sans">
         <ServiceWorkerRegistration />
         {children}
+        <SpeedInsights />
       </body>
     </html>
   );
