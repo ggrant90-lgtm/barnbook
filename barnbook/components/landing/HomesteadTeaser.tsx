@@ -3,7 +3,7 @@ import Link from "next/link";
 const stats = [
   "Every feature included",
   "No credit card required",
-  "90-day pricing notice",
+  "Keep what you build",
   "Grandfathered forever",
 ];
 

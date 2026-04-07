@@ -248,7 +248,7 @@ export default function PricingPage() {
                 Whatever you build during Homestead Territory is yours to keep — free, forever. When we introduce paid plans, your existing barns, horses, records, and team connections are grandfathered at no cost. We won&apos;t pull the rug.
               </p>
               <p className="text-ink-soft leading-relaxed" style={{ fontSize: 15 }}>
-                We&apos;ll give at least <strong className="text-ink font-semibold">90 days notice</strong> before any pricing takes effect. You&apos;ll see it coming, and you&apos;ll have time to decide what&apos;s next.
+                The only thing that changes after launch day is new construction — adding stalls, building new barns, or expanding beyond what you already have. Those will use the new pricing.
               </p>
             </div>
           </div>
@@ -500,7 +500,7 @@ export default function PricingPage() {
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m0 0L8 3m5 5l-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </Link>
               <p className="mt-8 text-ink-soft text-sm">
-                At least 90 days notice before any pricing takes effect.
+                No credit card required. Build as much as you want, free.
               </p>
             </div>
           </div>
