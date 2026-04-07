@@ -97,10 +97,7 @@ export default async function HorseLogPage({
     use_count: number;
   }[];
 
-  const tab =
-    logType === "shoeing" || logType === "worming" || logType === "vet_visit"
-      ? "health"
-      : "activity";
+  const tab = "logs";
 
   return (
     <div className="mx-auto max-w-lg px-4 py-10 sm:px-6">

@@ -96,16 +96,56 @@ export default async function DashboardPage() {
   // ── Determine which barn to show (active barn from cookie, or first owned) ──
   const activeBarnId = await getActiveBarnId();
   const allUserBarns = [...(ownedBarns ?? []) as Barn[], ...accessBarns];
-  const primaryBarn = activeBarnId
-    ? allUserBarns.find((b) => b.id === activeBarnId) ?? (ownedBarns ?? [])[0] ?? null
-    : (ownedBarns ?? [])[0] ?? null;
+  const isAllBarns = activeBarnId === "__all__" && allUserBarns.length > 1;
+  const primaryBarn = isAllBarns
+    ? null
+    : activeBarnId && activeBarnId !== "__all__"
+      ? allUserBarns.find((b) => b.id === activeBarnId) ?? (ownedBarns ?? [])[0] ?? null
+      : (ownedBarns ?? [])[0] ?? null;
   let horses: Pick<Horse, "id" | "name" | "photo_url" | "breed" | "sex" | "color" | "updated_at">[] = [];
   let horseCount = 0;
   let activeKeys = 0;
   let pendingRequests = 0;
   let recentActivity: { log: ActivityLog; horseName: string }[] = [];
 
-  if (primaryBarn) {
+  if (isAllBarns) {
+    // Combined view: fetch horses from ALL user's barns
+    const allBarnIds = allUserBarns.map((b) => b.id);
+    const [horsesRes, keysRes] = await Promise.all([
+      supabase
+        .from("horses")
+        .select("id, name, photo_url, breed, sex, color, updated_at")
+        .in("barn_id", allBarnIds)
+        .eq("archived", false)
+        .order("name", { ascending: true })
+        .limit(100),
+      supabase
+        .from("access_keys")
+        .select("id", { count: "exact", head: true })
+        .in("barn_id", allBarnIds)
+        .eq("is_active", true),
+    ]);
+
+    horses = (horsesRes.data ?? []) as typeof horses;
+    horseCount = horses.length;
+    activeKeys = keysRes.count ?? 0;
+
+    const ids = horses.map((h) => h.id);
+    if (ids.length > 0) {
+      const { data: logs } = await supabase
+        .from("activity_log")
+        .select("*")
+        .in("horse_id", ids)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      const nameByHorse = new Map(horses.map((h) => [h.id, h.name]));
+      recentActivity = (logs ?? []).map((log) => ({
+        log: log as ActivityLog,
+        horseName: nameByHorse.get(log.horse_id) ?? "Horse",
+      }));
+    }
+  } else if (primaryBarn) {
     const barnId = primaryBarn.id;
     const [horsesRes, keysRes, pendingRes, horseIdsForActivity] = await Promise.all([
       supabase

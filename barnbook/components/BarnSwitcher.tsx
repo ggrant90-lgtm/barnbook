@@ -40,7 +40,9 @@ export function BarnSwitcher({
     }
   }
 
-  const activeBarn = allBarns.find((b) => b.id === activeBarnId);
+  const isAllBarns = activeBarnId === "__all__";
+  const activeBarn = isAllBarns ? null : allBarns.find((b) => b.id === activeBarnId);
+  const showAllOption = allBarns.length > 1;
 
   return (
     <div className="relative px-4 py-3 border-b border-brass-gold/10">
@@ -51,10 +53,12 @@ export function BarnSwitcher({
       >
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-parchment">
-            {activeBarn?.name ?? "Select barn"}
+            {isAllBarns ? "All Barns" : (activeBarn?.name ?? "Select barn")}
           </p>
-          {activeBarn?.barn_type === "mare_motel" ? (
+          {!isAllBarns && activeBarn?.barn_type === "mare_motel" ? (
             <span className="text-[10px] text-brass-gold">Mare Motel</span>
+          ) : isAllBarns ? (
+            <span className="text-[10px] text-brass-gold">{allBarns.length} barns combined</span>
           ) : null}
         </div>
         <svg
@@ -71,6 +75,28 @@ export function BarnSwitcher({
       {open ? (
         <div className="absolute left-4 right-4 z-50 mt-1 rounded-xl border border-brass-gold/15 bg-barn-dark shadow-lg">
           <ul className="max-h-60 overflow-y-auto py-1">
+            {showAllOption && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => handleSwitch("__all__")}
+                  className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm transition hover:bg-barn-panel ${
+                    isAllBarns ? "text-brass-gold" : "text-parchment"
+                  }`}
+                >
+                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" />
+                  </svg>
+                  <span className="flex-1">All Barns</span>
+                  <span className="text-[10px] text-muted-tan">{allBarns.length}</span>
+                  {isAllBarns && (
+                    <svg className="h-4 w-4 shrink-0 text-brass-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              </li>
+            )}
             {allBarns.map((barn) => (
               <li key={barn.id} className="group flex items-center">
                 <button

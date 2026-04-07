@@ -25,12 +25,22 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 const tabItems = [
   { id: "overview", label: "Overview" },
-  { id: "activity", label: "Activity" },
-  { id: "health", label: "Health" },
+  { id: "logs", label: "Logs" },
   { id: "access", label: "Access" },
 ] as const;
 
 type TabId = (typeof tabItems)[number]["id"];
+
+const ALL_LOG_TYPES = [
+  { value: "exercise", label: "Exercise" },
+  { value: "feed", label: "Feed" },
+  { value: "medication", label: "Medication" },
+  { value: "note", label: "Note" },
+  { value: "breed_data", label: "Breed Data" },
+  { value: "shoeing", label: "Shoeing" },
+  { value: "worming", label: "Worming" },
+  { value: "vet_visit", label: "Vet Visit" },
+] as const;
 
 export function HorseProfileClient({
   horse,
@@ -85,22 +95,16 @@ export function HorseProfileClient({
   } | null>(null);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [moving, setMoving] = useState(false);
-  const [activityTypeFilter, setActivityTypeFilter] = useState<string | null>(null);
-  const [activityDateRange, setActivityDateRange] = useState("all");
-  const [healthTypeFilter, setHealthTypeFilter] = useState<string | null>(null);
-  const [healthDateRange, setHealthDateRange] = useState("all");
+  const [logTypeFilter, setLogTypeFilter] = useState<string | null>(null);
+  const [logDateRange, setLogDateRange] = useState("all");
+  const [showAddLogDropdown, setShowAddLogDropdown] = useState(false);
 
   const tabParam = searchParams.get("tab");
   const tab: TabId = ((): TabId => {
     const raw = tabParam ?? initialTab;
-    if (
-      raw === "overview" ||
-      raw === "activity" ||
-      raw === "health" ||
-      raw === "access"
-    ) {
-      return raw;
-    }
+    // Remap old tabs to "logs"
+    if (raw === "activity" || raw === "health") return "logs";
+    if (raw === "overview" || raw === "logs" || raw === "access") return raw;
     return "overview";
   })();
 
@@ -188,30 +192,59 @@ export function HorseProfileClient({
     return true;
   }, []);
 
-  const activityTypes = useMemo(
-    () => [...new Set(activities.map((a) => a.activity_type))],
-    [activities],
-  );
-  const filteredActivities = useMemo(
-    () =>
-      activities.filter((a) => {
-        if (activityTypeFilter && a.activity_type !== activityTypeFilter) return false;
-        return filterByDate(a.created_at, activityDateRange);
-      }),
-    [activities, activityTypeFilter, activityDateRange, filterByDate],
+  // Unified log entries: merge activities + health, sorted by date desc
+  type UnifiedLog =
+    | { kind: "activity"; entry: ActivityLog; date: string; type: string }
+    | { kind: "health"; entry: HealthRecord; date: string; type: string };
+
+  const allLogs = useMemo(() => {
+    const logs: UnifiedLog[] = [
+      ...activities.map((a) => ({
+        kind: "activity" as const,
+        entry: a,
+        date: a.performed_at ?? a.created_at,
+        type: a.activity_type,
+      })),
+      ...healthRows.map((h) => ({
+        kind: "health" as const,
+        entry: h,
+        date: h.performed_at ?? h.record_date,
+        type: h.record_type?.toLowerCase().replace(" ", "_") ?? "unknown",
+      })),
+    ];
+    logs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return logs;
+  }, [activities, healthRows]);
+
+  const allLogTypes = useMemo(
+    () => [...new Set(allLogs.map((l) => l.type))],
+    [allLogs],
   );
 
-  const healthTypes = useMemo(
-    () => [...new Set(healthRows.map((h) => h.record_type))],
-    [healthRows],
-  );
-  const filteredHealth = useMemo(
+  // Count log types for sorting the "Add Log" dropdown by most used
+  const logTypeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const l of allLogs) {
+      counts[l.type] = (counts[l.type] ?? 0) + 1;
+    }
+    return counts;
+  }, [allLogs]);
+
+  const sortedLogTypes = useMemo(
     () =>
-      healthRows.filter((h) => {
-        if (healthTypeFilter && h.record_type !== healthTypeFilter) return false;
-        return filterByDate(h.record_date, healthDateRange);
+      [...ALL_LOG_TYPES].sort(
+        (a, b) => (logTypeCounts[b.value] ?? 0) - (logTypeCounts[a.value] ?? 0),
+      ),
+    [logTypeCounts],
+  );
+
+  const filteredLogs = useMemo(
+    () =>
+      allLogs.filter((l) => {
+        if (logTypeFilter && l.type !== logTypeFilter) return false;
+        return filterByDate(l.date, logDateRange);
       }),
-    [healthRows, healthTypeFilter, healthDateRange, filterByDate],
+    [allLogs, logTypeFilter, logDateRange, filterByDate],
   );
 
   const getMediaForLog = useCallback(
@@ -237,34 +270,16 @@ export function HorseProfileClient({
     [userNames],
   );
 
-  // Summary stats for filtered entries
-  const activitySummary = useMemo(() => {
-    const entries = filteredActivities;
-    const totalCost = entries.reduce((s, a) => s + (a.total_cost ?? 0), 0);
-    const dates = entries
-      .map((a) => a.performed_at ?? a.created_at)
-      .filter(Boolean)
-      .sort();
+  // Summary stats for filtered logs
+  const logSummary = useMemo(() => {
+    const totalCost = filteredLogs.reduce((s, l) => s + (l.entry.total_cost ?? 0), 0);
+    const dates = filteredLogs.map((l) => l.date).filter(Boolean).sort();
     return {
-      count: entries.length,
+      count: filteredLogs.length,
       totalCost: totalCost > 0 ? totalCost : null,
       dateRange: dates.length > 0 ? { earliest: dates[0], latest: dates[dates.length - 1] } : null,
     };
-  }, [filteredActivities]);
-
-  const healthSummary = useMemo(() => {
-    const entries = filteredHealth;
-    const totalCost = entries.reduce((s, h) => s + (h.total_cost ?? 0), 0);
-    const dates = entries
-      .map((h) => h.performed_at ?? h.record_date)
-      .filter(Boolean)
-      .sort();
-    return {
-      count: entries.length,
-      totalCost: totalCost > 0 ? totalCost : null,
-      dateRange: dates.length > 0 ? { earliest: dates[0], latest: dates[dates.length - 1] } : null,
-    };
-  }, [filteredHealth]);
+  }, [filteredLogs]);
 
   /** Fields are disabled unless user has permission AND is in edit mode */
   const fieldsDisabled = !editing;
@@ -546,105 +561,96 @@ export function HorseProfileClient({
           </div>
         ) : null}
 
-        {tab === "activity" ? (
+        {tab === "logs" ? (
           <div className="space-y-4">
+            {/* Add Log button + dropdown */}
             {canEdit ? (
-              <div>
-                <h3 className="text-sm font-medium text-barn-dark">Add entry</h3>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(["exercise", "feed", "medication", "note", "breed_data"] as const).map((x) => (
-                    <Link
-                      key={x}
-                      href={`/horses/${horse.id}/log/${x}`}
-                      className={linkButtonClass("secondary", "min-h-0 px-3 py-1.5 capitalize")}
-                    >
-                      {x === "breed_data" ? "Breed Data" : x}
-                    </Link>
-                  ))}
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-barn-dark">
+                  {allLogs.length} {allLogs.length === 1 ? "entry" : "entries"}
+                </h3>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddLogDropdown(!showAddLogDropdown)}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-brass-gold px-4 py-2 text-sm font-medium text-barn-dark shadow hover:brightness-110 transition"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    Add Log
+                    <svg className="h-3 w-3 ml-1" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </button>
+                  {showAddLogDropdown && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowAddLogDropdown(false)} />
+                      <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-xl border border-barn-dark/10 bg-white py-1 shadow-lg">
+                        {sortedLogTypes.map((lt) => (
+                          <Link
+                            key={lt.value}
+                            href={`/horses/${horse.id}/log/${lt.value}`}
+                            className="flex items-center justify-between px-4 py-2.5 text-sm text-barn-dark hover:bg-parchment transition"
+                            onClick={() => setShowAddLogDropdown(false)}
+                          >
+                            <span>{lt.label}</span>
+                            {(logTypeCounts[lt.value] ?? 0) > 0 && (
+                              <span className="text-xs text-barn-dark/30">{logTypeCounts[lt.value]}</span>
+                            )}
+                          </Link>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             ) : null}
-            {activities.length > 0 ? (
-              <LogFilters
-                types={activityTypes}
-                selectedType={activityTypeFilter}
-                onTypeChange={setActivityTypeFilter}
-                dateRange={activityDateRange}
-                onDateRangeChange={setActivityDateRange}
-              />
-            ) : null}
-            <LogSummaryBar
-              entryCount={activitySummary.count}
-              totalCost={activitySummary.totalCost}
-              dateRange={activitySummary.dateRange}
-            />
-            <ul className="divide-y divide-barn-dark/10">
-              {filteredActivities.length === 0 ? (
-                <li className="py-4 text-barn-dark/60">
-                  {activities.length === 0 ? "No activity yet." : "No entries match your filters."}
-                </li>
-              ) : (
-                filteredActivities.map((a) => (
-                  <ActivityEntry
-                    key={a.id}
-                    activity={a}
-                    loggerName={a.logged_by ? (userNames?.[a.logged_by] ?? null) : null}
-                    loggerBarn={a.logged_at_barn_id ? (barnNames?.[a.logged_at_barn_id] ?? null) : null}
-                    onClick={() => setSelectedLog({ kind: "activity", entry: a })}
-                  />
-                ))
-              )}
-            </ul>
-          </div>
-        ) : null}
 
-        {tab === "health" ? (
-          <div className="space-y-4">
-            {canEdit ? (
-              <div>
-                <h3 className="text-sm font-medium text-barn-dark">Add record</h3>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(["shoeing", "worming", "vet_visit"] as const).map((x) => (
-                    <Link
-                      key={x}
-                      href={`/horses/${horse.id}/log/${x}`}
-                      className={linkButtonClass("secondary", "min-h-0 px-3 py-1.5")}
-                    >
-                      {x.replace("_", " ")}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {healthRows.length > 0 ? (
+            {/* Filters */}
+            {allLogs.length > 0 ? (
               <LogFilters
-                types={healthTypes}
-                selectedType={healthTypeFilter}
-                onTypeChange={setHealthTypeFilter}
-                dateRange={healthDateRange}
-                onDateRangeChange={setHealthDateRange}
+                types={allLogTypes}
+                selectedType={logTypeFilter}
+                onTypeChange={setLogTypeFilter}
+                dateRange={logDateRange}
+                onDateRangeChange={setLogDateRange}
               />
             ) : null}
+
+            {/* Summary bar */}
             <LogSummaryBar
-              entryCount={healthSummary.count}
-              totalCost={healthSummary.totalCost}
-              dateRange={healthSummary.dateRange}
+              entryCount={logSummary.count}
+              totalCost={logSummary.totalCost}
+              dateRange={logSummary.dateRange}
             />
+
+            {/* Unified log list */}
             <ul className="divide-y divide-barn-dark/10">
-              {filteredHealth.length === 0 ? (
+              {filteredLogs.length === 0 ? (
                 <li className="py-4 text-barn-dark/60">
-                  {healthRows.length === 0 ? "No health records yet." : "No records match your filters."}
+                  {allLogs.length === 0 ? "No log entries yet." : "No entries match your filters."}
                 </li>
               ) : (
-                filteredHealth.map((h) => (
-                  <HealthRecordItem
-                    key={h.id}
-                    record={h}
-                    loggerName={h.logged_by ? (userNames?.[h.logged_by] ?? null) : null}
-                    loggerBarn={h.logged_at_barn_id ? (barnNames?.[h.logged_at_barn_id] ?? null) : null}
-                    onClick={() => setSelectedLog({ kind: "health", entry: h })}
-                  />
-                ))
+                filteredLogs.map((l) =>
+                  l.kind === "activity" ? (
+                    <ActivityEntry
+                      key={`a-${l.entry.id}`}
+                      activity={l.entry}
+                      loggerName={l.entry.logged_by ? (userNames?.[l.entry.logged_by] ?? null) : null}
+                      loggerBarn={l.entry.logged_at_barn_id ? (barnNames?.[l.entry.logged_at_barn_id] ?? null) : null}
+                      onClick={() => setSelectedLog({ kind: "activity", entry: l.entry })}
+                    />
+                  ) : (
+                    <HealthRecordItem
+                      key={`h-${l.entry.id}`}
+                      record={l.entry}
+                      loggerName={l.entry.logged_by ? (userNames?.[l.entry.logged_by] ?? null) : null}
+                      loggerBarn={l.entry.logged_at_barn_id ? (barnNames?.[l.entry.logged_at_barn_id] ?? null) : null}
+                      onClick={() => setSelectedLog({ kind: "health", entry: l.entry })}
+                    />
+                  ),
+                )
               )}
             </ul>
           </div>
