@@ -1,16 +1,17 @@
 /**
  * Plan utility functions — pure, work in both server and client.
- * The paywall is currently OFF: DEFAULT_FREE_STALL_CAPACITY = 999.
- * Flip to 5 when ready to enforce the free tier limit.
+ * Free barns get 5 stalls. Paid barns get 10 stalls for $25/mo.
  */
 
-export const DEFAULT_FREE_STALL_CAPACITY = 999;
+export const DEFAULT_FREE_STALL_CAPACITY = 5;
+export const PAID_STALL_CAPACITY = 10;
+export const PAID_PRICE_CENTS = 2500;
+export const PAID_PRICE_LABEL = "$25/mo";
 export const PLAN_TIERS = ["free", "paid", "comped"] as const;
 export type PlanTier = (typeof PLAN_TIERS)[number];
 
 export const STALL_BLOCK_SIZES = [
-  { size: 10, label: "10 Stalls", priceCents: 2999, priceLabel: "$29.99/mo" },
-  { size: 20, label: "20 Stalls", priceCents: 4999, priceLabel: "$49.99/mo" },
+  { size: 10, label: "10 Stalls", priceCents: 2500, priceLabel: "$25/mo" },
 ] as const;
 
 export const GRACE_PERIOD_DAYS = 30;

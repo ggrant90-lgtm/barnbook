@@ -40,8 +40,10 @@ export async function createBarnAction(
 
   const isFirstBarn = (freeBarns ?? 0) === 0;
 
-  // During Homestead: all barns are free with 999 stalls
-  // But record the tier they selected for when Homestead ends
+  // Free barns get 5 stalls, paid barns get 10
+  const isPaid = planTierSelected === "paid";
+  const stallCapacity = isPaid ? 10 : 5;
+
   const { data: barn, error: barnErr } = await supabase
     .from("barns")
     .insert({
@@ -53,25 +55,25 @@ export async function createBarnAction(
       zip,
       phone,
       barn_type,
-      plan_tier: "free",
-      stall_capacity: 999,
-      plan_notes: planTierSelected !== "free"
-        ? `Homestead build — selected ${planTierSelected} tier`
+      plan_tier: isPaid ? "paid" : "free",
+      stall_capacity: stallCapacity,
+      plan_notes: isPaid
+        ? "10-stall paid barn — $25/mo"
         : isFirstBarn
           ? "First free barn"
-          : "Additional free barn (Homestead)",
+          : "Additional free barn",
       plan_started_at: new Date().toISOString(),
     })
     .select("id")
     .single();
 
-  // If they selected a paid tier, capture interest for when Homestead ends
-  if (planTierSelected !== "free" && barn) {
+  // If they selected the paid tier, capture interest for Stripe launch
+  if (isPaid && barn) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from("paywall_interest").insert({
       user_id: user.id,
       barn_id: barn.id,
-      plan_requested: `tier_${planTierSelected}_barn`,
+      plan_requested: "10_stall_barn_25mo",
       email: user.email ?? "",
     });
   }

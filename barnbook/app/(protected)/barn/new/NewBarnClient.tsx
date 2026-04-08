@@ -8,11 +8,8 @@ const fieldClass =
   "w-full rounded-xl border border-barn-dark/15 bg-white px-4 py-3 text-barn-dark outline-none transition focus:border-brass-gold focus:ring-2 focus:ring-brass-gold/25";
 
 const TIERS = [
-  { value: "free", label: "Starter Barn", stalls: "5 stalls", price: "Free", note: "Perfect for getting started", available: true },
-  { value: "small", label: "Small Barn", stalls: "10 stalls", price: "$29/mo", per: "$2.90/stall", available: true },
-  { value: "medium", label: "Medium Barn", stalls: "20 stalls", price: "$49/mo", per: "$2.45/stall", popular: true, available: true },
-  { value: "large", label: "Large Barn", stalls: "40 stalls", price: "$79/mo", per: "$1.98/stall", available: true },
-  { value: "estate", label: "Estate Barn", stalls: "80 stalls", price: "$129/mo", per: "$1.61/stall", available: true },
+  { value: "free", label: "Free Barn", stalls: "5 stalls", price: "Free" },
+  { value: "paid", label: "10-Stall Barn", stalls: "10 stalls", price: "$25/mo" },
 ];
 
 export function NewBarnClient({ hasFreeBarn }: { hasFreeBarn: boolean }) {
@@ -34,12 +31,11 @@ export function NewBarnClient({ hasFreeBarn }: { hasFreeBarn: boolean }) {
         Add your facility so you can manage horses, keys, and team access in one place.
       </p>
 
-      {/* Homestead Banner */}
+      {/* Pricing info */}
       <div className="mt-6 rounded-xl border border-brass-gold/30 bg-brass-gold/10 px-4 py-3">
         <p className="text-sm font-medium text-barn-dark">
           <span className="text-brass-gold">✦</span>{" "}
-          Homestead Territory — All barns are free with unlimited stalls during the Homestead period.
-          Build whatever you want, keep it forever.
+          Your first barn is free with 5 stalls. Need more room? Add a 10-stall barn for $25/mo.
         </p>
       </div>
 
@@ -88,7 +84,7 @@ export function NewBarnClient({ hasFreeBarn }: { hasFreeBarn: boolean }) {
             <div className="mt-2 space-y-2">
               {hasFreeBarn && (
                 <p className="text-xs text-barn-dark/50 mb-2">
-                  You already have a free barn. Additional barns will use paid pricing when Homestead ends.
+                  You already have a free barn. Additional barns are $25/mo for 10 stalls.
                 </p>
               )}
               {visibleTiers.map((tier) => (
@@ -98,7 +94,7 @@ export function NewBarnClient({ hasFreeBarn }: { hasFreeBarn: boolean }) {
                     selectedTier === tier.value
                       ? "border-brass-gold bg-brass-gold/5"
                       : "border-barn-dark/15 bg-white"
-                  } ${tier.popular ? "ring-1 ring-brass-gold/40" : ""}`}
+                  }`}
                 >
                   <input
                     type="radio"
@@ -109,42 +105,20 @@ export function NewBarnClient({ hasFreeBarn }: { hasFreeBarn: boolean }) {
                     className="mt-0.5 accent-[#c9a84c]"
                   />
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-barn-dark">{tier.label}</p>
-                      {tier.popular && (
-                        <span className="rounded-full bg-brass-gold/20 px-2 py-0.5 text-[10px] font-semibold text-barn-dark uppercase tracking-wider">
-                          Popular
-                        </span>
-                      )}
-                    </div>
+                    <p className="text-sm font-medium text-barn-dark">{tier.label}</p>
                     <p className="text-xs text-barn-dark/55">{tier.stalls}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-sm font-semibold text-barn-dark">
-                      {tier.value === "free" ? (
-                        "Free"
-                      ) : (
-                        <>
-                          <span className="line-through text-barn-dark/40 text-xs mr-1">{tier.price}</span>
-                          <span className="text-forest font-bold">Free</span>
-                        </>
-                      )}
-                    </p>
-                    {tier.value !== "free" && (
-                      <p className="text-[10px] text-brass-gold font-medium">Homestead pricing</p>
-                    )}
+                    <p className="text-sm font-semibold text-barn-dark">{tier.price}</p>
                   </div>
                 </label>
               ))}
-              <p className="text-xs text-barn-dark/40 mt-1">
-                During Homestead Territory, all tiers are free with unlimited stalls. Pricing shown is what will apply after Homestead ends.
-              </p>
             </div>
           )}
 
           {!showTierSelect && (
             <p className="text-xs text-barn-dark/50">
-              Default: unlimited stalls (Homestead pricing). Click above to preview future tiers.
+              {hasFreeBarn ? "10 stalls — $25/mo" : "Free — 5 stalls"}. Click above to change.
             </p>
           )}
         </div>

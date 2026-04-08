@@ -49,45 +49,30 @@ const stallKeyBullets = [
 
 const tiers = [
   {
-    name: "Small Barn",
+    name: "Free Barn",
+    stalls: 5,
+    price: "Free",
+    period: "",
+    planKey: "tier_free_barn",
+    highlight: false,
+    desc: "Everything you need to get started",
+  },
+  {
+    name: "10-Stall Barn",
     stalls: 10,
-    price: "$29",
+    price: "$25",
     period: "/mo",
-    planKey: "tier_small_barn",
-    highlight: false,
-  },
-  {
-    name: "Medium Barn",
-    stalls: 20,
-    price: "$49",
-    period: "/mo",
-    planKey: "tier_medium_barn",
+    planKey: "tier_10_stall_barn",
     highlight: true,
-    badge: "Most popular",
-  },
-  {
-    name: "Large Barn",
-    stalls: 40,
-    price: "$79",
-    period: "/mo",
-    planKey: "tier_large_barn",
-    highlight: false,
-  },
-  {
-    name: "Estate Barn",
-    stalls: 80,
-    price: "$129",
-    period: "/mo",
-    planKey: "tier_estate_barn",
-    highlight: false,
+    badge: "For growing barns",
+    desc: "Double your capacity, same great features",
   },
 ];
 
 const exampleConfigs = [
-  { label: "Small lesson barn", config: "10-stall foundation", monthly: "$29" },
-  { label: "Mid-size boarding barn", config: "20-stall foundation", monthly: "$49" },
-  { label: "Large training facility", config: "40-stall foundation", monthly: "$79" },
-  { label: "Multi-barn estate", config: "80-stall foundation + add-ons", monthly: "$129+" },
+  { label: "Getting started", config: "1 free barn", monthly: "Free" },
+  { label: "Growing trainer", config: "1 free + 1 paid barn", monthly: "$25" },
+  { label: "Multi-barn operation", config: "1 free + 3 paid barns", monthly: "$75" },
 ];
 
 const addOns = [
@@ -334,26 +319,27 @@ export default function PricingPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-4 max-[900px]:grid-cols-2 max-[560px]:grid-cols-1 gap-5">
+            <div className="grid grid-cols-2 max-[560px]:grid-cols-1 gap-6 max-w-[700px] mx-auto">
               {tiers.map((t) => (
-                <div key={t.planKey} className="rounded-2xl p-7 relative flex flex-col" style={{ background: t.highlight ? "rgba(201, 168, 76, 0.12)" : "rgba(245, 239, 228, 0.06)", border: t.highlight ? "2px solid #c9a84c" : "1px solid rgba(245, 239, 228, 0.12)" }}>
+                <div key={t.planKey} className="rounded-2xl p-8 relative flex flex-col" style={{ background: t.highlight ? "rgba(201, 168, 76, 0.12)" : "rgba(245, 239, 228, 0.06)", border: t.highlight ? "2px solid #c9a84c" : "1px solid rgba(245, 239, 228, 0.12)" }}>
                   {t.badge && (
                     <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[11px] font-semibold uppercase px-3 py-1 rounded-full" style={{ background: "#c9a84c", color: "var(--ink)", letterSpacing: "0.06em" }}>{t.badge}</span>
                   )}
-                  <h3 className="font-serif text-[20px] text-cream mb-1">{t.name}</h3>
-                  <p className="text-sm mb-5" style={{ color: "rgba(245, 239, 228, 0.6)" }}>{t.stalls} stalls</p>
+                  <h3 className="font-serif text-[22px] text-cream mb-1">{t.name}</h3>
+                  <p className="text-sm mb-2" style={{ color: "rgba(245, 239, 228, 0.6)" }}>{t.stalls} stalls</p>
+                  <p className="text-sm mb-5" style={{ color: "rgba(245, 239, 228, 0.5)" }}>{t.desc}</p>
                   <div className="mb-6">
-                    <span className="text-[36px] font-serif text-cream" style={{ letterSpacing: "-0.02em" }}>{t.price}</span>
+                    <span className="text-[40px] font-serif text-cream" style={{ letterSpacing: "-0.02em" }}>{t.price}</span>
                     <span className="text-sm" style={{ color: "rgba(245, 239, 228, 0.6)" }}>{t.period}</span>
                   </div>
-                  <PricingClient planKey={t.planKey} planName={t.name} label="Get on the list" variant="tier" />
+                  <PricingClient planKey={t.planKey} planName={t.name} label={t.price === "Free" ? "Start free" : "Get on the list"} variant="tier" />
                 </div>
               ))}
             </div>
 
-            {/* Stacking note */}
+            {/* Multi-barn note */}
             <p className="text-center text-sm mt-8 mb-10" style={{ color: "rgba(245, 239, 228, 0.6)" }}>
-              Foundations stack. Need 30 stalls? Combine a 20 and a 10. Need 60? A 40 and a 20.
+              Need more room? Add barns as you grow. Your first barn is always free.
             </p>
 
             {/* Example configurations table */}
