@@ -55,25 +55,7 @@ export function NewBarnClient({ hasFreeBarn }: { hasFreeBarn: boolean }) {
           <input id="name" name="name" type="text" required className={fieldClass} placeholder="Oak Hollow Stables" />
         </div>
 
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-barn-dark/80">Barn type</label>
-          <div className="mt-1 space-y-2">
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-barn-dark/15 bg-white px-4 py-3 transition hover:border-brass-gold">
-              <input type="radio" name="barn_type" value="standard" defaultChecked className="mt-0.5 accent-[#c9a84c]" />
-              <div>
-                <p className="text-sm font-medium text-barn-dark">Standard Barn</p>
-                <p className="text-xs text-barn-dark/55">A regular barn for managing your horses and team</p>
-              </div>
-            </label>
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-barn-dark/15 bg-white px-4 py-3 transition hover:border-brass-gold">
-              <input type="radio" name="barn_type" value="mare_motel" className="mt-0.5 accent-[#c9a84c]" />
-              <div>
-                <p className="text-sm font-medium text-barn-dark">Mare Motel</p>
-                <p className="text-xs text-barn-dark/55">A breeding facility where horses come and go</p>
-              </div>
-            </label>
-          </div>
-        </div>
+        <input type="hidden" name="barn_type" value="standard" />
 
         <div>
           <label htmlFor="address" className="mb-1.5 block text-sm font-medium text-barn-dark/80">
