@@ -328,11 +328,23 @@ export default function PricingPage() {
                   <h3 className="font-serif text-[22px] text-cream mb-1">{t.name}</h3>
                   <p className="text-sm mb-2" style={{ color: "rgba(245, 239, 228, 0.6)" }}>{t.stalls} stalls</p>
                   <p className="text-sm mb-5" style={{ color: "rgba(245, 239, 228, 0.5)" }}>{t.desc}</p>
-                  <div className="mb-6">
-                    <span className="text-[40px] font-serif text-cream" style={{ letterSpacing: "-0.02em" }}>{t.price}</span>
-                    <span className="text-sm" style={{ color: "rgba(245, 239, 228, 0.6)" }}>{t.period}</span>
+                  <div className="mb-2">
+                    {t.price === "Free" ? (
+                      <span className="text-[40px] font-serif text-cream" style={{ letterSpacing: "-0.02em" }}>Free</span>
+                    ) : (
+                      <>
+                        <span className="text-[18px] font-serif text-cream/40 line-through mr-2">{t.price}{t.period}</span>
+                        <span className="text-[40px] font-serif text-cream" style={{ letterSpacing: "-0.02em" }}>Free</span>
+                      </>
+                    )}
                   </div>
-                  <PricingClient planKey={t.planKey} planName={t.name} label={t.price === "Free" ? "Start free" : "Get on the list"} variant="tier" />
+                  {t.price !== "Free" && (
+                    <p className="text-[12px] font-medium mb-4" style={{ color: "#c9a84c" }}>
+                      Homestead Territory pricing &mdash; build now, keep it free forever
+                    </p>
+                  )}
+                  {t.price === "Free" && <div className="mb-4" />}
+                  <PricingClient planKey={t.planKey} planName={t.name} label={t.price === "Free" ? "Start free" : "Start building free"} variant="tier" />
                 </div>
               ))}
             </div>
