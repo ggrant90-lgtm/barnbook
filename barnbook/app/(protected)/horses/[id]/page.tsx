@@ -1,6 +1,6 @@
 import { canUserAccessHorse, canUserEditHorse } from "@/lib/horse-access";
 import { createServerComponentClient } from "@/lib/supabase-server";
-import type { ActivityLog, Flush, HealthRecord, Horse, HorseStay, LogMedia, LogEntryLineItem, Pregnancy } from "@/lib/types";
+import type { ActivityLog, HealthRecord, Horse, HorseStay, LogMedia, LogEntryLineItem } from "@/lib/types";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -226,56 +226,6 @@ export default async function HorseProfilePage({
     ...memberBarnsForMove,
   ];
 
-  // Fetch barn stallions for flush form
-  const { data: stallionHorses } = await supabase
-    .from("horses")
-    .select("id, name")
-    .eq("barn_id", horse.barn_id)
-    .eq("archived", false)
-    .in("breeding_role", ["stallion", "multiple"]);
-  const barnStallions = (stallionHorses ?? []) as { id: string; name: string }[];
-
-  // Fetch breeding data if horse has a breeding role
-  let donorFlushes: Flush[] = [];
-  let surrogatePregnancies: Pregnancy[] = [];
-  const breedingHorseNames: Record<string, string> = {};
-
-  if (horse.breeding_role === "donor" || horse.breeding_role === "multiple") {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: flushRaw } = await (supabase as any)
-      .from("flushes")
-      .select("*")
-      .eq("donor_horse_id", id)
-      .order("flush_date", { ascending: false });
-    donorFlushes = (flushRaw ?? []) as Flush[];
-  }
-
-  if (horse.breeding_role === "recipient" || horse.breeding_role === "multiple") {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: pregRaw } = await (supabase as any)
-      .from("pregnancies")
-      .select("*")
-      .eq("surrogate_horse_id", id)
-      .order("transfer_date", { ascending: false });
-    surrogatePregnancies = (pregRaw ?? []) as Pregnancy[];
-
-    // Fetch donor names for pregnancies
-    const pregHorseIds = new Set<string>();
-    for (const p of surrogatePregnancies) {
-      if (p.donor_horse_id) pregHorseIds.add(p.donor_horse_id);
-      if (p.stallion_horse_id) pregHorseIds.add(p.stallion_horse_id);
-    }
-    if (pregHorseIds.size > 0) {
-      const { data: pregHorses } = await supabase
-        .from("horses")
-        .select("id, name")
-        .in("id", [...pregHorseIds]);
-      for (const h of pregHorses ?? []) {
-        breedingHorseNames[h.id] = h.name;
-      }
-    }
-  }
-
   // Fetch sibling horses for prev/next navigation
   const { data: siblingHorses } = await supabase
     .from("horses")
@@ -316,10 +266,6 @@ export default async function HorseProfilePage({
         allBarns={allBarnsForMove}
         prevHorse={prevHorse}
         nextHorse={nextHorse}
-        barnStallions={barnStallions}
-        donorFlushes={donorFlushes}
-        surrogatePregnancies={surrogatePregnancies}
-        breedingHorseNames={breedingHorseNames}
       />
     </Suspense>
   );
