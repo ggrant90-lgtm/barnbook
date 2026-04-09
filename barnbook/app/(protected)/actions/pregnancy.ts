@@ -110,11 +110,12 @@ export async function recordFoalingAction(
   const canEdit = await canUserEditHorse(supabase, user.id, pregnancy.barn_id);
   if (!canEdit) return { error: "No permission" };
 
-  const foalingDate = String(formData.get("foal_date") ?? "").trim()
+  const foalDate = String(formData.get("foal_date") ?? "").trim()
     || new Date().toISOString().slice(0, 10);
   const foalSex = String(formData.get("foal_sex") ?? "").trim() || null;
   const foalColor = String(formData.get("foal_color") ?? "").trim() || null;
   const foalName = String(formData.get("foal_name") ?? "").trim() || null;
+  const foalAlive = formData.get("foal_alive") === "true";
   const foalingType = String(formData.get("foaling_type") ?? "normal");
   const vetName = String(formData.get("veterinarian_name") ?? "").trim() || null;
   const complications = String(formData.get("complications") ?? "").trim() || null;
@@ -122,24 +123,17 @@ export async function recordFoalingAction(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any).rpc("record_foaling", {
-    p_barn_id: pregnancy.barn_id,
     p_pregnancy_id: pregnancyId,
-    p_foaling_date: foalingDate,
-    p_foaling_time: null,
-    p_foaling_type: foalingType,
+    p_foal_date: foalDate,
     p_foal_sex: foalSex,
     p_foal_color: foalColor,
-    p_foal_markings: null,
-    p_birth_weight_lbs: null,
-    p_placenta_passed: null,
-    p_iga_result: null,
-    p_foal_alive_24hr: true,
-    p_complications: complications,
-    p_attending_vet: vetName,
-    p_notes: null,
-    p_created_by: user.id,
-    p_create_horse: createHorseProfile,
     p_foal_name: foalName,
+    p_foal_alive: foalAlive,
+    p_foaling_type: foalingType,
+    p_veterinarian_name: vetName,
+    p_complications: complications,
+    p_create_horse: createHorseProfile,
+    p_created_by: user.id,
   });
 
   if (error) return { error: error.message };
