@@ -121,6 +121,7 @@ export async function updateHorseAction(
       supplements: String(formData.get("supplements") ?? "").trim() || null,
       special_care_notes: String(formData.get("special_care_notes") ?? "").trim() || null,
       turnout_schedule: String(formData.get("turnout_schedule") ?? "").trim() || null,
+      breeding_role: (String(formData.get("breeding_role") ?? "none").trim() || "none") as "donor" | "recipient" | "stallion" | "multiple" | "none",
       updated_at: new Date().toISOString(),
     })
     .eq("id", horseId);
