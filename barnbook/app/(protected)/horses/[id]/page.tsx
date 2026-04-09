@@ -353,8 +353,8 @@ export default async function HorseProfilePage({
     horseNames: Record<string, string>;
   } | null = null;
 
-  if (horse.sire_horse_id || horse.dam_horse_id) {
-    // Find the foaling record where this horse is the foal
+  {
+    // Always check if this horse was born through the breeding system
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: foalingRaw } = await (supabase as any)
       .from("foalings")
