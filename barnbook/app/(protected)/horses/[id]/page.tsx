@@ -246,20 +246,22 @@ export default async function HorseProfilePage({
 
   if (horse.breeding_role === "donor" || horse.breeding_role === "multiple") {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: flushRaw } = await (supabase as any)
+    const { data: flushRaw, error: flushErr } = await (supabase as any)
       .from("flushes")
       .select("*")
       .eq("donor_horse_id", id)
       .order("flush_date", { ascending: false });
+    if (flushErr) console.error("[BREEDING] donor flushes error:", flushErr);
     donorFlushes = (flushRaw ?? []) as Flush[];
 
     // Pregnancies where this horse is the donor
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: donorPregRaw } = await (supabase as any)
+    const { data: donorPregRaw, error: donorPregErr } = await (supabase as any)
       .from("pregnancies")
       .select("*")
       .eq("donor_horse_id", id)
       .order("transfer_date", { ascending: false });
+    if (donorPregErr) console.error("[BREEDING] donor pregnancies error:", donorPregErr);
     donorPregnancies = (donorPregRaw ?? []) as Pregnancy[];
 
     // Collect horse IDs for name lookup
@@ -356,22 +358,25 @@ export default async function HorseProfilePage({
   {
     // Always check if this horse was born through the breeding system
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: foalingRaw } = await (supabase as any)
+    const { data: foalingRaw, error: foalingErr } = await (supabase as any)
       .from("foalings")
       .select("*")
       .eq("foal_horse_id", id)
       .maybeSingle();
+    if (foalingErr) console.error("[BREEDING] foaling lookup error:", foalingErr);
+    console.log("[BREEDING] foal origin check for horse", id, "foaling found:", !!foalingRaw);
 
     if (foalingRaw) {
       const foaling = foalingRaw as Foaling;
 
       // Get the pregnancy
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: pregRaw } = await (supabase as any)
+      const { data: pregRaw, error: pregErr } = await (supabase as any)
         .from("pregnancies")
         .select("*")
         .eq("id", foaling.pregnancy_id)
         .maybeSingle();
+      if (pregErr) console.error("[BREEDING] pregnancy lookup error:", pregErr);
 
       if (pregRaw) {
         const pregnancy = pregRaw as Pregnancy;
