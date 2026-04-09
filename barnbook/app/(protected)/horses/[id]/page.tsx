@@ -242,6 +242,8 @@ export default async function HorseProfilePage({
   let stallionPregnancies: Pregnancy[] = [];
   const breedingHorseNames: Record<string, string> = {};
 
+  let donorPregnancies: Pregnancy[] = [];
+
   if (horse.breeding_role === "donor" || horse.breeding_role === "multiple") {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: flushRaw } = await (supabase as any)
@@ -250,6 +252,31 @@ export default async function HorseProfilePage({
       .eq("donor_horse_id", id)
       .order("flush_date", { ascending: false });
     donorFlushes = (flushRaw ?? []) as Flush[];
+
+    // Pregnancies where this horse is the donor
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: donorPregRaw } = await (supabase as any)
+      .from("pregnancies")
+      .select("*")
+      .eq("donor_horse_id", id)
+      .order("transfer_date", { ascending: false });
+    donorPregnancies = (donorPregRaw ?? []) as Pregnancy[];
+
+    // Collect horse IDs for name lookup
+    const donorHorseIds = new Set<string>();
+    for (const p of donorPregnancies) {
+      if (p.surrogate_horse_id) donorHorseIds.add(p.surrogate_horse_id);
+      if (p.stallion_horse_id) donorHorseIds.add(p.stallion_horse_id);
+    }
+    if (donorHorseIds.size > 0) {
+      const { data: dHorses } = await supabase
+        .from("horses")
+        .select("id, name")
+        .in("id", [...donorHorseIds]);
+      for (const h of dHorses ?? []) {
+        breedingHorseNames[h.id] = h.name;
+      }
+    }
   }
 
   if (horse.breeding_role === "recipient" || horse.breeding_role === "multiple") {
@@ -359,6 +386,7 @@ export default async function HorseProfilePage({
         nextHorse={nextHorse}
         barnStallions={barnStallions}
         donorFlushes={donorFlushes}
+        donorPregnancies={donorPregnancies}
         surrogatePregnancies={surrogatePregnancies}
         stallionFlushes={stallionFlushes}
         stallionPregnancies={stallionPregnancies}

@@ -70,6 +70,7 @@ export function HorseProfileClient({
   nextHorse,
   barnStallions,
   donorFlushes,
+  donorPregnancies,
   surrogatePregnancies,
   stallionFlushes,
   stallionPregnancies,
@@ -96,6 +97,7 @@ export function HorseProfileClient({
   nextHorse?: { id: string; name: string } | null;
   barnStallions?: { id: string; name: string }[];
   donorFlushes?: Flush[];
+  donorPregnancies?: Pregnancy[];
   surrogatePregnancies?: Pregnancy[];
   stallionFlushes?: Flush[];
   stallionPregnancies?: Pregnancy[];
@@ -702,6 +704,8 @@ export function HorseProfileClient({
               <DonorBreedingSection
                 horse={horse}
                 flushes={donorFlushes ?? []}
+                pregnancies={donorPregnancies ?? []}
+                horseNames={breedingHorseNames ?? {}}
               />
             )}
             {(horse.breeding_role === "stallion" || horse.breeding_role === "multiple") && (
