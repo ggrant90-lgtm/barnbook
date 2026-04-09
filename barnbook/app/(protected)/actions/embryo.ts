@@ -52,12 +52,15 @@ export async function createFlushAction(
 
   if (embryoCount === 0) return { error: "Embryo count must be at least 1" };
 
-  // Collect grades and stages for each embryo
+  // Collect grades, stages, and labels for each embryo
   const grades: string[] = [];
   const stages: string[] = [];
+  const labels: (string | null)[] = [];
   for (let i = 0; i < embryoCount; i++) {
     grades.push(String(formData.get(`grade_${i}`) ?? "grade_1"));
     stages.push(String(formData.get(`stage_${i}`) ?? "morula"));
+    const lbl = String(formData.get(`label_${i}`) ?? "").trim();
+    labels.push(lbl || null);
   }
 
   // Call the transactional RPC
@@ -77,10 +80,27 @@ export async function createFlushAction(
     p_created_by: user.id,
     p_grades: grades,
     p_stages: stages,
+    p_labels: labels,
   });
 
   if (error) return { error: error.message };
   if (!data?.ok) return { error: data?.error ?? "Unknown error" };
+
+  // Auto-set stallion's breeding_role if it's an in-system stallion
+  if (stallionHorseId) {
+    const { data: stallionHorse } = await supabase
+      .from("horses")
+      .select("id, breeding_role")
+      .eq("id", stallionHorseId)
+      .single();
+    if (stallionHorse && (!stallionHorse.breeding_role || stallionHorse.breeding_role === "none")) {
+      await supabase
+        .from("horses")
+        .update({ breeding_role: "stallion" } as Record<string, unknown>)
+        .eq("id", stallionHorseId);
+    }
+    revalidatePath(`/horses/${stallionHorseId}`);
+  }
 
   revalidatePath(`/horses/${donorHorseId}`);
   revalidatePath("/embryo-bank");
@@ -259,6 +279,63 @@ export async function shipEmbryoAction(
   if (error) return { error: error.message };
 
   revalidatePath(`/embryo-bank/${embryoId}`);
+  revalidatePath("/embryo-bank");
+  return {};
+}
+
+/**
+ * Permanently delete an embryo.
+ */
+export async function deleteEmbryoAction(
+  embryoId: string,
+): Promise<{ error?: string }> {
+  const supabase = await createServerComponentClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: embryo } = await (supabase as any)
+    .from("embryos")
+    .select("id, barn_id, flush_id, donor_horse_id, status")
+    .eq("id", embryoId)
+    .single();
+
+  if (!embryo) return { error: "Embryo not found" };
+
+  // Only allow deleting embryos that haven't been transferred/became a foal
+  if (embryo.status === "transferred" || embryo.status === "became_foal") {
+    return { error: "Cannot delete an embryo that has been transferred or became a foal" };
+  }
+
+  const canEdit = await canUserEditHorse(supabase, user.id, embryo.barn_id);
+  if (!canEdit) return { error: "No permission" };
+
+  // Delete embryo
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("embryos")
+    .delete()
+    .eq("id", embryoId);
+
+  if (error) return { error: error.message };
+
+  // Update flush embryo count
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { count } = await (supabase as any)
+    .from("embryos")
+    .select("id", { count: "exact", head: true })
+    .eq("flush_id", embryo.flush_id);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
+    .from("flushes")
+    .update({ embryo_count: count ?? 0, updated_at: new Date().toISOString() })
+    .eq("id", embryo.flush_id);
+
+  // Note: lifetime_embryo_count on donor not decremented to preserve historical accuracy
+
   revalidatePath("/embryo-bank");
   return {};
 }
