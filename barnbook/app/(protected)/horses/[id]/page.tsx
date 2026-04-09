@@ -1,6 +1,6 @@
 import { canUserAccessHorse, canUserEditHorse } from "@/lib/horse-access";
 import { createServerComponentClient } from "@/lib/supabase-server";
-import type { ActivityLog, Flush, HealthRecord, Horse, HorseStay, LogMedia, LogEntryLineItem, Pregnancy } from "@/lib/types";
+import type { ActivityLog, Embryo, Flush, Foaling, HealthRecord, Horse, HorseStay, LogMedia, LogEntryLineItem, Pregnancy } from "@/lib/types";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -344,6 +344,84 @@ export default async function HorseProfilePage({
     }
   }
 
+  // Fetch foal origin data if this horse was born through the system
+  let foalOriginData: {
+    foaling: Foaling;
+    pregnancy: Pregnancy;
+    embryo: Embryo | null;
+    flush: Flush | null;
+    horseNames: Record<string, string>;
+  } | null = null;
+
+  if (horse.sire_horse_id || horse.dam_horse_id) {
+    // Find the foaling record where this horse is the foal
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: foalingRaw } = await (supabase as any)
+      .from("foalings")
+      .select("*")
+      .eq("foal_horse_id", id)
+      .maybeSingle();
+
+    if (foalingRaw) {
+      const foaling = foalingRaw as Foaling;
+
+      // Get the pregnancy
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: pregRaw } = await (supabase as any)
+        .from("pregnancies")
+        .select("*")
+        .eq("id", foaling.pregnancy_id)
+        .maybeSingle();
+
+      if (pregRaw) {
+        const pregnancy = pregRaw as Pregnancy;
+
+        // Get the embryo
+        let embryo: Embryo | null = null;
+        if (pregnancy.embryo_id) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: embryoRaw } = await (supabase as any)
+            .from("embryos")
+            .select("*")
+            .eq("id", pregnancy.embryo_id)
+            .maybeSingle();
+          embryo = (embryoRaw as Embryo) ?? null;
+        }
+
+        // Get the flush
+        let flush: Flush | null = null;
+        if (embryo?.flush_id) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: flushRaw } = await (supabase as any)
+            .from("flushes")
+            .select("*")
+            .eq("id", embryo.flush_id)
+            .maybeSingle();
+          flush = (flushRaw as Flush) ?? null;
+        }
+
+        // Collect horse names for the timeline
+        const originHorseIds = new Set<string>();
+        if (pregnancy.donor_horse_id) originHorseIds.add(pregnancy.donor_horse_id);
+        if (pregnancy.stallion_horse_id) originHorseIds.add(pregnancy.stallion_horse_id);
+        if (foaling.surrogate_horse_id) originHorseIds.add(foaling.surrogate_horse_id);
+
+        const originHorseNames: Record<string, string> = {};
+        if (originHorseIds.size > 0) {
+          const { data: oHorses } = await supabase
+            .from("horses")
+            .select("id, name")
+            .in("id", [...originHorseIds]);
+          for (const h of oHorses ?? []) {
+            originHorseNames[h.id] = h.name;
+          }
+        }
+
+        foalOriginData = { foaling, pregnancy, embryo, flush, horseNames: originHorseNames };
+      }
+    }
+  }
+
   // Fetch sibling horses for prev/next navigation
   const { data: siblingHorses } = await supabase
     .from("horses")
@@ -391,6 +469,7 @@ export default async function HorseProfilePage({
         stallionFlushes={stallionFlushes}
         stallionPregnancies={stallionPregnancies}
         breedingHorseNames={breedingHorseNames}
+        foalOriginData={foalOriginData}
       />
     </Suspense>
   );

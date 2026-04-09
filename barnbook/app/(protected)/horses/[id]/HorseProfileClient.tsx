@@ -7,6 +7,8 @@ import { FlushForm } from "@/components/embryo/FlushForm";
 import { DonorBreedingSection } from "@/components/embryo/DonorBreedingSection";
 import { SurrogateBreedingSection } from "@/components/embryo/SurrogateBreedingSection";
 import { StallionBreedingSection } from "@/components/embryo/StallionBreedingSection";
+import { FoalOriginTimeline } from "@/components/embryo/FoalOriginTimeline";
+import type { FoalOriginData } from "@/components/embryo/FoalOriginTimeline";
 import { ActivityEntry } from "@/components/ActivityEntry";
 import { CareCard } from "@/components/CareCard";
 import { HealthRecordItem } from "@/components/HealthRecord";
@@ -75,6 +77,7 @@ export function HorseProfileClient({
   stallionFlushes,
   stallionPregnancies,
   breedingHorseNames,
+  foalOriginData,
 }: {
   horse: Horse;
   canEdit: boolean;
@@ -102,6 +105,7 @@ export function HorseProfileClient({
   stallionFlushes?: Flush[];
   stallionPregnancies?: Pregnancy[];
   breedingHorseNames?: Record<string, string>;
+  foalOriginData?: FoalOriginData | null;
 }) {
   const router = useRouter();
   const { show } = useToast();
@@ -120,7 +124,7 @@ export function HorseProfileClient({
   const [logDateRange, setLogDateRange] = useState("all");
   const [showAddLogDropdown, setShowAddLogDropdown] = useState(false);
 
-  const hasBreedingRole = horse.breeding_role && horse.breeding_role !== "none";
+  const hasBreedingRole = (horse.breeding_role && horse.breeding_role !== "none") || !!foalOriginData;
   const tabItems = hasBreedingRole
     ? baseTabItems
     : baseTabItems.filter((t) => t.id !== "breeding");
@@ -700,6 +704,9 @@ export function HorseProfileClient({
 
         {tab === "breeding" && hasBreedingRole ? (
           <div className="space-y-6">
+            {foalOriginData && (
+              <FoalOriginTimeline data={foalOriginData} />
+            )}
             {(horse.breeding_role === "donor" || horse.breeding_role === "multiple") && (
               <DonorBreedingSection
                 horse={horse}
