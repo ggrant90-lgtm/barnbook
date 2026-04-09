@@ -167,30 +167,21 @@ export function FlushForm({ donorHorseId, donorName, barnStallions, onClose }: F
                 Grade & stage for each embryo
               </p>
               {Array.from({ length: embryoCount }, (_, i) => (
-                <div key={i} className="space-y-1.5 rounded-lg border border-barn-dark/5 bg-white p-2.5">
-                  <div className="flex gap-2 items-end">
-                    <span className="pb-2.5 text-xs font-mono text-barn-dark/40 w-6">#{i + 1}</span>
-                    <div className="flex-1">
-                      <Select name={`grade_${i}`} label="" defaultValue="grade_1">
-                        {EMBRYO_GRADES.map((g) => (
-                          <option key={g} value={g}>{EMBRYO_GRADE_LABELS[g]}</option>
-                        ))}
-                      </Select>
-                    </div>
-                    <div className="flex-1">
-                      <Select name={`stage_${i}`} label="" defaultValue="morula">
-                        {EMBRYO_STAGES.map((s) => (
-                          <option key={s} value={s}>{EMBRYO_STAGE_LABELS[s]}</option>
-                        ))}
-                      </Select>
-                    </div>
+                <div key={i} className="flex gap-2 items-end">
+                  <span className="pb-2.5 text-xs font-mono text-barn-dark/40 w-6">#{i + 1}</span>
+                  <div className="flex-1">
+                    <Select name={`grade_${i}`} label="" defaultValue="grade_1">
+                      {EMBRYO_GRADES.map((g) => (
+                        <option key={g} value={g}>{EMBRYO_GRADE_LABELS[g]}</option>
+                      ))}
+                    </Select>
                   </div>
-                  <div className="pl-8">
-                    <Input
-                      name={`label_${i}`}
-                      label=""
-                      placeholder="Custom label (optional)"
-                    />
+                  <div className="flex-1">
+                    <Select name={`stage_${i}`} label="" defaultValue="morula">
+                      {EMBRYO_STAGES.map((s) => (
+                        <option key={s} value={s}>{EMBRYO_STAGE_LABELS[s]}</option>
+                      ))}
+                    </Select>
                   </div>
                 </div>
               ))}

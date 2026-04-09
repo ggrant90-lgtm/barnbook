@@ -17,7 +17,6 @@ import {
   freezeEmbryoAction,
   shipEmbryoAction,
   markEmbryoLostAction,
-  deleteEmbryoAction,
 } from "@/app/(protected)/actions/embryo";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -39,7 +38,7 @@ function statusColor(status: EmbryoStatus): string {
   }
 }
 
-type ModalType = "transfer" | "freeze" | "ship" | "lost" | "delete" | null;
+type ModalType = "transfer" | "freeze" | "ship" | "lost" | null;
 
 export function EmbryoDetailClient({
   embryo,
@@ -66,8 +65,6 @@ export function EmbryoDetailClient({
   const canFreeze = embryo.status === "in_bank_fresh";
   const canShip = embryo.status === "in_bank_fresh" || embryo.status === "in_bank_frozen";
   const canMarkLost = embryo.status === "in_bank_fresh" || embryo.status === "in_bank_frozen";
-  const canDelete = embryo.status !== "transferred" && embryo.status !== "became_foal";
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   async function handleAction(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -119,12 +116,7 @@ export function EmbryoDetailClient({
       {/* Header */}
       <div className="mt-4 flex items-start justify-between">
         <div>
-          <h1 className="font-serif text-2xl font-semibold text-barn-dark">
-            {embryo.label || embryo.embryo_code}
-          </h1>
-          {embryo.label && (
-            <p className="text-xs font-mono text-barn-dark/40">{embryo.embryo_code}</p>
-          )}
+          <h1 className="font-serif text-2xl font-semibold text-barn-dark">{embryo.embryo_code}</h1>
           <p className="mt-1 text-sm text-barn-dark/60">
             <Link href={`/horses/${embryo.donor_horse_id}`} className="hover:text-brass-gold transition">
               {donorName}
@@ -268,7 +260,7 @@ export function EmbryoDetailClient({
       </div>
 
       {/* Action buttons */}
-      {canEdit && (canTransfer || canFreeze || canShip || canMarkLost || canDelete) && (
+      {canEdit && (canTransfer || canFreeze || canShip || canMarkLost) && (
         <div className="mt-4 flex flex-wrap gap-2">
           {canTransfer && (
             <Button variant="primary" onClick={() => setActiveModal("transfer")}>
@@ -289,40 +281,6 @@ export function EmbryoDetailClient({
             <Button variant="secondary" onClick={() => setActiveModal("lost")}>
               Mark Lost
             </Button>
-          )}
-          {canDelete && (
-            confirmingDelete ? (
-              <div className="flex gap-2">
-                <Button
-                  variant="primary"
-                  onClick={async () => {
-                    setSaving(true);
-                    const result = await deleteEmbryoAction(embryo.id);
-                    if (result.error) {
-                      setError(result.error);
-                      setSaving(false);
-                      setConfirmingDelete(false);
-                    } else {
-                      router.push("/embryo-bank");
-                      router.refresh();
-                    }
-                  }}
-                  disabled={saving}
-                >
-                  {saving ? "Deleting..." : "Yes, Delete"}
-                </Button>
-                <Button variant="secondary" onClick={() => setConfirmingDelete(false)}>
-                  Cancel
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="secondary"
-                onClick={() => setConfirmingDelete(true)}
-              >
-                Delete
-              </Button>
-            )
           )}
         </div>
       )}
