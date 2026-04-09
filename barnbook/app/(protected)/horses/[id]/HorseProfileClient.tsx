@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Tabs } from "@/components/ui/Tabs";
 import { useToast } from "@/components/ui/Toast";
-import { HORSE_BREEDS, HORSE_SEX_OPTIONS, BREEDING_ROLES, BREEDING_ROLE_LABELS } from "@/lib/horse-form-constants";
+import { HORSE_BREEDS, HORSE_SEX_OPTIONS } from "@/lib/horse-form-constants";
 import { uploadHorseProfilePhoto } from "@/lib/horse-photo";
 import { LogSummaryBar } from "@/components/LogSummaryBar";
 import type { ActivityLog, Flush, HealthRecord, Horse, HorseStay, LogMedia, LogEntryLineItem, Pregnancy } from "@/lib/types";
@@ -495,11 +495,6 @@ export function HorseProfileClient({
                     defaultValue={horse.microchip_number ?? ""}
                     disabled={fieldsDisabled}
                   />
-                  <Select label="Breeding Role" name="breeding_role" defaultValue={horse.breeding_role ?? "none"} disabled={fieldsDisabled}>
-                    {BREEDING_ROLES.map((r) => (
-                      <option key={r} value={r}>{BREEDING_ROLE_LABELS[r]}</option>
-                    ))}
-                  </Select>
                 </div>
 
                 {/* Care info — publicly visible via care card & QR code */}
