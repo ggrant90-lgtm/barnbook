@@ -6,6 +6,7 @@ import { moveHorseAction } from "@/app/(protected)/actions/move-horse";
 import { FlushForm } from "@/components/embryo/FlushForm";
 import { DonorBreedingSection } from "@/components/embryo/DonorBreedingSection";
 import { SurrogateBreedingSection } from "@/components/embryo/SurrogateBreedingSection";
+import { StallionBreedingSection } from "@/components/embryo/StallionBreedingSection";
 import { ActivityEntry } from "@/components/ActivityEntry";
 import { CareCard } from "@/components/CareCard";
 import { HealthRecordItem } from "@/components/HealthRecord";
@@ -70,6 +71,8 @@ export function HorseProfileClient({
   barnStallions,
   donorFlushes,
   surrogatePregnancies,
+  stallionFlushes,
+  stallionPregnancies,
   breedingHorseNames,
 }: {
   horse: Horse;
@@ -94,6 +97,8 @@ export function HorseProfileClient({
   barnStallions?: { id: string; name: string }[];
   donorFlushes?: Flush[];
   surrogatePregnancies?: Pregnancy[];
+  stallionFlushes?: Flush[];
+  stallionPregnancies?: Pregnancy[];
   breedingHorseNames?: Record<string, string>;
 }) {
   const router = useRouter();
@@ -697,6 +702,13 @@ export function HorseProfileClient({
               <DonorBreedingSection
                 horse={horse}
                 flushes={donorFlushes ?? []}
+              />
+            )}
+            {(horse.breeding_role === "stallion" || horse.breeding_role === "multiple") && (
+              <StallionBreedingSection
+                flushes={stallionFlushes ?? []}
+                pregnancies={stallionPregnancies ?? []}
+                horseNames={breedingHorseNames ?? {}}
               />
             )}
             {(horse.breeding_role === "recipient" || horse.breeding_role === "multiple") && (
