@@ -360,18 +360,16 @@ export function HorseProfileClient({
                 </svg>
                 Edit Horse
               </button>
-              {(horse.breeding_role === "donor" || horse.breeding_role === "multiple") ? (
-                <button
-                  type="button"
-                  onClick={() => setShowFlushModal(true)}
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-barn-dark/20 bg-white px-4 py-2.5 text-sm font-medium text-barn-dark shadow hover:border-brass-gold transition-all"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                  </svg>
-                  Record Flush
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={() => setShowFlushModal(true)}
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-barn-dark/20 bg-white px-4 py-2.5 text-sm font-medium text-barn-dark shadow hover:border-brass-gold transition-all"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                Record Flush
+              </button>
               {otherBarns.length > 0 ? (
                 <button
                   type="button"
