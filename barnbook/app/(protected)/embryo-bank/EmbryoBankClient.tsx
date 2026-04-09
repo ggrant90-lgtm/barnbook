@@ -140,7 +140,12 @@ export function EmbryoBankClient({
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="font-mono text-sm font-semibold text-barn-dark">{embryo.embryo_code}</p>
+                    <p className="text-sm font-semibold text-barn-dark">
+                      {embryo.label || embryo.embryo_code}
+                    </p>
+                    {embryo.label && (
+                      <p className="text-xs font-mono text-barn-dark/30">{embryo.embryo_code}</p>
+                    )}
                     <p className="mt-0.5 text-xs text-barn-dark/50">
                       {donorName} x {stallionName}
                     </p>

@@ -196,6 +196,7 @@ export interface Embryo {
   stallion_horse_id: string | null;
   external_stallion_name: string | null;
   embryo_code: string;
+  label: string | null;
   grade: "grade_1" | "grade_2" | "grade_3" | "grade_4" | "degenerate";
   stage: "morula" | "early_blastocyst" | "blastocyst" | "expanded_blastocyst" | "hatched_blastocyst";
   status: "in_bank_fresh" | "in_bank_frozen" | "transferred" | "became_foal" | "lost" | "shipped_out";
