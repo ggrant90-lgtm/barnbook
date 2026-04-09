@@ -238,6 +238,8 @@ export default async function HorseProfilePage({
   // Fetch breeding data if horse has a breeding role
   let donorFlushes: Flush[] = [];
   let surrogatePregnancies: Pregnancy[] = [];
+  let stallionFlushes: Flush[] = [];
+  let stallionPregnancies: Pregnancy[] = [];
   const breedingHorseNames: Record<string, string> = {};
 
   if (horse.breeding_role === "donor" || horse.breeding_role === "multiple") {
@@ -271,6 +273,45 @@ export default async function HorseProfilePage({
         .select("id, name")
         .in("id", [...pregHorseIds]);
       for (const h of pregHorses ?? []) {
+        breedingHorseNames[h.id] = h.name;
+      }
+    }
+  }
+
+  if (horse.breeding_role === "stallion" || horse.breeding_role === "multiple") {
+    // Flushes where this horse was the stallion
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: sFlushRaw } = await (supabase as any)
+      .from("flushes")
+      .select("*")
+      .eq("stallion_horse_id", id)
+      .order("flush_date", { ascending: false });
+    stallionFlushes = (sFlushRaw ?? []) as Flush[];
+
+    // Pregnancies where this horse was the sire
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: sPregRaw } = await (supabase as any)
+      .from("pregnancies")
+      .select("*")
+      .eq("stallion_horse_id", id)
+      .order("transfer_date", { ascending: false });
+    stallionPregnancies = (sPregRaw ?? []) as Pregnancy[];
+
+    // Collect horse IDs for name lookup
+    const stallionHorseIds = new Set<string>();
+    for (const f of stallionFlushes) {
+      if (f.donor_horse_id) stallionHorseIds.add(f.donor_horse_id);
+    }
+    for (const p of stallionPregnancies) {
+      if (p.donor_horse_id) stallionHorseIds.add(p.donor_horse_id);
+      if (p.surrogate_horse_id) stallionHorseIds.add(p.surrogate_horse_id);
+    }
+    if (stallionHorseIds.size > 0) {
+      const { data: sHorses } = await supabase
+        .from("horses")
+        .select("id, name")
+        .in("id", [...stallionHorseIds]);
+      for (const h of sHorses ?? []) {
         breedingHorseNames[h.id] = h.name;
       }
     }
@@ -319,6 +360,8 @@ export default async function HorseProfilePage({
         barnStallions={barnStallions}
         donorFlushes={donorFlushes}
         surrogatePregnancies={surrogatePregnancies}
+        stallionFlushes={stallionFlushes}
+        stallionPregnancies={stallionPregnancies}
         breedingHorseNames={breedingHorseNames}
       />
     </Suspense>
