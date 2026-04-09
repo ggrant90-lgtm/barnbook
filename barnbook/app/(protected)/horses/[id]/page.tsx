@@ -1,6 +1,6 @@
 import { canUserAccessHorse, canUserEditHorse } from "@/lib/horse-access";
 import { createServerComponentClient } from "@/lib/supabase-server";
-import type { ActivityLog, HealthRecord, Horse, HorseStay, LogMedia, LogEntryLineItem } from "@/lib/types";
+import type { ActivityLog, Embryo, Flush, Foaling, HealthRecord, Horse, HorseStay, LogMedia, LogEntryLineItem, Pregnancy } from "@/lib/types";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -226,6 +226,207 @@ export default async function HorseProfilePage({
     ...memberBarnsForMove,
   ];
 
+  // Fetch barn stallions for flush form
+  const { data: stallionHorses } = await supabase
+    .from("horses")
+    .select("id, name")
+    .eq("barn_id", horse.barn_id)
+    .eq("archived", false)
+    .in("breeding_role", ["stallion", "multiple"]);
+  const barnStallions = (stallionHorses ?? []) as { id: string; name: string }[];
+
+  // Fetch breeding data if horse has a breeding role
+  let donorFlushes: Flush[] = [];
+  let surrogatePregnancies: Pregnancy[] = [];
+  let stallionFlushes: Flush[] = [];
+  let stallionPregnancies: Pregnancy[] = [];
+  const breedingHorseNames: Record<string, string> = {};
+
+  let donorPregnancies: Pregnancy[] = [];
+
+  if (horse.breeding_role === "donor" || horse.breeding_role === "multiple") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: flushRaw, error: flushErr } = await (supabase as any)
+      .from("flushes")
+      .select("*")
+      .eq("donor_horse_id", id)
+      .order("flush_date", { ascending: false });
+    if (flushErr) console.error("[BREEDING] donor flushes error:", flushErr);
+    donorFlushes = (flushRaw ?? []) as Flush[];
+
+    // Pregnancies where this horse is the donor
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: donorPregRaw, error: donorPregErr } = await (supabase as any)
+      .from("pregnancies")
+      .select("*")
+      .eq("donor_horse_id", id)
+      .order("transfer_date", { ascending: false });
+    if (donorPregErr) console.error("[BREEDING] donor pregnancies error:", donorPregErr);
+    donorPregnancies = (donorPregRaw ?? []) as Pregnancy[];
+
+    // Collect horse IDs for name lookup
+    const donorHorseIds = new Set<string>();
+    for (const p of donorPregnancies) {
+      if (p.surrogate_horse_id) donorHorseIds.add(p.surrogate_horse_id);
+      if (p.stallion_horse_id) donorHorseIds.add(p.stallion_horse_id);
+    }
+    if (donorHorseIds.size > 0) {
+      const { data: dHorses } = await supabase
+        .from("horses")
+        .select("id, name")
+        .in("id", [...donorHorseIds]);
+      for (const h of dHorses ?? []) {
+        breedingHorseNames[h.id] = h.name;
+      }
+    }
+  }
+
+  if (horse.breeding_role === "recipient" || horse.breeding_role === "multiple") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: pregRaw } = await (supabase as any)
+      .from("pregnancies")
+      .select("*")
+      .eq("surrogate_horse_id", id)
+      .order("transfer_date", { ascending: false });
+    surrogatePregnancies = (pregRaw ?? []) as Pregnancy[];
+
+    // Fetch donor names for pregnancies
+    const pregHorseIds = new Set<string>();
+    for (const p of surrogatePregnancies) {
+      if (p.donor_horse_id) pregHorseIds.add(p.donor_horse_id);
+      if (p.stallion_horse_id) pregHorseIds.add(p.stallion_horse_id);
+    }
+    if (pregHorseIds.size > 0) {
+      const { data: pregHorses } = await supabase
+        .from("horses")
+        .select("id, name")
+        .in("id", [...pregHorseIds]);
+      for (const h of pregHorses ?? []) {
+        breedingHorseNames[h.id] = h.name;
+      }
+    }
+  }
+
+  if (horse.breeding_role === "stallion" || horse.breeding_role === "multiple") {
+    // Flushes where this horse was the stallion
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: sFlushRaw } = await (supabase as any)
+      .from("flushes")
+      .select("*")
+      .eq("stallion_horse_id", id)
+      .order("flush_date", { ascending: false });
+    stallionFlushes = (sFlushRaw ?? []) as Flush[];
+
+    // Pregnancies where this horse was the sire
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: sPregRaw } = await (supabase as any)
+      .from("pregnancies")
+      .select("*")
+      .eq("stallion_horse_id", id)
+      .order("transfer_date", { ascending: false });
+    stallionPregnancies = (sPregRaw ?? []) as Pregnancy[];
+
+    // Collect horse IDs for name lookup
+    const stallionHorseIds = new Set<string>();
+    for (const f of stallionFlushes) {
+      if (f.donor_horse_id) stallionHorseIds.add(f.donor_horse_id);
+    }
+    for (const p of stallionPregnancies) {
+      if (p.donor_horse_id) stallionHorseIds.add(p.donor_horse_id);
+      if (p.surrogate_horse_id) stallionHorseIds.add(p.surrogate_horse_id);
+    }
+    if (stallionHorseIds.size > 0) {
+      const { data: sHorses } = await supabase
+        .from("horses")
+        .select("id, name")
+        .in("id", [...stallionHorseIds]);
+      for (const h of sHorses ?? []) {
+        breedingHorseNames[h.id] = h.name;
+      }
+    }
+  }
+
+  // Fetch foal origin data if this horse was born through the system
+  let foalOriginData: {
+    foaling: Foaling;
+    pregnancy: Pregnancy;
+    embryo: Embryo | null;
+    flush: Flush | null;
+    horseNames: Record<string, string>;
+  } | null = null;
+
+  {
+    // Always check if this horse was born through the breeding system
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: foalingRaw, error: foalingErr } = await (supabase as any)
+      .from("foalings")
+      .select("*")
+      .eq("foal_horse_id", id)
+      .maybeSingle();
+    if (foalingErr) console.error("[BREEDING] foaling lookup error:", foalingErr);
+    console.log("[BREEDING] foal origin check for horse", id, "foaling found:", !!foalingRaw);
+
+    if (foalingRaw) {
+      const foaling = foalingRaw as Foaling;
+
+      // Get the pregnancy
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: pregRaw, error: pregErr } = await (supabase as any)
+        .from("pregnancies")
+        .select("*")
+        .eq("id", foaling.pregnancy_id)
+        .maybeSingle();
+      if (pregErr) console.error("[BREEDING] pregnancy lookup error:", pregErr);
+
+      if (pregRaw) {
+        const pregnancy = pregRaw as Pregnancy;
+
+        // Get the embryo
+        let embryo: Embryo | null = null;
+        if (pregnancy.embryo_id) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: embryoRaw } = await (supabase as any)
+            .from("embryos")
+            .select("*")
+            .eq("id", pregnancy.embryo_id)
+            .maybeSingle();
+          embryo = (embryoRaw as Embryo) ?? null;
+        }
+
+        // Get the flush
+        let flush: Flush | null = null;
+        if (embryo?.flush_id) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: flushRaw } = await (supabase as any)
+            .from("flushes")
+            .select("*")
+            .eq("id", embryo.flush_id)
+            .maybeSingle();
+          flush = (flushRaw as Flush) ?? null;
+        }
+
+        // Collect horse names for the timeline
+        const originHorseIds = new Set<string>();
+        if (pregnancy.donor_horse_id) originHorseIds.add(pregnancy.donor_horse_id);
+        if (pregnancy.stallion_horse_id) originHorseIds.add(pregnancy.stallion_horse_id);
+        if (foaling.surrogate_horse_id) originHorseIds.add(foaling.surrogate_horse_id);
+
+        const originHorseNames: Record<string, string> = {};
+        if (originHorseIds.size > 0) {
+          const { data: oHorses } = await supabase
+            .from("horses")
+            .select("id, name")
+            .in("id", [...originHorseIds]);
+          for (const h of oHorses ?? []) {
+            originHorseNames[h.id] = h.name;
+          }
+        }
+
+        foalOriginData = { foaling, pregnancy, embryo, flush, horseNames: originHorseNames };
+      }
+    }
+  }
+
   // Fetch sibling horses for prev/next navigation
   const { data: siblingHorses } = await supabase
     .from("horses")
@@ -266,6 +467,14 @@ export default async function HorseProfilePage({
         allBarns={allBarnsForMove}
         prevHorse={prevHorse}
         nextHorse={nextHorse}
+        barnStallions={barnStallions}
+        donorFlushes={donorFlushes}
+        donorPregnancies={donorPregnancies}
+        surrogatePregnancies={surrogatePregnancies}
+        stallionFlushes={stallionFlushes}
+        stallionPregnancies={stallionPregnancies}
+        breedingHorseNames={breedingHorseNames}
+        foalOriginData={foalOriginData}
       />
     </Suspense>
   );

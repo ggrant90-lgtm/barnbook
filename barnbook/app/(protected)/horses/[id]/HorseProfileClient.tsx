@@ -3,6 +3,12 @@
 import { updateHorseAction } from "@/app/(protected)/actions/horse";
 import { deleteLogAction } from "@/app/(protected)/actions/delete-log";
 import { moveHorseAction } from "@/app/(protected)/actions/move-horse";
+import { FlushForm } from "@/components/embryo/FlushForm";
+import { DonorBreedingSection } from "@/components/embryo/DonorBreedingSection";
+import { SurrogateBreedingSection } from "@/components/embryo/SurrogateBreedingSection";
+import { StallionBreedingSection } from "@/components/embryo/StallionBreedingSection";
+import { FoalOriginTimeline } from "@/components/embryo/FoalOriginTimeline";
+import type { FoalOriginData } from "@/components/embryo/FoalOriginTimeline";
 import { ActivityEntry } from "@/components/ActivityEntry";
 import { CareCard } from "@/components/CareCard";
 import { HealthRecordItem } from "@/components/HealthRecord";
@@ -15,22 +21,23 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Tabs } from "@/components/ui/Tabs";
 import { useToast } from "@/components/ui/Toast";
-import { HORSE_BREEDS, HORSE_SEX_OPTIONS } from "@/lib/horse-form-constants";
+import { HORSE_BREEDS, HORSE_SEX_OPTIONS, BREEDING_ROLES, BREEDING_ROLE_LABELS } from "@/lib/horse-form-constants";
 import { uploadHorseProfilePhoto } from "@/lib/horse-photo";
 import { LogSummaryBar } from "@/components/LogSummaryBar";
-import type { ActivityLog, HealthRecord, Horse, HorseStay, LogMedia, LogEntryLineItem } from "@/lib/types";
+import type { ActivityLog, Flush, HealthRecord, Horse, HorseStay, LogMedia, LogEntryLineItem, Pregnancy } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useRef, useState } from "react";
 
-const tabItems = [
+const baseTabItems = [
   { id: "overview", label: "Overview" },
   { id: "logs", label: "Logs" },
+  { id: "breeding", label: "Breeding" },
   { id: "access", label: "Access" },
 ] as const;
 
-type TabId = (typeof tabItems)[number]["id"];
+type TabId = "overview" | "logs" | "breeding" | "access";
 
 const ALL_LOG_TYPES = [
   { value: "exercise", label: "Exercise" },
@@ -63,6 +70,14 @@ export function HorseProfileClient({
   allBarns,
   prevHorse,
   nextHorse,
+  barnStallions,
+  donorFlushes,
+  donorPregnancies,
+  surrogatePregnancies,
+  stallionFlushes,
+  stallionPregnancies,
+  breedingHorseNames,
+  foalOriginData,
 }: {
   horse: Horse;
   canEdit: boolean;
@@ -83,6 +98,14 @@ export function HorseProfileClient({
   allBarns?: { id: string; name: string }[];
   prevHorse?: { id: string; name: string } | null;
   nextHorse?: { id: string; name: string } | null;
+  barnStallions?: { id: string; name: string }[];
+  donorFlushes?: Flush[];
+  donorPregnancies?: Pregnancy[];
+  surrogatePregnancies?: Pregnancy[];
+  stallionFlushes?: Flush[];
+  stallionPregnancies?: Pregnancy[];
+  breedingHorseNames?: Record<string, string>;
+  foalOriginData?: FoalOriginData | null;
 }) {
   const router = useRouter();
   const { show } = useToast();
@@ -95,17 +118,24 @@ export function HorseProfileClient({
     entry: ActivityLog | HealthRecord;
   } | null>(null);
   const [showMoveModal, setShowMoveModal] = useState(false);
+  const [showFlushModal, setShowFlushModal] = useState(false);
   const [moving, setMoving] = useState(false);
   const [logTypeFilter, setLogTypeFilter] = useState<string | null>(null);
   const [logDateRange, setLogDateRange] = useState("all");
   const [showAddLogDropdown, setShowAddLogDropdown] = useState(false);
+
+  const hasBreedingRole = (horse.breeding_role && horse.breeding_role !== "none") || !!foalOriginData;
+  const tabItems = hasBreedingRole
+    ? baseTabItems
+    : baseTabItems.filter((t) => t.id !== "breeding");
 
   const tabParam = searchParams.get("tab");
   const tab: TabId = ((): TabId => {
     const raw = tabParam ?? initialTab;
     // Remap old tabs to "logs"
     if (raw === "activity" || raw === "health") return "logs";
-    if (raw === "overview" || raw === "logs" || raw === "access") return raw;
+    if (raw === "overview" || raw === "logs" || raw === "access") return raw as TabId;
+    if (raw === "breeding" && hasBreedingRole) return "breeding";
     return "overview";
   })();
 
@@ -341,6 +371,16 @@ export function HorseProfileClient({
                 </svg>
                 Edit Horse
               </button>
+              <button
+                type="button"
+                onClick={() => setShowFlushModal(true)}
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-barn-dark/20 bg-white px-4 py-2.5 text-sm font-medium text-barn-dark shadow hover:border-brass-gold transition-all"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                Record Flush
+              </button>
               {otherBarns.length > 0 ? (
                 <button
                   type="button"
@@ -466,6 +506,11 @@ export function HorseProfileClient({
                     defaultValue={horse.microchip_number ?? ""}
                     disabled={fieldsDisabled}
                   />
+                  <Select label="Breeding Role" name="breeding_role" defaultValue={horse.breeding_role ?? "none"} disabled={fieldsDisabled}>
+                    {BREEDING_ROLES.map((r) => (
+                      <option key={r} value={r}>{BREEDING_ROLE_LABELS[r]}</option>
+                    ))}
+                  </Select>
                 </div>
 
                 {/* Care info — publicly visible via care card & QR code */}
@@ -657,6 +702,35 @@ export function HorseProfileClient({
           </div>
         ) : null}
 
+        {tab === "breeding" && hasBreedingRole ? (
+          <div className="space-y-6">
+            {foalOriginData && (
+              <FoalOriginTimeline data={foalOriginData} />
+            )}
+            {(horse.breeding_role === "donor" || horse.breeding_role === "multiple") && (
+              <DonorBreedingSection
+                horse={horse}
+                flushes={donorFlushes ?? []}
+                pregnancies={donorPregnancies ?? []}
+                horseNames={breedingHorseNames ?? {}}
+              />
+            )}
+            {(horse.breeding_role === "stallion" || horse.breeding_role === "multiple") && (
+              <StallionBreedingSection
+                flushes={stallionFlushes ?? []}
+                pregnancies={stallionPregnancies ?? []}
+                horseNames={breedingHorseNames ?? {}}
+              />
+            )}
+            {(horse.breeding_role === "recipient" || horse.breeding_role === "multiple") && (
+              <SurrogateBreedingSection
+                pregnancies={surrogatePregnancies ?? []}
+                horseNames={breedingHorseNames ?? {}}
+              />
+            )}
+          </div>
+        ) : null}
+
         {tab === "access" ? (
           <div className="space-y-6">
             <p className="text-sm text-barn-dark/70">
@@ -715,6 +789,16 @@ export function HorseProfileClient({
             </button>
           </div>
         </div>
+      ) : null}
+
+      {/* Flush modal */}
+      {showFlushModal ? (
+        <FlushForm
+          donorHorseId={horse.id}
+          donorName={horse.name}
+          barnStallions={barnStallions ?? []}
+          onClose={() => setShowFlushModal(false)}
+        />
       ) : null}
 
       {/* Log detail modal */}
