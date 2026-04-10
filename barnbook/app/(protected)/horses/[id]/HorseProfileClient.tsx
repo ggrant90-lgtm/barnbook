@@ -99,6 +99,7 @@ export function HorseProfileClient({
   const [logTypeFilter, setLogTypeFilter] = useState<string | null>(null);
   const [logDateRange, setLogDateRange] = useState("all");
   const [showAddLogDropdown, setShowAddLogDropdown] = useState(false);
+  const [showHeaderLogDropdown, setShowHeaderLogDropdown] = useState(false);
   const [confirmingDeleteHorse, setConfirmingDeleteHorse] = useState(false);
   const [deletingHorse, setDeletingHorse] = useState(false);
 
@@ -347,6 +348,43 @@ export function HorseProfileClient({
         <div className="flex items-center gap-2">
           {canEdit && !editing ? (
             <div className="flex items-center gap-2">
+              {/* New Log button */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowHeaderLogDropdown(!showHeaderLogDropdown)}
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-forest-green bg-forest-green px-4 py-2.5 text-sm font-medium text-white shadow hover:brightness-110 transition-all"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  New Log
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </button>
+                {showHeaderLogDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowHeaderLogDropdown(false)} />
+                    <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-xl border border-barn-dark/10 bg-white py-1 shadow-lg">
+                      {sortedLogTypes.map((lt) => (
+                        <Link
+                          key={lt.value}
+                          href={`/horses/${horse.id}/log/${lt.value}`}
+                          className="flex items-center justify-between px-4 py-2.5 text-sm text-barn-dark hover:bg-parchment transition"
+                          onClick={() => setShowHeaderLogDropdown(false)}
+                        >
+                          <span>{lt.label}</span>
+                          {(logTypeCounts[lt.value] ?? 0) > 0 && (
+                            <span className="text-xs text-barn-dark/30">{logTypeCounts[lt.value]}</span>
+                          )}
+                        </Link>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
               <button
                 type="button"
                 onClick={() => setEditing(true)}
