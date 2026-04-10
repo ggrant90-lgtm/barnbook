@@ -16,7 +16,7 @@ function generateQrCode(): string {
 export async function createHorseAction(
   _prev: { error?: string } | null,
   formData: FormData,
-): Promise<{ error?: string; horseId?: string } | null> {
+): Promise<{ error?: string; horseId?: string; homestead?: boolean } | null> {
   const supabase = await createServerComponentClient();
   const {
     data: { user },
@@ -29,11 +29,7 @@ export async function createHorseAction(
   const canEdit = await canUserEditHorse(supabase, user.id, ctx.barn.id);
   if (!canEdit) return { error: "You don’t have permission to add horses." };
 
-  // Capacity check
-  const snapshot = await getBarnCapacitySnapshot(supabase, ctx.barn.id);
-  if (snapshot && !snapshot.canAddHorse) {
-    return { error: "BARN_FULL" };
-  }
+  // Homestead: no capacity block — everyone can add unlimited horses for now
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Name is required." };
@@ -76,7 +72,7 @@ export async function createHorseAction(
 
   revalidatePath("/horses");
   revalidatePath("/dashboard");
-  return { horseId: horse.id };
+  return { horseId: horse.id, homestead: true };
 }
 
 export async function updateHorseAction(

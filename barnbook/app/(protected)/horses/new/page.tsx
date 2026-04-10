@@ -18,6 +18,7 @@ export default function NewHorsePage() {
   const [pending, setPending] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [createdHorseId, setCreatedHorseId] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -27,11 +28,6 @@ export default function NewHorsePage() {
     const fd = new FormData(e.currentTarget);
     const res = await createHorseAction(null, fd);
     if (res?.error) {
-      if (res.error === "BARN_FULL") {
-        setShowUpgrade(true);
-        setPending(false);
-        return;
-      }
       setError(res.error);
       setPending(false);
       return;
@@ -57,6 +53,18 @@ export default function NewHorsePage() {
       }
     }
 
+    // Show Homestead modal on first horse beyond 5 (one-time delight)
+    if (res?.homestead) {
+      const seen = localStorage.getItem("homestead_seen");
+      if (!seen) {
+        localStorage.setItem("homestead_seen", "1");
+        setCreatedHorseId(horseId);
+        setShowUpgrade(true);
+        setPending(false);
+        return;
+      }
+    }
+
     setPending(false);
     router.push(`/horses/${horseId}`);
     router.refresh();
@@ -67,9 +75,13 @@ export default function NewHorsePage() {
       {showUpgrade && (
         <UpgradeModal
           barnName="Your barn"
-          barnId=""
-          currentCapacity={5}
-          onClose={() => setShowUpgrade(false)}
+          onClose={() => {
+            setShowUpgrade(false);
+            if (createdHorseId) {
+              router.push(`/horses/${createdHorseId}`);
+              router.refresh();
+            }
+          }}
         />
       )}
       <Link href="/horses" className="text-sm text-barn-dark/70 hover:text-brass-gold">
