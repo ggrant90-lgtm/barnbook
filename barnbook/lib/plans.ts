@@ -3,9 +3,8 @@
  * Free barns get 5 stalls. Paid barns get 10 stalls for $25/mo.
  */
 
-// Staging: unlimited stalls for testing
-export const DEFAULT_FREE_STALL_CAPACITY = 999;
-export const PAID_STALL_CAPACITY = 999;
+export const DEFAULT_FREE_STALL_CAPACITY = 5;
+export const PAID_STALL_CAPACITY = 10;
 export const PAID_PRICE_CENTS = 2500;
 export const PAID_PRICE_LABEL = "$25/mo";
 export const PLAN_TIERS = ["free", "paid", "comped"] as const;

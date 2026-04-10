@@ -96,16 +96,6 @@ export function IconPlay({ className }: { className?: string }) {
   );
 }
 
-export function IconEmbryo({ className }: { className?: string }) {
-  return (
-    <svg className={className} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="12" cy="10" r="4" />
-      <path d="M12 14c-2 2-2.5 4-1 6" />
-    </svg>
-  );
-}
-
 export function IconChat({ className }: { className?: string }) {
   return (
     <svg className={className} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
