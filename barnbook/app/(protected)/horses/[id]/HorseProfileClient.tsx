@@ -1,6 +1,6 @@
 "use client";
 
-import { updateHorseAction } from "@/app/(protected)/actions/horse";
+import { updateHorseAction, deleteHorseAction } from "@/app/(protected)/actions/horse";
 import { deleteLogAction } from "@/app/(protected)/actions/delete-log";
 import { moveHorseAction } from "@/app/(protected)/actions/move-horse";
 import { ActivityEntry } from "@/components/ActivityEntry";
@@ -99,6 +99,8 @@ export function HorseProfileClient({
   const [logTypeFilter, setLogTypeFilter] = useState<string | null>(null);
   const [logDateRange, setLogDateRange] = useState("all");
   const [showAddLogDropdown, setShowAddLogDropdown] = useState(false);
+  const [confirmingDeleteHorse, setConfirmingDeleteHorse] = useState(false);
+  const [deletingHorse, setDeletingHorse] = useState(false);
 
   const tabParam = searchParams.get("tab");
   const tab: TabId = ((): TabId => {
@@ -156,6 +158,20 @@ export function HorseProfileClient({
   function handleCancel() {
     formRef.current?.reset();
     setEditing(false);
+    setConfirmingDeleteHorse(false);
+  }
+
+  async function handleDeleteHorse() {
+    setDeletingHorse(true);
+    const result = await deleteHorseAction(horse.id);
+    if (result?.error) {
+      show(result.error, "error");
+      setDeletingHorse(false);
+      setConfirmingDeleteHorse(false);
+    } else {
+      show(`${horse.name} has been deleted.`, "success");
+      router.push("/horses");
+    }
   }
 
   async function handleMove(targetBarnId: string) {
@@ -520,24 +536,67 @@ export function HorseProfileClient({
                   </div>
                 </div>
 
-                {/* Save / Cancel buttons — only in edit mode */}
+                {/* Save / Cancel / Delete buttons — only in edit mode */}
                 {editing ? (
-                  <div className="flex items-center gap-3 pt-2">
-                    <Button
-                      type="button"
-                      onClick={handleSave}
-                      disabled={saving}
-                    >
-                      {saving ? "Saving…" : "Save changes"}
-                    </Button>
-                    <button
-                      type="button"
-                      onClick={handleCancel}
-                      disabled={saving}
-                      className="inline-flex min-h-[44px] items-center rounded-xl border border-barn-dark/20 bg-white px-4 py-2.5 text-sm font-medium text-barn-dark hover:border-brass-gold disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
+                  <div className="flex flex-col gap-4 pt-2">
+                    <div className="flex items-center gap-3">
+                      <Button
+                        type="button"
+                        onClick={handleSave}
+                        disabled={saving || deletingHorse}
+                      >
+                        {saving ? "Saving…" : "Save changes"}
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={handleCancel}
+                        disabled={saving || deletingHorse}
+                        className="inline-flex min-h-[44px] items-center rounded-xl border border-barn-dark/20 bg-white px-4 py-2.5 text-sm font-medium text-barn-dark hover:border-brass-gold disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+
+                    {/* Delete horse */}
+                    <div className="border-t border-barn-dark/10 pt-4">
+                      {!confirmingDeleteHorse ? (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingDeleteHorse(true)}
+                          disabled={saving || deletingHorse}
+                          className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-red-300 bg-white px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 transition-all"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Delete Horse
+                        </button>
+                      ) : (
+                        <div className="rounded-xl border border-red-300 bg-red-50 p-4">
+                          <p className="text-sm font-medium text-red-800">
+                            Are you sure you want to delete <strong>{horse.name}</strong>? This will permanently remove all logs, health records, and photos. This cannot be undone.
+                          </p>
+                          <div className="mt-3 flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={handleDeleteHorse}
+                              disabled={deletingHorse}
+                              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-all"
+                            >
+                              {deletingHorse ? "Deleting…" : "Yes, delete forever"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmingDeleteHorse(false)}
+                              disabled={deletingHorse}
+                              className="inline-flex min-h-[44px] items-center rounded-xl border border-barn-dark/20 bg-white px-4 py-2.5 text-sm font-medium text-barn-dark hover:border-brass-gold disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : null}
               </form>

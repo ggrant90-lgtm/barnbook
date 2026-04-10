@@ -145,6 +145,61 @@ export async function updateHorseFormAction(
   }
 }
 
+export async function deleteHorseAction(
+  horseId: string,
+): Promise<{ error?: string; ok?: boolean }> {
+  const supabase = await createServerComponentClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "You must be signed in." };
+
+  const { data: horse } = await supabase
+    .from("horses")
+    .select("barn_id")
+    .eq("id", horseId)
+    .single();
+
+  if (!horse) return { error: "Horse not found." };
+
+  const canEdit = await canUserEditHorse(supabase, user.id, horse.barn_id);
+  if (!canEdit) return { error: "You don't have permission to delete this horse." };
+
+  // Get all log entry IDs for this horse first
+  const { data: logEntries } = await supabase
+    .from("log_entries")
+    .select("id")
+    .eq("horse_id", horseId);
+
+  const logIds = (logEntries ?? []).map((e: { id: string }) => e.id);
+
+  if (logIds.length > 0) {
+    // Delete log media
+    await supabase.from("log_entry_media").delete().in("log_entry_id", logIds);
+
+    // Delete log line items
+    await supabase.from("log_entry_line_items").delete().in("log_entry_id", logIds);
+  }
+
+  // Delete log entries
+  await supabase.from("log_entries").delete().eq("horse_id", horseId);
+
+  // Health records
+  await supabase.from("health_records").delete().eq("horse_id", horseId);
+
+  // Horse stays
+  await supabase.from("horse_stays").delete().eq("horse_id", horseId);
+
+  // Finally delete the horse
+  const { error } = await supabase.from("horses").delete().eq("id", horseId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/horses");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
 export async function updateHorsePhotoUrlAction(
   horseId: string,
   photoUrl: string,
