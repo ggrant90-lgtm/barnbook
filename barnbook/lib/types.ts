@@ -17,6 +17,7 @@ export interface Profile {
   phone: string | null;
   avatar_url: string | null;
   is_platform_admin: boolean;
+  has_breeders_pro: boolean;
   updated_at: string;
 }
 
@@ -47,7 +48,6 @@ export interface Barn {
   plan_updated_by_user_id: string | null;
   plan_updated_at: string | null;
   grace_period_ends_at: string | null;
-  has_breeders_pro: boolean;
   created_at: string;
   updated_at: string;
 }

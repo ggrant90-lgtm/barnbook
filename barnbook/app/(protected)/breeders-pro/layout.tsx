@@ -29,9 +29,15 @@ export default async function BreedersProLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name")
+    .select("full_name, has_breeders_pro")
     .eq("id", user.id)
     .maybeSingle();
+
+  // ---- Subscription gate ----
+  // Only the user with has_breeders_pro gets access.
+  if (!profile?.has_breeders_pro) {
+    redirect("/dashboard");
+  }
 
   const meta = user.user_metadata as { full_name?: string } | undefined;
   const displayName =
@@ -41,12 +47,6 @@ export default async function BreedersProLayout({
     "Member";
 
   const ctx = await getActiveBarnContext(supabase, user.id);
-
-  // ---- Subscription gate ----
-  // If the barn doesn't have Breeders Pro, redirect to dashboard.
-  if (!ctx?.barn?.has_breeders_pro) {
-    redirect("/dashboard");
-  }
 
   const barnName = ctx?.barn?.name ?? "No Barn";
 
