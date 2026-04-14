@@ -36,7 +36,49 @@ export default async function BreedersProLayout({
   // ---- Subscription gate ----
   // Only the user with has_breeders_pro gets access.
   if (!profile?.has_breeders_pro) {
-    redirect("/dashboard");
+    return (
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: "60vh",
+        padding: "48px 24px",
+        textAlign: "center",
+        maxWidth: 480,
+        margin: "0 auto",
+      }}>
+        <div style={{
+          fontSize: 48,
+          marginBottom: 16,
+          fontFamily: "var(--font-display, serif)",
+        }}>
+          Breeders Pro
+        </div>
+        <p style={{
+          fontSize: 15,
+          color: "#6b7280",
+          lineHeight: 1.6,
+          marginBottom: 24,
+        }}>
+          Breeders Pro is a premium breeding management tool for professional
+          equine operations. Track embryos, manage donor mares, stallions,
+          surrogates, OPU/ICSI pipelines, and more.
+        </p>
+        <p style={{
+          fontSize: 14,
+          color: "#374151",
+        }}>
+          For more information, please contact us at{" "}
+          <a
+            href="mailto:admin@barnbook.us"
+            style={{ color: "#c9a84c", textDecoration: "underline" }}
+          >
+            admin@barnbook.us
+          </a>
+        </p>
+      </div>
+    );
   }
 
   const meta = user.user_metadata as { full_name?: string } | undefined;
