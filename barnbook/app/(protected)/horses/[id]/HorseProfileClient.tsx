@@ -3,11 +3,6 @@
 import { updateHorseAction, deleteHorseAction } from "@/app/(protected)/actions/horse";
 import { deleteLogAction } from "@/app/(protected)/actions/delete-log";
 import { moveHorseAction } from "@/app/(protected)/actions/move-horse";
-import { FlushForm } from "@/components/embryo/FlushForm";
-import { DonorBreedingSection } from "@/components/embryo/DonorBreedingSection";
-import { SurrogateBreedingSection } from "@/components/embryo/SurrogateBreedingSection";
-import { StallionBreedingSection } from "@/components/embryo/StallionBreedingSection";
-import { FoalOriginTimeline } from "@/components/embryo/FoalOriginTimeline";
 import type { FoalOriginData } from "@/components/embryo/FoalOriginTimeline";
 import { ActivityEntry } from "@/components/ActivityEntry";
 import { CareCard } from "@/components/CareCard";
@@ -33,11 +28,10 @@ import { useCallback, useMemo, useRef, useState } from "react";
 const baseTabItems = [
   { id: "overview", label: "Overview" },
   { id: "logs", label: "Logs" },
-  { id: "breeding", label: "Breeding" },
   { id: "access", label: "Access" },
 ] as const;
 
-type TabId = "overview" | "logs" | "breeding" | "access";
+type TabId = "overview" | "logs" | "access";
 
 const ALL_LOG_TYPES = [
   { value: "exercise", label: "Exercise" },
@@ -127,10 +121,7 @@ export function HorseProfileClient({
   const [confirmingDeleteHorse, setConfirmingDeleteHorse] = useState(false);
   const [deletingHorse, setDeletingHorse] = useState(false);
 
-  const hasBreedingRole = (horse.breeding_role && horse.breeding_role !== "none") || !!foalOriginData;
-  const tabItems = hasBreedingRole
-    ? baseTabItems
-    : baseTabItems.filter((t) => t.id !== "breeding");
+  const tabItems = baseTabItems;
 
   const tabParam = searchParams.get("tab");
   const tab: TabId = ((): TabId => {
@@ -138,7 +129,6 @@ export function HorseProfileClient({
     // Remap old tabs to "logs"
     if (raw === "activity" || raw === "health") return "logs";
     if (raw === "overview" || raw === "logs" || raw === "access") return raw as TabId;
-    if (raw === "breeding" && hasBreedingRole) return "breeding";
     return "overview";
   })();
 
@@ -424,16 +414,6 @@ export function HorseProfileClient({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                 </svg>
                 Edit Horse
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowFlushModal(true)}
-                className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-barn-dark/20 bg-white px-4 py-2.5 text-sm font-medium text-barn-dark shadow hover:border-brass-gold transition-all"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                </svg>
-                Record Flush
               </button>
               {otherBarns.length > 0 ? (
                 <button
@@ -799,34 +779,6 @@ export function HorseProfileClient({
           </div>
         ) : null}
 
-        {tab === "breeding" && hasBreedingRole ? (
-          <div className="space-y-6">
-            {foalOriginData && (
-              <FoalOriginTimeline data={foalOriginData} />
-            )}
-            {(horse.breeding_role === "donor" || horse.breeding_role === "multiple") && (
-              <DonorBreedingSection
-                horse={horse}
-                flushes={donorFlushes ?? []}
-                pregnancies={donorPregnancies ?? []}
-                horseNames={breedingHorseNames ?? {}}
-              />
-            )}
-            {(horse.breeding_role === "stallion" || horse.breeding_role === "multiple") && (
-              <StallionBreedingSection
-                flushes={stallionFlushes ?? []}
-                pregnancies={stallionPregnancies ?? []}
-                horseNames={breedingHorseNames ?? {}}
-              />
-            )}
-            {(horse.breeding_role === "recipient" || horse.breeding_role === "multiple") && (
-              <SurrogateBreedingSection
-                pregnancies={surrogatePregnancies ?? []}
-                horseNames={breedingHorseNames ?? {}}
-              />
-            )}
-          </div>
-        ) : null}
 
         {tab === "access" ? (
           <div className="space-y-6">
@@ -888,15 +840,6 @@ export function HorseProfileClient({
         </div>
       ) : null}
 
-      {/* Flush modal */}
-      {showFlushModal ? (
-        <FlushForm
-          donorHorseId={horse.id}
-          donorName={horse.name}
-          barnStallions={barnStallions ?? []}
-          onClose={() => setShowFlushModal(false)}
-        />
-      ) : null}
 
       {/* Log detail modal */}
       {selectedLog ? (
