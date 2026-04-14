@@ -27,6 +27,8 @@ function isProtectedPath(pathname: string): boolean {
     "/identify",
     "/settings",
     "/requests",
+    "/breeders-pro",
+    "/embryo-bank",
   ];
   return prefixes.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),

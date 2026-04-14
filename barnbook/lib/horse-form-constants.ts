@@ -56,7 +56,7 @@ export const BREED_DATA_SUBTYPE_LABELS: Record<BreedDataSubtype, string> = {
 };
 
 export const BREEDING_METHODS = [
-  "Live Cover",
+  "Traditional Carry",
   "AI Fresh",
   "AI Cooled",
   "AI Frozen",
@@ -167,7 +167,18 @@ export const BREEDING_METHOD_LABELS: Record<BreedingMethodValue, string> = {
   ai_fresh: "AI Fresh",
   ai_cooled: "AI Cooled",
   ai_frozen: "AI Frozen",
-  live_cover: "Live Cover",
+  live_cover: "Traditional Carry",
+};
+
+export const INSEMINATION_TECHNIQUES = [
+  "standard_uterine", "deep_horn", "hysteroscopic",
+] as const;
+export type InseminationTechnique = (typeof INSEMINATION_TECHNIQUES)[number];
+
+export const INSEMINATION_TECHNIQUE_LABELS: Record<InseminationTechnique, string> = {
+  standard_uterine: "Standard Uterine",
+  deep_horn: "Deep Horn",
+  hysteroscopic: "Hysteroscopic",
 };
 
 export const PREGNANCY_STATUSES = [

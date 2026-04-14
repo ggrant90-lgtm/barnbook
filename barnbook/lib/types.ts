@@ -47,6 +47,7 @@ export interface Barn {
   plan_updated_by_user_id: string | null;
   plan_updated_at: string | null;
   grace_period_ends_at: string | null;
+  has_breeders_pro: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -165,6 +166,61 @@ export interface Horse {
   lifetime_live_foal_count: number;
   sire_horse_id: string | null;
   dam_horse_id: string | null;
+  /** Lifecycle disposition (Breeders Pro) — what happened to this horse
+   *  as an asset in the program. Distinct from reproductive_status. */
+  disposition?: "sold" | "died" | "retired" | null;
+  disposition_date?: string | null;
+  disposition_notes?: string | null;
+  disposition_sold_to?: string | null;
+  disposition_sale_price?: number | null;
+}
+
+/** public.locations — Breeders Pro per-barn facility registry */
+export interface Location {
+  id: string;
+  barn_id: string;
+  facility_name: string;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  country: string | null;
+  notes: string | null;
+  archived: boolean;
+  created_at: string;
+  updated_at: string;
+  created_by_user_id: string | null;
+}
+
+/** public.horse_location_assignments — historical log entry */
+export interface HorseLocationAssignment {
+  id: string;
+  barn_id: string;
+  horse_id: string;
+  location_id: string;
+  started_at: string;
+  ended_at: string | null;
+  note: string | null;
+  created_at: string;
+  created_by_user_id: string | null;
+}
+
+/** public.horse_current_location — read-only view of the active assignment */
+export interface HorseCurrentLocation {
+  horse_id: string;
+  barn_id: string;
+  assignment_id: string | null;
+  location_id: string | null;
+  facility_name: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  country: string | null;
+  assignment_note: string | null;
+  started_at: string | null;
 }
 
 /** public.flushes */
@@ -225,7 +281,7 @@ export type PregnancyCheckValue = "pending" | "confirmed" | "not_pregnant" | "no
 export interface Pregnancy {
   id: string;
   barn_id: string;
-  embryo_id: string;
+  embryo_id: string | null; // null for live cover pregnancies
   surrogate_horse_id: string;
   donor_horse_id: string;
   stallion_horse_id: string | null;
@@ -233,6 +289,16 @@ export interface Pregnancy {
   transfer_veterinarian_name: string | null;
   expected_foaling_date: string | null;
   status: "pending_check" | "confirmed" | "lost_early" | "lost_late" | "foaled" | "aborted";
+  conception_method: "embryo_transfer" | "live_cover" | "ai_fresh" | "ai_cooled" | "ai_frozen";
+  cover_method: string | null;
+  cover_count: number | null;
+  cover_cost: number | null;
+  semen_source: string | null;
+  collection_date: string | null;
+  insemination_technique: string | null;
+  semen_volume_ml: number | null;
+  motility_percent: number | null;
+  semen_dose: string | null;
   check_14_day: PregnancyCheckValue;
   check_30_day: PregnancyCheckValue;
   check_45_day: PregnancyCheckValue;

@@ -151,11 +151,29 @@ export async function recordFoalingAction(
     revalidatePath(`/horses/${pregnancy.surrogate_horse_id}`);
   }
 
+  // Also refresh Breeders Pro profile and list pages.
+  revalidatePath(`/breeders-pro/pregnancy/${pregnancyId}`);
+  revalidatePath("/breeders-pro/pregnancies");
+  revalidatePath("/breeders-pro");
+  if (pregnancy.surrogate_horse_id) {
+    revalidatePath(`/breeders-pro/surrogates/${pregnancy.surrogate_horse_id}`);
+    revalidatePath("/breeders-pro/surrogates");
+  }
+  if (pregnancy.donor_horse_id) {
+    revalidatePath(`/breeders-pro/donors/${pregnancy.donor_horse_id}`);
+  }
+
   return { foalingId: data.foaling_id };
 }
 
 /**
  * Confirm 30-day survival for a foaling.
+ *
+ * Only updates `foal_alive_at_30d` on the foaling row. It no longer
+ * touches `lifetime_live_foal_count` on the donor — that rollup now
+ * happens inside the `record_foaling` RPC at birth time (gated on
+ * `p_foal_alive_24hr`). Incrementing here too would double-count.
+ * See migration 20260411000001_fix_pregnancy_checks_and_foaling_rollups.sql.
  */
 export async function confirmSurvivalAction(
   foalingId: string,
@@ -169,7 +187,7 @@ export async function confirmSurvivalAction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: foaling } = await (supabase as any)
     .from("foalings")
-    .select("*, pregnancies!inner(barn_id, donor_horse_id)")
+    .select("pregnancy_id, pregnancies!inner(barn_id)")
     .eq("id", foalingId)
     .single();
 
@@ -192,24 +210,8 @@ export async function confirmSurvivalAction(
 
   if (error) return { error: error.message };
 
-  // Increment donor lifetime_live_foal_count
-  const donorId = foaling.pregnancies?.donor_horse_id;
-  if (donorId) {
-    const { data: donor } = await supabase
-      .from("horses")
-      .select("lifetime_live_foal_count")
-      .eq("id", donorId)
-      .single();
-    if (donor) {
-      const currentCount = ((donor as Record<string, unknown>).lifetime_live_foal_count as number) ?? 0;
-      await supabase
-        .from("horses")
-        .update({ lifetime_live_foal_count: currentCount + 1 } as Record<string, unknown>)
-        .eq("id", donorId);
-    }
-  }
-
   revalidatePath(`/embryo-bank/pregnancy/${foaling.pregnancy_id}`);
   revalidatePath("/embryo-bank");
+  revalidatePath(`/breeders-pro/pregnancy/${foaling.pregnancy_id}`);
   return {};
 }
