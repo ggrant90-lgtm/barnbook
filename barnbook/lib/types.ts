@@ -155,6 +155,7 @@ export interface Horse {
   special_care_notes: string | null;
   turnout_schedule: string | null;
   archived: boolean;
+  breeding_only: boolean;
   created_at: string;
   updated_at: string;
   /** Breeding extensions */

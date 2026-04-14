@@ -19,6 +19,7 @@ export default async function HorsesPage() {
     .from("horses")
     .select("*")
     .eq("barn_id", ctx.barn.id)
+    .eq("breeding_only", false)
     .order("name", { ascending: true });
 
   if (error) {

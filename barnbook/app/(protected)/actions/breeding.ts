@@ -52,6 +52,7 @@ export async function recordLiveCoverAction(formData: FormData) {
         breed: (formData.get("mare_breed") as string)?.trim() || null,
         color: (formData.get("mare_color") as string)?.trim() || null,
         foal_date: (formData.get("mare_foal_date") as string) || null,
+        breeding_only: formData.get("mare_add_to_barnbook") !== "true",
         created_by: user.id,
       })
       .select("id")
@@ -87,6 +88,7 @@ export async function recordLiveCoverAction(formData: FormData) {
         breed: (formData.get("sire_breed") as string)?.trim() || null,
         color: (formData.get("sire_color") as string)?.trim() || null,
         foal_date: (formData.get("sire_foal_date") as string) || null,
+        breeding_only: formData.get("sire_add_to_barnbook") !== "true",
         created_by: user.id,
       })
       .select("id")

@@ -55,6 +55,7 @@ export function NewLiveCoverClient({
   const [newMareBreed, setNewMareBreed] = useState("");
   const [newMareColor, setNewMareColor] = useState("");
   const [newMareFoalDate, setNewMareFoalDate] = useState("");
+  const [mareAddToBarnbook, setMareAddToBarnbook] = useState(false);
 
   // ---------- Sire ----------
   const [sireMode, setSireMode] = useState<SireMode>(
@@ -66,6 +67,7 @@ export function NewLiveCoverClient({
   const [newSireBreed, setNewSireBreed] = useState("");
   const [newSireColor, setNewSireColor] = useState("");
   const [newSireFoalDate, setNewSireFoalDate] = useState("");
+  const [sireAddToBarnbook, setSireAddToBarnbook] = useState(false);
 
   // ---------- Breeding category ----------
   type BreedingCategory = "live_cover" | "ai";
@@ -121,6 +123,7 @@ export function NewLiveCoverClient({
       if (newMareBreed) fd.set("mare_breed", newMareBreed);
       if (newMareColor) fd.set("mare_color", newMareColor);
       if (newMareFoalDate) fd.set("mare_foal_date", newMareFoalDate);
+      if (mareAddToBarnbook) fd.set("mare_add_to_barnbook", "true");
     }
     fd.set("sire_mode", sireMode);
     if (sireMode === "existing") {
@@ -131,6 +134,7 @@ export function NewLiveCoverClient({
       if (newSireBreed) fd.set("sire_breed", newSireBreed);
       if (newSireColor) fd.set("sire_color", newSireColor);
       if (newSireFoalDate) fd.set("sire_foal_date", newSireFoalDate);
+      if (sireAddToBarnbook) fd.set("sire_add_to_barnbook", "true");
     }
     fd.set("breeding_category", breedingCategory);
     fd.set("cover_date", coverDate);
@@ -286,6 +290,15 @@ export function NewLiveCoverClient({
                     style={{ maxWidth: 200 }}
                   />
                 </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 13, color: "var(--bp-ink-secondary)", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={mareAddToBarnbook}
+                    onChange={(e) => setMareAddToBarnbook(e.target.checked)}
+                    style={{ accentColor: "var(--bp-accent)" }}
+                  />
+                  Also add to BarnBook horse list
+                </label>
               </div>
             )}
           </fieldset>
@@ -381,6 +394,15 @@ export function NewLiveCoverClient({
                     style={{ maxWidth: 200 }}
                   />
                 </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 13, color: "var(--bp-ink-secondary)", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={sireAddToBarnbook}
+                    onChange={(e) => setSireAddToBarnbook(e.target.checked)}
+                    style={{ accentColor: "var(--bp-accent)" }}
+                  />
+                  Also add to BarnBook horse list
+                </label>
               </div>
             )}
           </fieldset>
