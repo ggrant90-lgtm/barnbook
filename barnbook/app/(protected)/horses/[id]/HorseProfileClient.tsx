@@ -182,15 +182,20 @@ export function HorseProfileClient({
     setConfirmingDeleteHorse(false);
   }
 
-  async function handleDeleteHorse() {
+  async function handleDeleteHorse(permanent: boolean = false) {
     setDeletingHorse(true);
-    const result = await deleteHorseAction(horse.id);
+    const result = await deleteHorseAction(horse.id, permanent);
     if (result?.error) {
       show(result.error, "error");
       setDeletingHorse(false);
       setConfirmingDeleteHorse(false);
     } else {
-      show(`${horse.name} has been deleted.`, "success");
+      show(
+        permanent
+          ? `${horse.name} and all associated data have been permanently deleted.`
+          : `${horse.name} has been archived.`,
+        "success",
+      );
       router.push("/horses");
     }
   }
@@ -669,22 +674,36 @@ export function HorseProfileClient({
                       ) : (
                         <div className="rounded-xl border border-red-300 bg-red-50 p-4">
                           <p className="text-sm font-medium text-red-800">
-                            Are you sure you want to delete <strong>{horse.name}</strong>? This will permanently remove all logs, health records, and photos. This cannot be undone.
+                            What would you like to do with <strong>{horse.name}</strong>?
                           </p>
-                          <div className="mt-3 flex items-center gap-3">
+                          <div className="mt-3 flex flex-col gap-2">
                             <button
                               type="button"
-                              onClick={handleDeleteHorse}
+                              onClick={() => handleDeleteHorse(false)}
+                              disabled={deletingHorse}
+                              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-amber-400 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50 transition-all"
+                            >
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8" />
+                              </svg>
+                              {deletingHorse ? "Archiving…" : "Archive — hide but keep data"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteHorse(true)}
                               disabled={deletingHorse}
                               className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-all"
                             >
-                              {deletingHorse ? "Deleting…" : "Yes, delete forever"}
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                              {deletingHorse ? "Deleting…" : "Permanently delete all data"}
                             </button>
                             <button
                               type="button"
                               onClick={() => setConfirmingDeleteHorse(false)}
                               disabled={deletingHorse}
-                              className="inline-flex min-h-[44px] items-center rounded-xl border border-barn-dark/20 bg-white px-4 py-2.5 text-sm font-medium text-barn-dark hover:border-brass-gold disabled:opacity-50"
+                              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-barn-dark/20 bg-white px-4 py-2.5 text-sm font-medium text-barn-dark hover:border-brass-gold disabled:opacity-50"
                             >
                               Cancel
                             </button>

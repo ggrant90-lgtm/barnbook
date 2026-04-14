@@ -148,6 +148,7 @@ export async function updateHorseFormAction(
 
 export async function deleteHorseAction(
   horseId: string,
+  permanent: boolean = false,
 ): Promise<{ error?: string; ok?: boolean }> {
   const supabase = await createServerComponentClient();
   const {
@@ -166,16 +167,88 @@ export async function deleteHorseAction(
   const canEdit = await canUserEditHorse(supabase, user.id, horse.barn_id);
   if (!canEdit) return { error: "You don't have permission to delete this horse." };
 
-  // Soft delete — archive the horse instead of removing it.
-  // This avoids foreign key conflicts with breeding tables
-  // (flushes, embryos, pregnancies, OPU sessions, etc.) while
-  // keeping all historical data intact.
-  const { error } = await supabase
-    .from("horses")
-    .update({ archived: true })
-    .eq("id", horseId);
+  if (!permanent) {
+    // Soft delete — archive the horse.
+    const { error } = await supabase
+      .from("horses")
+      .update({ archived: true })
+      .eq("id", horseId);
 
-  if (error) return { error: error.message };
+    if (error) return { error: error.message };
+  } else {
+    // Hard delete — remove horse and ALL associated data.
+    // Order matters: delete child records before the horse.
+
+    // 1. Foalings linked to pregnancies involving this horse
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: pregIds } = await (supabase as any)
+      .from("pregnancies")
+      .select("id")
+      .or(`donor_horse_id.eq.${horseId},surrogate_horse_id.eq.${horseId},stallion_horse_id.eq.${horseId}`);
+    const pIds = (pregIds ?? []).map((p: { id: string }) => p.id);
+    if (pIds.length > 0) {
+      await (supabase as any).from("foalings").delete().in("pregnancy_id", pIds);
+    }
+
+    // 2. Pregnancies (as donor, surrogate, or stallion)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from("pregnancies")
+      .delete()
+      .or(`donor_horse_id.eq.${horseId},surrogate_horse_id.eq.${horseId},stallion_horse_id.eq.${horseId}`);
+
+    // 3. ICSI batches linked to OPU sessions for this horse
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: opuIds } = await (supabase as any)
+      .from("opu_sessions")
+      .select("id")
+      .eq("donor_horse_id", horseId);
+    const oIds = (opuIds ?? []).map((o: { id: string }) => o.id);
+    if (oIds.length > 0) {
+      await (supabase as any).from("icsi_batches").delete().in("opu_session_id", oIds);
+      await (supabase as any).from("oocytes").delete().in("opu_session_id", oIds);
+    }
+
+    // 4. OPU sessions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from("opu_sessions").delete().eq("donor_horse_id", horseId);
+
+    // 5. Embryos (as donor or stallion)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from("embryos")
+      .delete()
+      .or(`donor_horse_id.eq.${horseId},stallion_horse_id.eq.${horseId}`);
+
+    // 6. Flushes (as donor or stallion)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from("flushes")
+      .delete()
+      .or(`donor_horse_id.eq.${horseId},stallion_horse_id.eq.${horseId}`);
+
+    // 7. Log entries and related media/line items
+    const { data: logEntries } = await supabase
+      .from("log_entries")
+      .select("id")
+      .eq("horse_id", horseId);
+    const logIds = (logEntries ?? []).map((e: { id: string }) => e.id);
+    if (logIds.length > 0) {
+      await supabase.from("log_entry_media").delete().in("log_entry_id", logIds);
+      await supabase.from("log_entry_line_items").delete().in("log_entry_id", logIds);
+    }
+    await supabase.from("log_entries").delete().eq("horse_id", horseId);
+
+    // 8. Health records, horse stays, location assignments
+    await supabase.from("health_records").delete().eq("horse_id", horseId);
+    await supabase.from("horse_stays").delete().eq("horse_id", horseId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from("horse_location_assignments").delete().eq("horse_id", horseId);
+
+    // 9. Finally delete the horse
+    const { error } = await supabase.from("horses").delete().eq("id", horseId);
+    if (error) return { error: error.message };
+  }
 
   revalidatePath("/horses");
   revalidatePath("/dashboard");
@@ -183,6 +256,7 @@ export async function deleteHorseAction(
   revalidatePath("/breeders-pro/donors");
   revalidatePath("/breeders-pro/stallions");
   revalidatePath("/breeders-pro/surrogates");
+  revalidatePath("/breeders-pro/pregnancies");
   return { ok: true };
 }
 
