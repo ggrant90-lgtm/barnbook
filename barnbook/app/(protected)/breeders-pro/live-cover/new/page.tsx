@@ -25,14 +25,13 @@ export default async function NewLiveCoverPage() {
   const canEdit = await canUserEditHorse(supabase, user.id, barnId);
   if (!canEdit) redirect("/breeders-pro");
 
-  // Existing mares (donor, recipient, multiple, none — any mare can be
-  // live-covered, regardless of her current breeding_role).
+  // Existing mares — donor, recipient, or multiple breeding roles.
   const { data: mares } = await supabase
     .from("horses")
     .select("id, name, registration_number, breeding_role")
     .eq("barn_id", barnId)
     .eq("archived", false)
-    .eq("sex", "mare")
+    .in("breeding_role", ["donor", "recipient", "multiple"])
     .order("name", { ascending: true });
 
   // Existing barn stallions.

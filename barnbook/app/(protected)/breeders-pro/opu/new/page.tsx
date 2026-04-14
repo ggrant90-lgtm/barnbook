@@ -27,14 +27,13 @@ export default async function NewOPUPage() {
   const canEdit = await canUserEditHorse(supabase, user.id, barnId);
   if (!canEdit) redirect("/breeders-pro");
 
-  // Fetch donor mares for the donor picker — include donor and multiple roles,
-  // plus any mare regardless of breeding_role (some may not be tagged yet).
+  // Fetch donor mares for the donor picker — donor and multiple roles.
   const { data: mares } = await supabase
     .from("horses")
     .select("id, name, registration_number, breeding_role")
     .eq("barn_id", barnId)
     .eq("archived", false)
-    .or("sex.eq.mare,breeding_role.eq.donor,breeding_role.eq.multiple")
+    .in("breeding_role", ["donor", "multiple"])
     .order("name", { ascending: true });
 
   return (
