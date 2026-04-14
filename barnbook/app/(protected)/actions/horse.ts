@@ -166,38 +166,23 @@ export async function deleteHorseAction(
   const canEdit = await canUserEditHorse(supabase, user.id, horse.barn_id);
   if (!canEdit) return { error: "You don't have permission to delete this horse." };
 
-  // Get all log entry IDs for this horse first
-  const { data: logEntries } = await supabase
-    .from("log_entries")
-    .select("id")
-    .eq("horse_id", horseId);
-
-  const logIds = (logEntries ?? []).map((e: { id: string }) => e.id);
-
-  if (logIds.length > 0) {
-    // Delete log media
-    await supabase.from("log_entry_media").delete().in("log_entry_id", logIds);
-
-    // Delete log line items
-    await supabase.from("log_entry_line_items").delete().in("log_entry_id", logIds);
-  }
-
-  // Delete log entries
-  await supabase.from("log_entries").delete().eq("horse_id", horseId);
-
-  // Health records
-  await supabase.from("health_records").delete().eq("horse_id", horseId);
-
-  // Horse stays
-  await supabase.from("horse_stays").delete().eq("horse_id", horseId);
-
-  // Finally delete the horse
-  const { error } = await supabase.from("horses").delete().eq("id", horseId);
+  // Soft delete — archive the horse instead of removing it.
+  // This avoids foreign key conflicts with breeding tables
+  // (flushes, embryos, pregnancies, OPU sessions, etc.) while
+  // keeping all historical data intact.
+  const { error } = await supabase
+    .from("horses")
+    .update({ archived: true })
+    .eq("id", horseId);
 
   if (error) return { error: error.message };
 
   revalidatePath("/horses");
   revalidatePath("/dashboard");
+  revalidatePath("/breeders-pro");
+  revalidatePath("/breeders-pro/donors");
+  revalidatePath("/breeders-pro/stallions");
+  revalidatePath("/breeders-pro/surrogates");
   return { ok: true };
 }
 
