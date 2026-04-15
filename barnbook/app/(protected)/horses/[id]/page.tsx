@@ -46,6 +46,14 @@ export default async function HorseProfilePage({
   const horse = horseRaw as Horse;
   const canEdit = await canUserEditHorse(supabase, user.id, horse.barn_id);
 
+  // Check Breeders Pro subscription for breeding tab
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("has_breeders_pro")
+    .eq("id", user.id)
+    .maybeSingle();
+  const hasBreedersPro = profileRow?.has_breeders_pro === true;
+
   const [{ data: activities }, { data: healthRows }, { data: shoeingRows }, { data: wormingRows }] =
     await Promise.all([
       supabase
@@ -475,6 +483,7 @@ export default async function HorseProfilePage({
         stallionPregnancies={stallionPregnancies}
         breedingHorseNames={breedingHorseNames}
         foalOriginData={foalOriginData}
+        hasBreedersPro={hasBreedersPro}
       />
     </Suspense>
   );

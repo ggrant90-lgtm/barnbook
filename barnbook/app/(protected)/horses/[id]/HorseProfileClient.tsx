@@ -28,10 +28,11 @@ import { useCallback, useMemo, useRef, useState } from "react";
 const baseTabItems = [
   { id: "overview", label: "Overview" },
   { id: "logs", label: "Logs" },
+  { id: "breeding", label: "Breeding" },
   { id: "access", label: "Access" },
 ] as const;
 
-type TabId = "overview" | "logs" | "access";
+type TabId = "overview" | "logs" | "breeding" | "access";
 
 const ALL_LOG_TYPES = [
   { value: "exercise", label: "Exercise" },
@@ -72,6 +73,7 @@ export function HorseProfileClient({
   stallionPregnancies,
   breedingHorseNames,
   foalOriginData,
+  hasBreedersPro,
 }: {
   horse: Horse;
   canEdit: boolean;
@@ -100,6 +102,7 @@ export function HorseProfileClient({
   stallionPregnancies?: Pregnancy[];
   breedingHorseNames?: Record<string, string>;
   foalOriginData?: FoalOriginData | null;
+  hasBreedersPro?: boolean;
 }) {
   const router = useRouter();
   const { show } = useToast();
@@ -121,13 +124,17 @@ export function HorseProfileClient({
   const [confirmingDeleteHorse, setConfirmingDeleteHorse] = useState(false);
   const [deletingHorse, setDeletingHorse] = useState(false);
 
-  const tabItems = baseTabItems;
+  // Only show breeding tab for Breeders Pro subscribers
+  const tabItems = hasBreedersPro
+    ? baseTabItems
+    : baseTabItems.filter((t) => t.id !== "breeding");
 
   const tabParam = searchParams.get("tab");
   const tab: TabId = ((): TabId => {
     const raw = tabParam ?? initialTab;
     // Remap old tabs to "logs"
     if (raw === "activity" || raw === "health") return "logs";
+    if (raw === "breeding" && hasBreedersPro) return "breeding";
     if (raw === "overview" || raw === "logs" || raw === "access") return raw as TabId;
     return "overview";
   })();
@@ -830,6 +837,113 @@ export function HorseProfileClient({
           </div>
         ) : null}
 
+
+        {tab === "breeding" && hasBreedersPro ? (
+          <div className="space-y-6">
+            {/* Reproductive Status */}
+            <div className="rounded-2xl border border-barn-dark/10 bg-white p-5">
+              <h3 className="text-sm font-semibold text-barn-dark mb-3">Reproductive Status</h3>
+              <div className="flex flex-wrap gap-4">
+                <div>
+                  <span className="text-xs text-barn-dark/50 block">Status</span>
+                  <span className="text-sm font-medium capitalize">
+                    {horse.reproductive_status?.replace(/_/g, " ") ?? "Not set"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs text-barn-dark/50 block">Breeding Role</span>
+                  <span className="text-sm font-medium capitalize">
+                    {horse.breeding_role?.replace(/_/g, " ") ?? "None"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs text-barn-dark/50 block">Lifetime Embryos</span>
+                  <span className="text-sm font-medium">{horse.lifetime_embryo_count ?? 0}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-barn-dark/50 block">Lifetime Live Foals</span>
+                  <span className="text-sm font-medium">{horse.lifetime_live_foal_count ?? 0}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Breed Data Logs (heat cycles, breeding events, ultrasounds) */}
+            <div className="rounded-2xl border border-barn-dark/10 bg-white p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-barn-dark">Breeding Activity</h3>
+                <Link
+                  href={`/horses/${horse.id}/log/breed_data`}
+                  className="text-xs font-medium text-brass-gold hover:underline"
+                >
+                  + Add Entry
+                </Link>
+              </div>
+              {(() => {
+                const breedLogs = activities.filter((a) => a.activity_type === "breed_data");
+                if (breedLogs.length === 0) {
+                  return (
+                    <p className="text-sm text-barn-dark/50">
+                      No breeding activity recorded yet. Use &quot;+ Add Entry&quot; to log heat cycles, breedings, ultrasounds, and more.
+                    </p>
+                  );
+                }
+                return (
+                  <ul className="divide-y divide-barn-dark/10">
+                    {breedLogs.slice(0, 20).map((log) => {
+                      const details = (log.details ?? {}) as Record<string, string>;
+                      const subtype = details.subtype ?? "custom";
+                      const subtypeLabels: Record<string, string> = {
+                        heat_detected: "Heat Detected",
+                        bred_ai: "Bred / AI",
+                        flush_embryo: "Flush / Embryo",
+                        embryo_transfer: "Embryo Transfer",
+                        ultrasound: "Ultrasound",
+                        foaling: "Foaling",
+                        custom: "Custom",
+                      };
+                      return (
+                        <li key={log.id} className="py-3 flex items-start justify-between gap-3">
+                          <div>
+                            <span className="inline-block rounded-full bg-brass-gold/15 text-brass-gold px-2 py-0.5 text-xs font-medium mr-2">
+                              {subtypeLabels[subtype] ?? subtype}
+                            </span>
+                            {log.notes && (
+                              <span className="text-sm text-barn-dark/70">{log.notes}</span>
+                            )}
+                            {details.result && (
+                              <span className="text-sm text-barn-dark/70 ml-1">— {details.result}</span>
+                            )}
+                          </div>
+                          <span className="text-xs text-barn-dark/40 whitespace-nowrap">
+                            {new Date(log.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                );
+              })()}
+            </div>
+
+            {/* Link to Breeders Pro */}
+            {horse.breeding_role && horse.breeding_role !== "none" && (
+              <div className="text-center">
+                <Link
+                  href={
+                    horse.breeding_role === "stallion"
+                      ? `/breeders-pro/stallions/${horse.id}`
+                      : horse.breeding_role === "recipient"
+                        ? `/breeders-pro/surrogates/${horse.id}`
+                        : `/breeders-pro/donors/${horse.id}`
+                  }
+                  className="inline-flex items-center gap-2 rounded-xl border border-brass-gold bg-brass-gold/10 px-4 py-2.5 text-sm font-medium text-barn-dark hover:bg-brass-gold/20 transition-all"
+                >
+                  View Full Breeding Profile in Breeders Pro →
+                </Link>
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {tab === "access" ? (
           <div className="space-y-6">
