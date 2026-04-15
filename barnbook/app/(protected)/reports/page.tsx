@@ -17,20 +17,26 @@ export default async function ReportsPage() {
     getBarnHorses(ctx.barn.id),
   ]);
 
-  // Fetch unique performer names from activity logs (custom/external performers)
-  const { data: performerNames } = await supabase
-    .from("activity_log")
-    .select("performed_by_name")
-    .not("performed_by_name", "is", null)
-    .neq("performed_by_name", "")
-    .in("horse_id",
-      (horses ?? []).map((h) => h.id),
-    );
-  const uniqueNames = [...new Set(
-    (performerNames ?? [])
-      .map((r) => r.performed_by_name as string)
-      .filter(Boolean),
-  )].sort();
+  // Fetch unique performer names from both activity logs AND health records
+  const horseIds = (horses ?? []).map((h) => h.id);
+  const [{ data: actPerformers }, { data: healthPerformers }] = await Promise.all([
+    supabase
+      .from("activity_log")
+      .select("performed_by_name")
+      .not("performed_by_name", "is", null)
+      .neq("performed_by_name", "")
+      .in("horse_id", horseIds),
+    supabase
+      .from("health_records")
+      .select("performed_by_name")
+      .not("performed_by_name", "is", null)
+      .neq("performed_by_name", "")
+      .in("horse_id", horseIds),
+  ]);
+  const uniqueNames = [...new Set([
+    ...(actPerformers ?? []).map((r) => r.performed_by_name as string),
+    ...(healthPerformers ?? []).map((r) => r.performed_by_name as string),
+  ].filter(Boolean))].sort();
 
   // Filter out names that match existing barn members
   const memberNames = new Set(members.map((m) => m.name.toLowerCase()));
