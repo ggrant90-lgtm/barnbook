@@ -18,7 +18,7 @@ interface BarnHorse { id: string; name: string; breed: string | null; owner_name
 
 const REPORT_TYPES: { key: ReportType; label: string; desc: string; icon: string }[] = [
   { key: "horse_summary", label: "Horse Summary", desc: "Activity, costs, and history for one or more horses", icon: "🐴" },
-  { key: "trainer_productivity", label: "Trainer Productivity", desc: "Work performed by a trainer or staff member", icon: "📋" },
+  { key: "trainer_productivity", label: "Performer Reports", desc: "Work performed by a specific performer or staff member", icon: "📋" },
   { key: "owner_statement", label: "Owner Statement", desc: "Billable activity for a horse owner (invoice-ready)", icon: "💰" },
   { key: "barn_revenue", label: "Barn Revenue", desc: "Activity and revenue across the whole barn", icon: "📊" },
 ];
@@ -67,11 +67,13 @@ export function ReportsClient({
   barnMembers,
   barnHorses,
   userRole,
+  externalPerformers,
 }: {
   barnId: string;
   barnMembers: BarnMember[];
   barnHorses: BarnHorse[];
   userRole: string;
+  externalPerformers?: string[];
 }) {
   const [selectedType, setSelectedType] = useState<ReportType | null>(null);
   const [datePreset, setDatePreset] = useState("this_month");
@@ -108,7 +110,8 @@ export function ReportsClient({
       dateFrom,
       dateTo,
       horseIds: horseIds.length > 0 ? horseIds : undefined,
-      performerUserId: performerId || undefined,
+      performerUserId: performerId && !performerId.startsWith("name:") ? performerId : undefined,
+      performerName: performerId?.startsWith("name:") ? performerId.slice(5) : undefined,
       groupBy: selectedType === "barn_revenue" ? groupBy : undefined,
       includeLineItems,
       includeNotes,
@@ -265,15 +268,26 @@ export function ReportsClient({
                   </div>
                 )}
 
-                {/* Performer selector — for Trainer Productivity */}
+                {/* Performer selector — for Performer Reports */}
                 {selectedType === "trainer_productivity" && (
                   <div>
                     <label className="mb-1.5 block text-sm text-barn-dark/75">Performer</label>
                     <select value={performerId} onChange={(e) => setPerformerId(e.target.value)} className={inputClass}>
                       <option value="">All performers</option>
-                      {barnMembers.map((m) => (
-                        <option key={m.id} value={m.id}>{m.name} — {m.role}</option>
-                      ))}
+                      {barnMembers.length > 0 && (
+                        <optgroup label="Barn Members">
+                          {barnMembers.map((m) => (
+                            <option key={m.id} value={m.id}>{m.name} — {m.role}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {externalPerformers && externalPerformers.length > 0 && (
+                        <optgroup label="External Performers">
+                          {externalPerformers.map((name) => (
+                            <option key={`ext-${name}`} value={`name:${name}`}>{name}</option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                   </div>
                 )}

@@ -120,6 +120,8 @@ export async function generateReportData(params: ReportParams): Promise<ReportDa
 
   if (params.performerUserId) {
     actQuery = actQuery.eq("performed_by_user_id", params.performerUserId);
+  } else if (params.performerName) {
+    actQuery = actQuery.eq("performed_by_name", params.performerName);
   }
 
   const { data: actLogs } = await actQuery;
@@ -138,6 +140,8 @@ export async function generateReportData(params: ReportParams): Promise<ReportDa
 
   if (params.performerUserId) {
     healthQuery = healthQuery.eq("performed_by_user_id", params.performerUserId);
+  } else if (params.performerName) {
+    healthQuery = healthQuery.eq("performed_by_name", params.performerName);
   }
 
   const { data: healthLogs } = await healthQuery;
