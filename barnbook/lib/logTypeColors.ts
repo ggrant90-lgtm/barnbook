@@ -8,6 +8,13 @@ export const LOG_TYPE_COLORS: Record<string, string> = {
   medication: "#7a4a6b",
   note: "#4a5055",
   breed_data: "#c9a84c",
+  // Breed data subtype colors
+  heat_detected: "#f59e0b",
+  bred_ai: "#22c55e",
+  ultrasound: "#3b82f6",
+  flush_embryo: "#a855f7",
+  embryo_transfer: "#a855f7",
+  foaling: "#ec4899",
   // Health record types (alias to match)
   Shoeing: "#8b4a2b",
   Worming: "#c9932a",
@@ -27,6 +34,12 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   medication: "Medication",
   note: "Note",
   breed_data: "Breed Data",
+  heat_detected: "Heat Detected",
+  bred_ai: "Bred / AI",
+  ultrasound: "Ultrasound",
+  flush_embryo: "Flush / Embryo",
+  embryo_transfer: "Embryo Transfer",
+  foaling: "Foaling",
 };
 
 export function getLogTypeLabel(type: string): string {

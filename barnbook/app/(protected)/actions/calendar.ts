@@ -27,7 +27,7 @@ export interface CalendarEvent {
   };
 }
 
-import { getLogTypeColor } from "@/lib/logTypeColors";
+import { getLogTypeColor, getLogTypeLabel } from "@/lib/logTypeColors";
 
 export interface CalendarFilters {
   barnId: string;
@@ -83,9 +83,16 @@ export async function getCalendarEvents(
     .order("performed_at", { ascending: true });
 
   if (filters.types && filters.types.length > 0) {
-    const activityTypes = filters.types.filter((t) =>
-      ["exercise", "feed", "medication", "note", "breed_data"].includes(t),
-    );
+    const baseActivityTypes = ["exercise", "feed", "medication", "note"];
+    const breedSubtypeFilters = ["heat_detected", "bred_ai", "ultrasound", "flush_embryo", "embryo_transfer", "foaling"];
+
+    const activityTypes = filters.types.filter((t) => baseActivityTypes.includes(t));
+    const hasBreedSubtypes = filters.types.some((t) => breedSubtypeFilters.includes(t));
+
+    // If any breed subtype is selected, include breed_data in the query
+    // (client-side filtering will handle the subtype matching)
+    if (hasBreedSubtypes) activityTypes.push("breed_data");
+
     if (activityTypes.length > 0) {
       actQuery = actQuery.in("activity_type", activityTypes);
     } else {
@@ -113,13 +120,26 @@ export async function getCalendarEvents(
 
   const { data: activities } = await actQuery;
 
+  // Breed data subtype keys for filter matching
+  const BREED_SUBTYPES = ["heat_detected", "bred_ai", "ultrasound", "flush_embryo", "embryo_transfer", "foaling"];
+
   for (const a of activities ?? []) {
     const performedAt = a.performed_at ?? a.created_at;
     const isFuture = performedAt > now;
-    const color = getLogTypeColor(a.activity_type);
+
+    // For breed_data, use the subtype for color and filtering
+    const details = (a.details ?? {}) as Record<string, string>;
+    const breedSubtype = a.activity_type === "breed_data" ? (details.breed_subtype ?? "custom") : null;
+    const effectiveType = breedSubtype ?? a.activity_type;
+    const color = getLogTypeColor(effectiveType);
 
     if (filters.scheduled === "scheduled" && !isFuture) continue;
     if (filters.scheduled === "completed" && isFuture) continue;
+
+    // Filter breed_data by subtype when type filters are active
+    if (breedSubtype && filters.types && filters.types.length > 0) {
+      if (!filters.types.includes(breedSubtype)) continue;
+    }
 
     if (
       filters.keyword &&
@@ -133,7 +153,7 @@ export async function getCalendarEvents(
 
     events.push({
       id: `activity-${a.id}`,
-      title: `${a.activity_type.charAt(0).toUpperCase() + a.activity_type.slice(1).replace("_", " ")} — ${horseNameMap.get(a.horse_id) ?? "Horse"}`,
+      title: `${getLogTypeLabel(effectiveType)} — ${horseNameMap.get(a.horse_id) ?? "Horse"}`,
       start: performedAt,
       end: endTime,
       backgroundColor: isFuture ? `${color}20` : color,
@@ -142,7 +162,7 @@ export async function getCalendarEvents(
       classNames: isFuture ? ["fc-event-scheduled"] : [],
       extendedProps: {
         kind: "activity",
-        logType: a.activity_type,
+        logType: effectiveType,
         horseId: a.horse_id,
         horseName: horseNameMap.get(a.horse_id) ?? "Horse",
         notes: a.notes,

@@ -272,6 +272,24 @@ async function insertActivity(
     .single();
 
   if (error) return { error: error.message };
+
+  // Auto-update reproductive_status when heat is detected
+  if (logType === "breed_data" && details && (details as Record<string, unknown>).breed_subtype === "heat_detected") {
+    // Only update if current status is open, null, or not set — don't override pregnant etc.
+    const { data: currentHorse } = await supabase
+      .from("horses")
+      .select("reproductive_status")
+      .eq("id", horseId)
+      .single();
+    const status = currentHorse?.reproductive_status;
+    if (!status || status === "open" || status === "post_foaling") {
+      await supabase
+        .from("horses")
+        .update({ reproductive_status: "in_cycle" } as Record<string, unknown>)
+        .eq("id", horseId);
+    }
+  }
+
   return { id: data.id };
 }
 

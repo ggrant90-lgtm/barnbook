@@ -231,7 +231,8 @@ export function CalendarClient({
   };
 
   const allLogTypes = [
-    "exercise", "feed", "medication", "note", "breed_data",
+    "exercise", "feed", "medication", "note",
+    "heat_detected", "bred_ai", "ultrasound", "flush_embryo", "foaling",
     "shoeing", "worming", "vet_visit",
   ];
 

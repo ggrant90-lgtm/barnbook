@@ -867,6 +867,107 @@ export function HorseProfileClient({
               </div>
             </div>
 
+            {/* Heat Cycle Tracker */}
+            {(() => {
+              const heatLogs = activities
+                .filter((a) => {
+                  if (a.activity_type !== "breed_data") return false;
+                  const d = (a.details ?? {}) as Record<string, string>;
+                  return d.breed_subtype === "heat_detected";
+                })
+                .sort((a, b) => {
+                  const da = a.performed_at || a.created_at;
+                  const db = b.performed_at || b.created_at;
+                  return new Date(da).getTime() - new Date(db).getTime();
+                });
+
+              if (heatLogs.length === 0) return null;
+
+              // Calculate intervals between consecutive heats
+              const intervals: number[] = [];
+              for (let i = 1; i < heatLogs.length; i++) {
+                const prev = new Date(heatLogs[i - 1].performed_at || heatLogs[i - 1].created_at);
+                const curr = new Date(heatLogs[i].performed_at || heatLogs[i].created_at);
+                const days = Math.round((curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24));
+                if (days > 0 && days < 60) intervals.push(days); // ignore gaps > 60 days (likely missed cycles)
+              }
+
+              const avgCycle = intervals.length > 0
+                ? Math.round(intervals.reduce((s, d) => s + d, 0) / intervals.length)
+                : 21; // default equine cycle
+
+              const lastHeat = new Date(heatLogs[heatLogs.length - 1].performed_at || heatLogs[heatLogs.length - 1].created_at);
+              const nextHeat = new Date(lastHeat);
+              nextHeat.setDate(nextHeat.getDate() + avgCycle);
+
+              const today = new Date();
+              const daysUntilNext = Math.round((nextHeat.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+              const inHeatWindow = daysUntilNext <= 2 && daysUntilNext >= -3;
+
+              const fmtShort = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
+              return (
+                <div className="rounded-2xl border border-barn-dark/10 bg-white p-5">
+                  <h3 className="text-sm font-semibold text-barn-dark mb-3">Heat Cycle Tracker</h3>
+
+                  {/* Status banner */}
+                  <div
+                    className="rounded-xl px-4 py-3 mb-4"
+                    style={{
+                      background: inHeatWindow ? "#fef3c7" : "#f0fdf4",
+                      border: `1px solid ${inHeatWindow ? "#f59e0b" : "#86efac"}`,
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span style={{ fontSize: 18 }}>{inHeatWindow ? "\u26a0\ufe0f" : "\u2705"}</span>
+                      <div>
+                        <span className="text-sm font-medium" style={{ color: inHeatWindow ? "#92400e" : "#166534" }}>
+                          {inHeatWindow
+                            ? "Likely in heat window"
+                            : daysUntilNext > 0
+                              ? `~${daysUntilNext} days until next expected heat`
+                              : `${Math.abs(daysUntilNext)} days past expected heat`}
+                        </span>
+                        <span className="text-xs block" style={{ color: inHeatWindow ? "#a16207" : "#15803d" }}>
+                          Next expected: {fmtShort(nextHeat)}
+                          {intervals.length > 0 && ` \u00b7 Avg cycle: ${avgCycle} days`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cycle history */}
+                  <div className="space-y-1">
+                    {heatLogs.slice().reverse().slice(0, 10).map((log, i, arr) => {
+                      const logDate = new Date(log.performed_at || log.created_at);
+                      // Find interval to previous heat (next in reversed array)
+                      let daysSincePrev: number | null = null;
+                      if (i < arr.length - 1) {
+                        const prevDate = new Date(arr[i + 1].performed_at || arr[i + 1].created_at);
+                        daysSincePrev = Math.round((logDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
+                      }
+                      return (
+                        <div key={log.id} className="flex items-center gap-3 py-1.5">
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "#f59e0b" }} />
+                          <span className="text-sm text-barn-dark font-medium" style={{ minWidth: 80 }}>
+                            {fmtShort(logDate)}
+                          </span>
+                          {daysSincePrev != null && daysSincePrev > 0 && (
+                            <span className="text-xs text-barn-dark/40">
+                              {daysSincePrev}d since previous
+                            </span>
+                          )}
+                          {log.notes && (
+                            <span className="text-xs text-barn-dark/50 truncate">{log.notes}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Breed Data Logs (heat cycles, breeding events, ultrasounds) */}
             <div className="rounded-2xl border border-barn-dark/10 bg-white p-5">
               <div className="flex items-center justify-between mb-3">
