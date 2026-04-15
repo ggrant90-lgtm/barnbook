@@ -1,7 +1,7 @@
-import { getActiveBarnContext } from "@/lib/barn-session";
+import { getActiveBarnContext, getActiveBarnId } from "@/lib/barn-session";
 import { canUserEditHorse } from "@/lib/horse-access";
 import { createServerComponentClient } from "@/lib/supabase-server";
-import type { Horse } from "@/lib/types";
+import type { Barn, Horse } from "@/lib/types";
 import { redirect } from "next/navigation";
 import { HorsesGrid } from "./HorsesGrid";
 
@@ -12,6 +12,64 @@ export default async function HorsesPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/auth/signin");
 
+  const activeBarnId = await getActiveBarnId();
+
+  // ── Check for "All Barns" mode ──
+  if (activeBarnId === "__all__") {
+    // Fetch all barns the user owns or is a member of
+    const { data: ownedBarns } = await supabase
+      .from("barns")
+      .select("id, name")
+      .eq("owner_id", user.id);
+
+    const { data: memberRows } = await supabase
+      .from("barn_members")
+      .select("barn_id")
+      .eq("user_id", user.id);
+    const memberBarnIds = (memberRows ?? []).map((r) => r.barn_id);
+
+    let memberBarns: { id: string; name: string }[] = [];
+    if (memberBarnIds.length > 0) {
+      const { data } = await supabase
+        .from("barns")
+        .select("id, name")
+        .in("id", memberBarnIds);
+      memberBarns = (data ?? []) as { id: string; name: string }[];
+    }
+
+    const allBarns = [...(ownedBarns ?? []), ...memberBarns];
+    const allBarnIds = allBarns.map((b) => b.id);
+
+    if (allBarnIds.length === 0) redirect("/dashboard");
+
+    // Fetch all horses across all barns
+    const { data: horsesRaw, error } = await supabase
+      .from("horses")
+      .select("*")
+      .in("barn_id", allBarnIds)
+      .eq("archived", false)
+      .eq("breeding_only", false)
+      .order("name", { ascending: true });
+
+    if (error) {
+      return (
+        <div className="px-4 py-10 text-barn-red">
+          Could not load horses: {error.message}
+        </div>
+      );
+    }
+
+    return (
+      <HorsesGrid
+        horses={(horsesRaw ?? []) as Horse[]}
+        canAdd={false}
+        visitingInfo={{}}
+        awayInfo={{}}
+      />
+    );
+  }
+
+  // ── Single barn mode ──
   const ctx = await getActiveBarnContext(supabase, user.id);
   if (!ctx) redirect("/dashboard");
 
