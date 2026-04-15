@@ -378,7 +378,7 @@ export function HorseProfileClient({
                 <button
                   type="button"
                   onClick={() => setShowHeaderLogDropdown(!showHeaderLogDropdown)}
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-forest-green bg-forest-green px-4 py-2.5 text-sm font-medium text-white shadow hover:brightness-110 transition-all"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-brass-gold bg-brass-gold px-4 py-2.5 text-sm font-medium text-barn-dark shadow hover:brightness-110 transition-all"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
