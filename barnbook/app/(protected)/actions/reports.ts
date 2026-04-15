@@ -109,13 +109,18 @@ export async function generateReportData(params: ReportParams): Promise<ReportDa
     profileMap = new Map((profiles ?? []).map((p) => [p.id, p.full_name?.trim() || "Member"]));
   }
 
-  // Query activity logs — fetch broadly, filter by date client-side
-  // because some entries may only have created_at (no performed_at)
+  const dateFrom = `${params.dateFrom}T00:00:00`;
+  const dateTo = `${params.dateTo}T23:59:59`;
+
+  // Query activity logs — use .or() to catch entries by performed_at OR created_at.
+  // Raise row limit to 5000 to avoid silent truncation.
   let actQuery = supabase
     .from("activity_log")
     .select("*")
     .in("horse_id", targetHorseIds)
-    .order("created_at", { ascending: true });
+    .or(`performed_at.gte.${dateFrom},created_at.gte.${dateFrom}`)
+    .order("created_at", { ascending: true })
+    .limit(5000);
 
   if (params.performerUserId) {
     actQuery = actQuery.eq("performed_by_user_id", params.performerUserId);
@@ -125,21 +130,21 @@ export async function generateReportData(params: ReportParams): Promise<ReportDa
 
   const { data: actLogsRaw } = await actQuery;
 
-  // Filter activity logs by date range using performed_at OR created_at
-  const dateFrom = `${params.dateFrom}T00:00:00`;
-  const dateTo = `${params.dateTo}T23:59:59`;
+  // Precise client-side date filter (handles entries with only created_at)
   const actLogs = (actLogsRaw ?? []).filter((a) => {
     const d = a.performed_at || a.created_at;
     if (!d) return false;
     return d >= dateFrom && d <= dateTo;
   });
 
-  // Query health records
+  // Query health records — same approach with .or() and raised limit
   let healthQuery = supabase
     .from("health_records")
     .select("*")
     .in("horse_id", targetHorseIds)
-    .order("created_at", { ascending: true });
+    .or(`performed_at.gte.${dateFrom},record_date.gte.${params.dateFrom},created_at.gte.${dateFrom}`)
+    .order("created_at", { ascending: true })
+    .limit(5000);
 
   if (params.performerUserId) {
     healthQuery = healthQuery.eq("performed_by_user_id", params.performerUserId);
@@ -149,7 +154,7 @@ export async function generateReportData(params: ReportParams): Promise<ReportDa
 
   const { data: healthLogs } = await healthQuery;
 
-  // Filter health records by date range using performed_at, record_date, or created_at
+  // Precise client-side date filter for health records
   const filteredHealth = (healthLogs ?? []).filter((h) => {
     const d = h.performed_at || h.record_date || h.created_at;
     if (!d) return false;
