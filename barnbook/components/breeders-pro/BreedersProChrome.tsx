@@ -88,12 +88,16 @@ export function BreedersProChrome({
         label: "Pregnancies",
         icon: <IconPregnant />,
       },
+      {
+        href: "/breeders-pro/foalings",
+        label: "Foaling Records",
+        icon: <IconFoal />,
+      },
     ],
   };
 
   const workspacePlaceholders: NavItem[] = [
     { href: "#", label: "Overview", icon: <IconGrid /> },
-    { href: "#", label: "Foaling Records", icon: <IconFoal /> },
   ];
 
   const analysisPlaceholders: NavItem[] = [

@@ -15,19 +15,25 @@ function PlayIcon() {
   );
 }
 
-function getThumbnail(video: Video): string {
+function getThumbnail(video: Video): string | null {
   if (video.source === "youtube") {
     return `https://img.youtube.com/vi/${video.youtubeId}/hqdefault.jpg`;
   }
-  // Loom CDN thumbnail
-  return `https://cdn.loom.com/sessions/thumbnails/${video.loomId}-with-play.gif`;
+  if (video.source === "loom") {
+    return `https://cdn.loom.com/sessions/thumbnails/${video.loomId}-with-play.gif`;
+  }
+  // Local videos don't have a static thumbnail
+  return null;
 }
 
-function getEmbedUrl(video: Video): string {
+function getEmbedUrl(video: Video): string | null {
   if (video.source === "youtube") {
     return `https://www.youtube.com/embed/${video.youtubeId}?autoplay=1&rel=0`;
   }
-  return `https://www.loom.com/embed/${video.loomId}?autoplay=1`;
+  if (video.source === "loom") {
+    return `https://www.loom.com/embed/${video.loomId}?autoplay=1`;
+  }
+  return null;
 }
 
 function VideoCard({ video, onPlay }: { video: Video; onPlay: () => void }) {
@@ -38,12 +44,22 @@ function VideoCard({ video, onPlay }: { video: Video; onPlay: () => void }) {
       className="group cursor-pointer overflow-hidden rounded-2xl border border-[var(--line)] bg-white text-left shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
     >
       <div className="relative aspect-video w-full overflow-hidden bg-[var(--cream-dark)]">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={getThumbnail(video)}
-          alt={video.title}
-          className="h-full w-full object-cover"
-        />
+        {video.source === "local" ? (
+          <video
+            src={video.localSrc}
+            muted
+            playsInline
+            preload="metadata"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={getThumbnail(video) ?? ""}
+            alt={video.title}
+            className="h-full w-full object-cover"
+          />
+        )}
         <PlayIcon />
       </div>
       <div className="p-5">
@@ -77,13 +93,23 @@ function VideoModal({ video, onClose }: { video: Video; onClose: () => void }) {
           Close &times;
         </button>
         <div className="aspect-video w-full overflow-hidden rounded-xl">
-          <iframe
-            src={getEmbedUrl(video)}
-            title={video.title}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            className="h-full w-full"
-          />
+          {video.source === "local" ? (
+            <video
+              src={video.localSrc}
+              controls
+              autoPlay
+              playsInline
+              className="h-full w-full bg-black"
+            />
+          ) : (
+            <iframe
+              src={getEmbedUrl(video) ?? ""}
+              title={video.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="h-full w-full"
+            />
+          )}
         </div>
       </div>
     </div>
