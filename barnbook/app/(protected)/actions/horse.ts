@@ -179,7 +179,7 @@ export async function deleteHorseAction(
     // Hard delete — remove horse and ALL associated data.
     // Order matters: delete child records before the horse.
 
-    // 1. Foalings linked to pregnancies involving this horse
+    // 1. Foalings — linked to pregnancies or directly referencing this horse
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: pregIds } = await (supabase as any)
       .from("pregnancies")
@@ -189,6 +189,12 @@ export async function deleteHorseAction(
     if (pIds.length > 0) {
       await (supabase as any).from("foalings").delete().in("pregnancy_id", pIds);
     }
+    // Also delete foalings that reference this horse directly
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from("foalings")
+      .delete()
+      .or(`surrogate_horse_id.eq.${horseId},foal_horse_id.eq.${horseId}`);
 
     // 2. Pregnancies (as donor, surrogate, or stallion)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -245,7 +251,19 @@ export async function deleteHorseAction(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from("horse_location_assignments").delete().eq("horse_id", horseId);
 
-    // 9. Finally delete the horse
+    // 9. Financial records
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from("financial_records").delete().eq("horse_id", horseId);
+
+    // 10. Access keys referencing this horse
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from("access_keys").update({ horse_id: null }).eq("horse_id", horseId);
+
+    // 11. Clear sire/dam references from other horses
+    await supabase.from("horses").update({ sire_horse_id: null } as Record<string, unknown>).eq("sire_horse_id", horseId);
+    await supabase.from("horses").update({ dam_horse_id: null } as Record<string, unknown>).eq("dam_horse_id", horseId);
+
+    // 12. Finally delete the horse
     const { error } = await supabase.from("horses").delete().eq("id", horseId);
     if (error) return { error: error.message };
   }

@@ -54,6 +54,7 @@ export async function recordOPUAction(
         color: (formData.get("donor_color") as string)?.trim() || null,
         foal_date:
           (formData.get("donor_foal_date") as string)?.trim() || null,
+        breeding_only: formData.get("donor_add_to_barnbook") !== "true",
         created_by: user.id,
       })
       .select("id")
@@ -187,6 +188,7 @@ export async function createICSIBatchAction(
         color: (formData.get("stallion_color") as string)?.trim() || null,
         foal_date:
           (formData.get("stallion_foal_date") as string)?.trim() || null,
+        breeding_only: formData.get("stallion_add_to_barnbook") !== "true",
         created_by: user.id,
       })
       .select("id")

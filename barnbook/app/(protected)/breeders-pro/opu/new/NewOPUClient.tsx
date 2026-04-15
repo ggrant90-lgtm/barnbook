@@ -189,6 +189,15 @@ export function NewOPUClient({
                   style={{ width: 180 }}
                 />
               </div>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 13, color: "var(--bp-ink-secondary)", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  name="donor_add_to_barnbook"
+                  value="true"
+                  style={{ accentColor: "var(--bp-accent)" }}
+                />
+                Also add to BarnBook horse list
+              </label>
             </div>
           )}
         </fieldset>

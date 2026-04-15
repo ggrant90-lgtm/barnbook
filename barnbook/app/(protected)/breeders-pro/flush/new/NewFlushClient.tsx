@@ -245,6 +245,15 @@ export function NewFlushClient({
                       onChange={(e) => setDonorFoalDate(e.target.value)}
                     />
                   </div>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 13, color: "var(--bp-ink-secondary)", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      name="donor_add_to_barnbook"
+                      value="true"
+                      style={{ accentColor: "var(--bp-accent)" }}
+                    />
+                    Also add to BarnBook horse list
+                  </label>
                 </div>
               )}
             </div>
@@ -353,6 +362,15 @@ export function NewFlushClient({
                       onChange={(e) => setSireFoalDate(e.target.value)}
                     />
                   </div>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 13, color: "var(--bp-ink-secondary)", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      name="sire_add_to_barnbook"
+                      value="true"
+                      style={{ accentColor: "var(--bp-accent)" }}
+                    />
+                    Also add to BarnBook horse list
+                  </label>
                 </div>
               )}
 

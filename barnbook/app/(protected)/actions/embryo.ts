@@ -252,6 +252,26 @@ export async function createFlushEventFirstAction(
   if (error) return { error: error.message };
   if (!data?.ok) return { error: data?.error ?? "Unknown error" };
 
+  // Set breeding_only on newly created horses (unless user opted in to BarnBook)
+  if (data.created_donor && data.donor_horse_id) {
+    const addToBB = formData.get("donor_add_to_barnbook") === "true";
+    if (!addToBB) {
+      await supabase
+        .from("horses")
+        .update({ breeding_only: true } as Record<string, unknown>)
+        .eq("id", data.donor_horse_id);
+    }
+  }
+  if (data.created_stallion && data.stallion_horse_id) {
+    const addToBB = formData.get("sire_add_to_barnbook") === "true";
+    if (!addToBB) {
+      await supabase
+        .from("horses")
+        .update({ breeding_only: true } as Record<string, unknown>)
+        .eq("id", data.stallion_horse_id);
+    }
+  }
+
   revalidatePath("/breeders-pro");
   revalidatePath("/breeders-pro/pregnancies");
   if (data.donor_horse_id) {
