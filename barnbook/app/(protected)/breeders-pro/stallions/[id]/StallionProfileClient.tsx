@@ -213,16 +213,13 @@ export function StallionProfileClient({
                   Semen Collection
                   <span className="bp-method-soon">soon</span>
                 </button>
-                <button
-                  type="button"
-                  className="bp-btn"
-                  disabled
-                  title="Coming soon — traditional carry breeding"
-                  aria-disabled="true"
+                <Link
+                  href="/breeders-pro/live-cover/new"
+                  className="bp-btn bp-primary"
+                  style={{ fontSize: 11, padding: "5px 10px" }}
                 >
-                  Traditional Carry
-                  <span className="bp-method-soon">soon</span>
-                </button>
+                  + Traditional Carry
+                </Link>
               </div>
             )}
           </div>

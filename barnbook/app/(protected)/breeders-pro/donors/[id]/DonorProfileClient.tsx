@@ -369,16 +369,6 @@ export function DonorProfileClient({
                 >
                   + Traditional Carry
                 </Link>
-                <button
-                  type="button"
-                  className="bp-btn"
-                  disabled
-                  title="Coming soon — artificial insemination workflow"
-                  aria-disabled="true"
-                >
-                  AI
-                  <span className="bp-method-soon">soon</span>
-                </button>
               </div>
             )}
           </div>

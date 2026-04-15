@@ -8,8 +8,8 @@ import { BreedingHubClient } from "./BreedingHubClient";
  * Breeders Pro — New Breeding Event hub.
  *
  * Universal entry point for all breeding methods: Flush (ET),
- * Live Cover, and AI (coming soon). Routes the user to the
- * appropriate form based on their selection.
+ * Traditional Carry (Live Cover + AI), and ICSI/OPU. Routes the
+ * user to the appropriate form based on their selection.
  */
 export default async function BreedingHubPage() {
   const supabase = await createServerComponentClient();
