@@ -109,14 +109,13 @@ export async function generateReportData(params: ReportParams): Promise<ReportDa
     profileMap = new Map((profiles ?? []).map((p) => [p.id, p.full_name?.trim() || "Member"]));
   }
 
-  // Query activity logs
+  // Query activity logs — fetch broadly, filter by date client-side
+  // because some entries may only have created_at (no performed_at)
   let actQuery = supabase
     .from("activity_log")
     .select("*")
     .in("horse_id", targetHorseIds)
-    .gte("performed_at", `${params.dateFrom}T00:00:00`)
-    .lte("performed_at", `${params.dateTo}T23:59:59`)
-    .order("performed_at", { ascending: true });
+    .order("created_at", { ascending: true });
 
   if (params.performerUserId) {
     actQuery = actQuery.eq("performed_by_user_id", params.performerUserId);
@@ -124,19 +123,23 @@ export async function generateReportData(params: ReportParams): Promise<ReportDa
     actQuery = actQuery.eq("performed_by_name", params.performerName);
   }
 
-  const { data: actLogs } = await actQuery;
+  const { data: actLogsRaw } = await actQuery;
+
+  // Filter activity logs by date range using performed_at OR created_at
+  const dateFrom = `${params.dateFrom}T00:00:00`;
+  const dateTo = `${params.dateTo}T23:59:59`;
+  const actLogs = (actLogsRaw ?? []).filter((a) => {
+    const d = a.performed_at || a.created_at;
+    if (!d) return false;
+    return d >= dateFrom && d <= dateTo;
+  });
 
   // Query health records
   let healthQuery = supabase
     .from("health_records")
     .select("*")
     .in("horse_id", targetHorseIds)
-    .order("performed_at", { ascending: true });
-
-  // Health records may use performed_at or record_date
-  healthQuery = healthQuery.or(
-    `performed_at.gte.${params.dateFrom}T00:00:00,record_date.gte.${params.dateFrom}`,
-  );
+    .order("created_at", { ascending: true });
 
   if (params.performerUserId) {
     healthQuery = healthQuery.eq("performed_by_user_id", params.performerUserId);
@@ -146,11 +149,12 @@ export async function generateReportData(params: ReportParams): Promise<ReportDa
 
   const { data: healthLogs } = await healthQuery;
 
-  // Filter health records by date range properly
+  // Filter health records by date range using performed_at, record_date, or created_at
   const filteredHealth = (healthLogs ?? []).filter((h) => {
-    const d = h.performed_at || h.record_date;
+    const d = h.performed_at || h.record_date || h.created_at;
     if (!d) return false;
-    return d >= `${params.dateFrom}` && d <= `${params.dateTo}T23:59:59`;
+    const dateStr = typeof d === "string" && d.length === 10 ? `${d}T00:00:00` : d;
+    return dateStr >= dateFrom && dateStr <= dateTo;
   });
 
   // Merge into unified entries
