@@ -67,6 +67,7 @@ export function BreedersProChrome({
   const workspace: NavGroup = {
     label: "Workspace",
     items: [
+      { href: "/breeders-pro/overview", label: "Overview", icon: <IconGrid /> },
       { href: "/breeders-pro", label: "Embryo Bank", icon: <IconEmbryo /> },
       {
         href: "/breeders-pro/donors",
@@ -96,9 +97,7 @@ export function BreedersProChrome({
     ],
   };
 
-  const workspacePlaceholders: NavItem[] = [
-    { href: "#", label: "Overview", icon: <IconGrid /> },
-  ];
+  const workspacePlaceholders: NavItem[] = [];
 
   const analysisPlaceholders: NavItem[] = [
     { href: "#", label: "Performance", icon: <IconChart /> },
