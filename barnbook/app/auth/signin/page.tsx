@@ -94,12 +94,12 @@ function SignInForm() {
               <label htmlFor="password" className="text-sm text-muted-tan">
                 Password
               </label>
-              <span
-                className="text-xs text-muted-tan/80"
-                title="Password reset coming soon"
+              <Link
+                href="/auth/forgot-password"
+                className="text-xs text-brass-gold hover:underline"
               >
                 Forgot password?
-              </span>
+              </Link>
             </div>
             <input
               id="password"
