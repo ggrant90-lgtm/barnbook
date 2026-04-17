@@ -4,12 +4,14 @@ import { OverviewClient } from "./OverviewClient";
 
 type FinancialRow = {
   id: string;
-  source: "activity" | "health";
-  horse_id: string;
+  source: "activity" | "health" | "barn_expense";
+  horse_id: string | null;
   performed_at: string | null;
   created_at: string;
   activity_type?: string;
   record_type?: string;
+  category?: string | null;
+  vendor_name?: string | null;
   notes: string | null;
   total_cost: number | null;
   cost_type: "revenue" | "expense" | "pass_through" | null;
@@ -106,6 +108,27 @@ export default async function BusinessProOverviewPage() {
       .order("created_at", { ascending: false })
       .limit(5000),
   ]);
+
+  // ── 3b. Fetch last 6 months of barn-level expenses ──
+  // These aren't tied to a horse; pulled directly by barn_id.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: barnExpenses } = await (supabase as any)
+    .from("barn_expenses")
+    .select("id, barn_id, category, vendor_name, description, notes, performed_at, created_at, total_cost, cost_type, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at, invoice_id")
+    .in("barn_id", barnIds)
+    .not("cost_type", "is", null)
+    .or(`performed_at.gte.${sinceISO},created_at.gte.${sinceISO}`)
+    .order("performed_at", { ascending: false })
+    .limit(5000);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: barnExpensesUnpaid } = await (supabase as any)
+    .from("barn_expenses")
+    .select("id, barn_id, category, vendor_name, description, notes, performed_at, created_at, total_cost, cost_type, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at, invoice_id")
+    .in("barn_id", barnIds)
+    .in("payment_status", ["unpaid", "partial"])
+    .is("invoice_id", null)
+    .limit(5000);
 
   // Also fetch ALL unpaid entries regardless of date (for accurate AR total)
   // IMPORTANT: filter out entries that are bundled onto an invoice — those
@@ -206,6 +229,21 @@ export default async function BusinessProOverviewPage() {
   for (const e of (healthUnpaid ?? []) as Record<string, unknown>[]) {
     allEntriesMap.set(`h-${e.id}`, { ...e, source: "health" } as FinancialRow);
   }
+  // Barn-level expenses (no horse_id)
+  for (const e of (barnExpenses ?? []) as Record<string, unknown>[]) {
+    allEntriesMap.set(`be-${e.id}`, {
+      ...e,
+      source: "barn_expense",
+      horse_id: null,
+    } as FinancialRow);
+  }
+  for (const e of (barnExpensesUnpaid ?? []) as Record<string, unknown>[]) {
+    allEntriesMap.set(`be-${e.id}`, {
+      ...e,
+      source: "barn_expense",
+      horse_id: null,
+    } as FinancialRow);
+  }
   const allEntries = Array.from(allEntriesMap.values());
 
   // ── 4. Look up billable-to profile names (entries + invoices) ──
@@ -232,7 +270,16 @@ export default async function BusinessProOverviewPage() {
     <OverviewClient
       barns={barns}
       horseCountByBarn={horseCountByBarn}
-      allEntries={allEntries.map((e) => ({ ...e, barn_id: horseToBarn[e.horse_id] ?? null }))}
+      allEntries={allEntries.map((e) => {
+        // Barn expenses already have barn_id; horse-linked entries derive it
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const existingBarnId = (e as any).barn_id as string | null | undefined;
+        return {
+          ...e,
+          barn_id:
+            existingBarnId ?? (e.horse_id ? horseToBarn[e.horse_id] : null) ?? null,
+        };
+      })}
       profileNames={profileNames}
       horseNames={horseNames}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

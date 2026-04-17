@@ -37,13 +37,16 @@ const breadcrumb = [
 
 export interface FinancialEntry {
   id: string;
-  source: "activity" | "health";
-  horse_id: string;
+  source: "activity" | "health" | "barn_expense";
+  horse_id: string | null;
   barn_id: string | null;
   performed_at: string | null;
   created_at: string;
   activity_type?: string;
   record_type?: string;
+  category?: string | null;
+  vendor_name?: string | null;
+  description?: string | null;
   notes: string | null;
   total_cost: number | null;
   cost_type: "revenue" | "expense" | "pass_through" | null;
@@ -67,6 +70,7 @@ function entryDate(e: FinancialEntry): Date {
 }
 
 function entryType(e: FinancialEntry): string {
+  if (e.source === "barn_expense") return e.category || "other";
   return e.activity_type || e.record_type || "other";
 }
 
@@ -237,20 +241,23 @@ export function OverviewClient({
   // ── Accounts Receivable, grouped by client (invoices + loose entries) ──
   const receivables = useMemo(() => {
     // Loose = not yet bundled onto an invoice. Invoiced entries are counted
-    // via their invoice in the group below.
+    // via their invoice in the group below. Barn expenses are excluded — they
+    // aren't AR (barn paid them out of pocket).
     const unpaid = entries.filter(
-      (e) =>
+      (e): e is FinancialEntry & { source: "activity" | "health" } =>
+        e.source !== "barn_expense" &&
         !e.invoice_id &&
         (e.cost_type === "revenue" || e.cost_type === "pass_through") &&
         (e.payment_status === "unpaid" || e.payment_status === "partial"),
     );
 
+    type LooseEntry = FinancialEntry & { source: "activity" | "health" };
     const groups: Record<
       string,
       {
         clientKey: string;
         name: string;
-        entries: FinancialEntry[];
+        entries: LooseEntry[];
         invoices: UnpaidInvoice[];
         outstanding: number;
         oldestDate: Date;
@@ -347,6 +354,23 @@ export function OverviewClient({
     const rev = thisMonth.filter((e) => e.cost_type === "revenue");
     const byType: Record<string, number> = {};
     for (const e of rev) {
+      const t = entryType(e);
+      byType[t] = (byType[t] ?? 0) + (e.total_cost ?? 0);
+    }
+    return Object.entries(byType)
+      .map(([name, value]) => ({ name: name.replace(/_/g, " "), value: Math.round(value) }))
+      .sort((a, b) => b.value - a.value);
+  }, [entries, firstOfMonth, firstOfNextMonth]);
+
+  // ── Expenses by category (this month) ──
+  const expenseCategoryData = useMemo(() => {
+    const thisMonth = entries.filter((e) => {
+      const d = entryDate(e);
+      return d >= firstOfMonth && d < firstOfNextMonth;
+    });
+    const exp = thisMonth.filter((e) => e.cost_type === "expense");
+    const byType: Record<string, number> = {};
+    for (const e of exp) {
       const t = entryType(e);
       byType[t] = (byType[t] ?? 0) + (e.total_cost ?? 0);
     }
@@ -601,9 +625,15 @@ export function OverviewClient({
                         {entryDate(t).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                       </td>
                       <td className="px-4 py-2">
-                        <Link href={`/horses/${t.horse_id}`} className="text-barn-dark hover:underline">
-                          {horseNames[t.horse_id] ?? "Unknown"}
-                        </Link>
+                        {t.horse_id ? (
+                          <Link href={`/horses/${t.horse_id}`} className="text-barn-dark hover:underline">
+                            {horseNames[t.horse_id] ?? "Unknown"}
+                          </Link>
+                        ) : (
+                          <span className="text-barn-dark/80">
+                            {t.vendor_name || "Barn"}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-2 text-barn-dark/80">{entryType(t).replace(/_/g, " ")}</td>
                       <td className="px-4 py-2">
@@ -682,6 +712,35 @@ export function OverviewClient({
                     <Bar dataKey="value" fill="#c9a84c">
                       {categoryData.map((_, i) => (
                         <Cell key={i} fill="#c9a84c" />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+          <div className="rounded-2xl border border-barn-dark/10 bg-white p-5 lg:col-span-2">
+            <h3 className="font-serif text-base font-semibold text-barn-dark mb-3">
+              Expenses by Category (this month)
+            </h3>
+            {expenseCategoryData.length === 0 ? (
+              <div className="py-16 text-center text-sm text-barn-dark/50">
+                No expenses this month.
+              </div>
+            ) : (
+              <div style={{ width: "100%", height: 260 }}>
+                <ResponsiveContainer>
+                  <BarChart data={expenseCategoryData} layout="vertical" margin={{ top: 10, right: 30, bottom: 0, left: 120 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0e8d8" horizontal={false} />
+                    <XAxis type="number" stroke="#8a7f70" style={{ fontSize: 11 }} />
+                    <YAxis type="category" dataKey="name" stroke="#8a7f70" style={{ fontSize: 11 }} width={120} />
+                    <Tooltip
+                      formatter={(value: unknown) => formatCurrency(Number(value))}
+                      contentStyle={{ borderRadius: 8, border: "1px solid #e5d9c3" }}
+                    />
+                    <Bar dataKey="value" fill="#8b4a2b">
+                      {expenseCategoryData.map((_, i) => (
+                        <Cell key={i} fill="#8b4a2b" />
                       ))}
                     </Bar>
                   </BarChart>
@@ -810,7 +869,7 @@ function ReceivableRow({
   daysOld: number;
   agingColor: string;
   agingLabel: string;
-  entries: FinancialEntry[];
+  entries: (FinancialEntry & { source: "activity" | "health" })[];
   invoices: UnpaidInvoice[];
   horseNames: Record<string, string>;
   onMarkPaid: (id: string, source: "activity" | "health") => void;
@@ -904,9 +963,13 @@ function ReceivableRow({
                     <span className="font-mono text-xs text-barn-dark/50 mr-2">
                       {d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                     </span>
-                    <Link href={`/horses/${e.horse_id}`} className="hover:underline">
-                      {horseNames[e.horse_id] ?? "Unknown"}
-                    </Link>
+                    {e.horse_id ? (
+                      <Link href={`/horses/${e.horse_id}`} className="hover:underline">
+                        {horseNames[e.horse_id] ?? "Unknown"}
+                      </Link>
+                    ) : (
+                      <span>{e.vendor_name || "Barn"}</span>
+                    )}
                     <span className="text-barn-dark/50 text-xs ml-2">
                       · {entryType(e).replace(/_/g, " ")}
                     </span>
