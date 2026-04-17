@@ -396,9 +396,22 @@ export function OverviewClient({
 
         {/* ════════ SECTION 2: Accounts Receivable ════════ */}
         <section className="mb-10">
-          <h2 className="font-serif text-xl font-semibold text-barn-dark mb-3">
-            Who Owes Me
-          </h2>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <h2 className="font-serif text-xl font-semibold text-barn-dark">
+              Who Owes Me
+            </h2>
+            <Link
+              href="/business-pro/receivables"
+              style={{
+                fontSize: 12,
+                color: "var(--bp-accent)",
+                fontWeight: 500,
+                textDecoration: "none",
+              }}
+            >
+              See all →
+            </Link>
+          </div>
           {receivables.length === 0 ? (
             <div className="rounded-2xl border border-barn-dark/10 bg-white p-8 text-center text-sm text-barn-dark/60">
               No outstanding balances. Great job!

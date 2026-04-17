@@ -56,12 +56,12 @@ export function BusinessProChrome({
     label: "Workspace",
     items: [
       { href: "/business-pro/overview", label: "Overview", icon: <IconDashboard /> },
+      { href: "/business-pro/receivables", label: "Receivables", icon: <IconInbox /> },
     ],
   };
 
   const workspacePlaceholders: NavItem[] = [
     { href: "#", label: "Transactions", icon: <IconList /> },
-    { href: "#", label: "Receivables", icon: <IconInbox /> },
     { href: "#", label: "Invoicing", icon: <IconDoc /> },
     { href: "#", label: "Expenses", icon: <IconArrowDown /> },
     { href: "#", label: "Clients", icon: <IconUsers /> },
