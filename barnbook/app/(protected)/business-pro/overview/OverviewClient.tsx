@@ -153,17 +153,22 @@ export function OverviewClient({
         .filter((e) => types.includes(e.cost_type))
         .reduce((s, e) => s + (e.total_cost ?? 0), 0);
 
-    // Revenue: revenue + pass_through
-    const revThis = sum(thisMonth, ["revenue", "pass_through"]);
-    const revLast = sum(lastMonth, ["revenue", "pass_through"]);
+    // Revenue: only true revenue entries (what the barn earned)
+    const revThis = sum(thisMonth, ["revenue"]);
+    const revLast = sum(lastMonth, ["revenue"]);
 
-    // Expenses: expense + pass_through
-    const expThis = sum(thisMonth, ["expense", "pass_through"]);
-    const expLast = sum(lastMonth, ["expense", "pass_through"]);
+    // Expenses: only true expense entries (what the barn spent out of pocket)
+    const expThis = sum(thisMonth, ["expense"]);
+    const expLast = sum(lastMonth, ["expense"]);
 
-    // Net: revenue-only MINUS expense-only (pass-throughs net to zero)
-    const netThis = sum(thisMonth, ["revenue"]) - sum(thisMonth, ["expense"]);
-    const netLast = sum(lastMonth, ["revenue"]) - sum(lastMonth, ["expense"]);
+    // Pass-through: charges the barn paid on behalf of owners — billable.
+    // Doesn't touch P&L, but flows into Outstanding until the owner pays.
+    const passThroughThis = sum(thisMonth, ["pass_through"]);
+    const passThroughLast = sum(lastMonth, ["pass_through"]);
+
+    // Net: Revenue − Expenses (pass-throughs are not in P&L)
+    const netThis = revThis - expThis;
+    const netLast = revLast - expLast;
 
     // Outstanding = loose entries outstanding + invoice outstanding
     const looseOutstanding = entries
@@ -193,6 +198,7 @@ export function OverviewClient({
     return {
       revThis, revLast, revPct: pct(revThis, revLast),
       expThis, expLast, expPct: pct(expThis, expLast),
+      passThroughThis, passThroughLast, passThroughPct: pct(passThroughThis, passThroughLast),
       netThis, netLast, netPct: pct(netThis, netLast),
       outstanding, outstandingCount,
     };
@@ -283,10 +289,10 @@ export function OverviewClient({
         return d >= m.start && d < m.end;
       });
       const revenue = inMonth
-        .filter((e) => e.cost_type === "revenue" || e.cost_type === "pass_through")
+        .filter((e) => e.cost_type === "revenue")
         .reduce((s, e) => s + (e.total_cost ?? 0), 0);
       const expenses = inMonth
-        .filter((e) => e.cost_type === "expense" || e.cost_type === "pass_through")
+        .filter((e) => e.cost_type === "expense")
         .reduce((s, e) => s + (e.total_cost ?? 0), 0);
       return { month: m.label, revenue: Math.round(revenue), expenses: Math.round(expenses) };
     });
@@ -298,9 +304,7 @@ export function OverviewClient({
       const d = entryDate(e);
       return d >= firstOfMonth && d < firstOfNextMonth;
     });
-    const rev = thisMonth.filter(
-      (e) => e.cost_type === "revenue" || e.cost_type === "pass_through",
-    );
+    const rev = thisMonth.filter((e) => e.cost_type === "revenue");
     const byType: Record<string, number> = {};
     for (const e of rev) {
       const t = entryType(e);
@@ -320,14 +324,12 @@ export function OverviewClient({
         return d >= firstOfMonth && d < firstOfNextMonth;
       });
       const revenue = thisMonth
-        .filter((e) => e.cost_type === "revenue" || e.cost_type === "pass_through")
+        .filter((e) => e.cost_type === "revenue")
         .reduce((s, e) => s + (e.total_cost ?? 0), 0);
       const expenses = thisMonth
-        .filter((e) => e.cost_type === "expense" || e.cost_type === "pass_through")
+        .filter((e) => e.cost_type === "expense")
         .reduce((s, e) => s + (e.total_cost ?? 0), 0);
-      const net =
-        thisMonth.filter((e) => e.cost_type === "revenue").reduce((s, e) => s + (e.total_cost ?? 0), 0) -
-        thisMonth.filter((e) => e.cost_type === "expense").reduce((s, e) => s + (e.total_cost ?? 0), 0);
+      const net = revenue - expenses;
       const outstanding = barnEntries
         .filter(
           (e) =>
@@ -414,7 +416,7 @@ export function OverviewClient({
         )}
 
         {/* ════════ SECTION 1: Money Pulse ════════ */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
           <MoneyPulseCard
             label="Revenue This Month"
             value={pulse.revThis}
@@ -438,9 +440,18 @@ export function OverviewClient({
             bg={pulse.netThis >= 0 ? "#f0fdf4" : "#fef2f2"}
           />
           <MoneyPulseCard
+            label="Pass-through"
+            value={pulse.passThroughThis}
+            pct={pulse.passThroughPct}
+            subtitle="Billable — not P&L"
+            color="#a16207"
+            bg="#fef3c7"
+            noPct
+          />
+          <MoneyPulseCard
             label="Outstanding"
             value={pulse.outstanding}
-            subtitle={`${pulse.outstandingCount} unpaid ${pulse.outstandingCount === 1 ? "entry" : "entries"}`}
+            subtitle={`${pulse.outstandingCount} unpaid ${pulse.outstandingCount === 1 ? "item" : "items"}`}
             color="#c9a84c"
             bg="#fefce8"
             noPct
