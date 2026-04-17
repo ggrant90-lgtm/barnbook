@@ -19,14 +19,31 @@ export default async function NewInvoicePage() {
     redirect("/business-pro");
   }
 
-  // Fetch horses in those barns
+  // Fetch horses in those barns (include owner_name for billing)
   const { data: horses } = await supabase
     .from("horses")
-    .select("id, name, barn_id")
+    .select("id, name, barn_id, owner_name")
     .in("barn_id", barnIds)
     .eq("archived", false);
-  const horseRows = (horses ?? []) as { id: string; name: string; barn_id: string }[];
+  const horseRows = (horses ?? []) as { id: string; name: string; barn_id: string; owner_name: string | null }[];
   const horseIds = horseRows.map((h) => h.id);
+
+  // Unique horse owners per barn (for the client picker)
+  const ownersByBarn: Record<string, { name: string; horseCount: number; horseIds: string[] }[]> = {};
+  for (const h of horseRows) {
+    if (!h.owner_name?.trim()) continue;
+    const barnOwners = (ownersByBarn[h.barn_id] ??= []);
+    const existing = barnOwners.find((o) => o.name.toLowerCase() === h.owner_name!.toLowerCase());
+    if (existing) {
+      existing.horseCount++;
+      existing.horseIds.push(h.id);
+    } else {
+      barnOwners.push({ name: h.owner_name.trim(), horseCount: 1, horseIds: [h.id] });
+    }
+  }
+  for (const bId of Object.keys(ownersByBarn)) {
+    ownersByBarn[bId].sort((a, b) => a.name.localeCompare(b.name));
+  }
 
   // Fetch ALL unpaid revenue/pass_through entries that are NOT already on an invoice
   const [{ data: actEntries }, { data: healthEntries }] = await Promise.all([
@@ -108,6 +125,7 @@ export default async function NewInvoicePage() {
       horseNames={horseNames}
       barnNames={barnNames}
       profileNames={profileNames}
+      ownersByBarn={ownersByBarn}
     />
   );
 }

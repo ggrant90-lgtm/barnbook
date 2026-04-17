@@ -75,17 +75,41 @@ export default async function InvoiceDetailPage({
         ? { col: "billable_to_name", val: invoice.billable_to_name }
         : null;
 
-    if (billableFilter) {
-      // Get horses in this barn
-      const { data: barnHorses } = await supabase
-        .from("horses")
-        .select("id, name")
-        .eq("barn_id", invoice.barn_id)
-        .eq("archived", false);
-      const bhIds = (barnHorses ?? []).map((h) => h.id);
-      for (const h of barnHorses ?? []) horseNames[h.id] = h.name;
+    // Get horses in this barn (always — we also match by horse ownership)
+    const { data: barnHorses } = await supabase
+      .from("horses")
+      .select("id, name, owner_name")
+      .eq("barn_id", invoice.barn_id)
+      .eq("archived", false);
+    const bhIds = (barnHorses ?? []).map((h) => h.id);
+    for (const h of barnHorses ?? []) horseNames[h.id] = h.name;
 
-      if (bhIds.length > 0) {
+    if (bhIds.length > 0) {
+      // Horse IDs whose owner_name matches this invoice's billable_to_name
+      // (case-insensitive). This lets "Add entries" surface entries for all
+      // horses the billed owner owns, even if billable_to wasn't set on the log.
+      const ownerMatchHorseIds = invoice.billable_to_name
+        ? (barnHorses ?? [])
+            .filter((h) =>
+              (h as { owner_name: string | null }).owner_name?.toLowerCase().trim() ===
+              invoice.billable_to_name.toLowerCase().trim(),
+            )
+            .map((h) => h.id)
+        : [];
+
+      // Build union filter: match by billable_to fields OR by horse ownership
+      const seen = new Set<string>();
+      const collect = (rows: Record<string, unknown>[], source: "activity" | "health") => {
+        for (const e of rows) {
+          const id = e.id as string;
+          const key = `${source}:${id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          addable.push({ ...e, source });
+        }
+      };
+
+      if (billableFilter) {
         const [{ data: actAdd }, { data: healthAdd }] = await Promise.all([
           supabase
             .from("activity_log")
@@ -106,12 +130,33 @@ export default async function InvoiceDetailPage({
             .eq(billableFilter.col, billableFilter.val)
             .limit(200),
         ]);
-        for (const e of (actAdd ?? []) as Record<string, unknown>[]) {
-          addable.push({ ...e, source: "activity" });
-        }
-        for (const e of (healthAdd ?? []) as Record<string, unknown>[]) {
-          addable.push({ ...e, source: "health" });
-        }
+        collect((actAdd ?? []) as Record<string, unknown>[], "activity");
+        collect((healthAdd ?? []) as Record<string, unknown>[], "health");
+      }
+
+      // Also any unpaid entries for horses this owner owns (covers entries
+      // where billable_to wasn't set)
+      if (ownerMatchHorseIds.length > 0) {
+        const [{ data: actOwn }, { data: healthOwn }] = await Promise.all([
+          supabase
+            .from("activity_log")
+            .select("id, horse_id, activity_type, notes, performed_at, created_at, total_cost")
+            .in("horse_id", ownerMatchHorseIds)
+            .in("cost_type", ["revenue", "pass_through"])
+            .in("payment_status", ["unpaid", "partial"])
+            .is("invoice_id", null)
+            .limit(200),
+          supabase
+            .from("health_records")
+            .select("id, horse_id, record_type, notes, performed_at, created_at, total_cost")
+            .in("horse_id", ownerMatchHorseIds)
+            .in("cost_type", ["revenue", "pass_through"])
+            .in("payment_status", ["unpaid", "partial"])
+            .is("invoice_id", null)
+            .limit(200),
+        ]);
+        collect((actOwn ?? []) as Record<string, unknown>[], "activity");
+        collect((healthOwn ?? []) as Record<string, unknown>[], "health");
       }
     }
   }

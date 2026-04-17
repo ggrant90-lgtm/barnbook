@@ -48,12 +48,14 @@ export function NewInvoiceClient({
   horseNames,
   barnNames,
   profileNames,
+  ownersByBarn,
 }: {
   barns: { id: string; name: string }[];
   entries: Entry[];
   horseNames: Record<string, string>;
   barnNames: Record<string, string>;
   profileNames: Record<string, string>;
+  ownersByBarn: Record<string, { name: string; horseCount: number; horseIds: string[] }[]>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -61,9 +63,16 @@ export function NewInvoiceClient({
   // Step 1: Pick barn
   const [barnId, setBarnId] = useState(barns[0]?.id ?? "");
 
-  // Step 2: Pick client — either select from existing clients in entries,
-  // barn members, or type a name manually
-  type ClientChoice = { kind: "user"; id: string; display: string } | { kind: "name"; name: string };
+  // Step 2: Pick client — can be:
+  //   - an existing barn member referenced by billable_to_user_id
+  //   - a free-text name already used in billable_to_name
+  //   - a horse owner (from horses.owner_name) — auto-bundles all unpaid
+  //     entries for horses they own
+  //   - a manually typed name
+  type ClientChoice =
+    | { kind: "user"; id: string; display: string }
+    | { kind: "name"; name: string }
+    | { kind: "owner"; name: string; horseIds: string[] };
   const [client, setClient] = useState<ClientChoice | null>(null);
   const [manualName, setManualName] = useState("");
 
@@ -103,15 +112,21 @@ export function NewInvoiceClient({
     return entries.filter((e) => {
       if (e.barn_id !== barnId) return false;
       if (client.kind === "user") return e.billable_to_user_id === client.id;
+      if (client.kind === "owner") {
+        // Owner: all entries for horses the owner owns (regardless of billable_to)
+        return client.horseIds.includes(e.horse_id);
+      }
       return (e.billable_to_name ?? "").trim().toLowerCase() === client.name.trim().toLowerCase();
     }).sort((a, b) => entryDate(a).getTime() - entryDate(b).getTime());
   }, [entries, barnId, client]);
 
   // Also show unassigned entries so user can bundle them in if they're really
   // for this client (common case: log entry was missing billable_to but the
-  // service was actually for this client)
+  // service was actually for this client). For owner-picked clients, hide
+  // this section since we already pulled by horse ownership.
   const unassignedEntries = useMemo(() => {
     if (!client) return [];
+    if (client.kind === "owner") return [];
     return entries.filter((e) => {
       if (e.barn_id !== barnId) return false;
       return !e.billable_to_user_id && !e.billable_to_name;
@@ -126,8 +141,11 @@ export function NewInvoiceClient({
       const ids = new Set<string>();
       for (const e of entries) {
         if (e.barn_id !== barnId) continue;
-        if (c.kind === "user" && e.billable_to_user_id === c.id) ids.add(`${e.source}:${e.id}`);
-        if (c.kind === "name" && (e.billable_to_name ?? "").trim().toLowerCase() === c.name.trim().toLowerCase()) {
+        if (c.kind === "user" && e.billable_to_user_id === c.id) {
+          ids.add(`${e.source}:${e.id}`);
+        } else if (c.kind === "name" && (e.billable_to_name ?? "").trim().toLowerCase() === c.name.trim().toLowerCase()) {
+          ids.add(`${e.source}:${e.id}`);
+        } else if (c.kind === "owner" && c.horseIds.includes(e.horse_id)) {
           ids.add(`${e.source}:${e.id}`);
         }
       }
@@ -175,7 +193,10 @@ export function NewInvoiceClient({
       const res = await createInvoiceAction({
         barnId,
         billable_to_user_id: client.kind === "user" ? client.id : null,
-        billable_to_name: client.kind === "name" ? client.name : null,
+        billable_to_name:
+          client.kind === "name" ? client.name :
+          client.kind === "owner" ? client.name :
+          null,
         due_date: dueDate || null,
         notes: notes.trim() || null,
         entryIds: entriesArr,
@@ -223,26 +244,62 @@ export function NewInvoiceClient({
             {/* Client */}
             <fieldset className="bp-fieldset">
               <legend className="bp-fieldset-legend">Client</legend>
-              {availableClients.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-                  {availableClients.map((c) => {
-                    const label = c.kind === "user" ? c.display : c.name;
-                    const isActive =
-                      (c.kind === "user" && client?.kind === "user" && client.id === c.id) ||
-                      (c.kind === "name" && client?.kind === "name" && client.name.trim().toLowerCase() === c.name.trim().toLowerCase());
-                    return (
-                      <button
-                        key={c.kind === "user" ? `u:${c.id}` : `n:${c.name}`}
-                        type="button"
-                        onClick={() => onPickClient(c)}
-                        className={`bp-chip ${isActive ? "bp-active" : ""}`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
+
+              {/* Horse Owners (from horses.owner_name in the selected barn) */}
+              {(ownersByBarn[barnId]?.length ?? 0) > 0 && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 500, color: "var(--bp-ink-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                    Horse Owners
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                    {(ownersByBarn[barnId] ?? []).map((o) => {
+                      const isActive = client?.kind === "owner" && client.name.toLowerCase() === o.name.toLowerCase();
+                      return (
+                        <button
+                          key={`owner:${o.name}`}
+                          type="button"
+                          onClick={() => onPickClient({ kind: "owner", name: o.name, horseIds: o.horseIds })}
+                          className={`bp-chip ${isActive ? "bp-active" : ""}`}
+                          title={`${o.horseCount} ${o.horseCount === 1 ? "horse" : "horses"}`}
+                        >
+                          {o.name}
+                          <span style={{ marginLeft: 6, fontSize: 10, opacity: 0.6 }}>
+                            · {o.horseCount}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
               )}
+
+              {/* Clients already referenced in existing entries */}
+              {availableClients.length > 0 && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 500, color: "var(--bp-ink-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                    From Existing Entries
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                    {availableClients.map((c) => {
+                      const label = c.kind === "user" ? c.display : c.name;
+                      const isActive =
+                        (c.kind === "user" && client?.kind === "user" && client.id === c.id) ||
+                        (c.kind === "name" && client?.kind === "name" && client.name.trim().toLowerCase() === c.name.trim().toLowerCase());
+                      return (
+                        <button
+                          key={c.kind === "user" ? `u:${c.id}` : `n:${c.name}`}
+                          type="button"
+                          onClick={() => onPickClient(c)}
+                          className={`bp-chip ${isActive ? "bp-active" : ""}`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
               <div style={{ display: "flex", gap: 8 }}>
                 <input
                   type="text"
@@ -363,10 +420,17 @@ export function NewInvoiceClient({
             </div>
             {client ? (
               <div>
-                <div style={{ fontSize: 12, color: "var(--bp-ink-tertiary)" }}>Client</div>
+                <div style={{ fontSize: 12, color: "var(--bp-ink-tertiary)" }}>
+                  {client.kind === "owner" ? "Horse Owner" : "Client"}
+                </div>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>
                   {client.kind === "user" ? client.display : client.name}
                 </div>
+                {client.kind === "owner" && (
+                  <div style={{ fontSize: 11, color: "var(--bp-ink-tertiary)", marginTop: 2 }}>
+                    {client.horseIds.length} {client.horseIds.length === 1 ? "horse" : "horses"}
+                  </div>
+                )}
               </div>
             ) : (
               <div style={{ fontSize: 13, color: "var(--bp-ink-tertiary)" }}>
