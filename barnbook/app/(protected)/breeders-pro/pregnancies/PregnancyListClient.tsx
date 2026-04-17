@@ -155,10 +155,7 @@ export function PregnancyListClient({
       </div>
 
       {/* ============== METRICS ============== */}
-      <div
-        className="bp-metrics"
-        style={{ gridTemplateColumns: "repeat(5, 1fr)" }}
-      >
+      <div className="bp-metrics">
         <div className="bp-metric">
           <div className="bp-metric-label">Active</div>
           <div className="bp-metric-value">{counts.active}</div>
@@ -219,7 +216,7 @@ export function PregnancyListClient({
               No pregnancies match the current filter.
             </div>
           ) : (
-            <table className="bp-table">
+            <table className="bp-table bp-table-pregnancies">
               <thead>
                 <tr>
                   <th>Carrier</th>

@@ -166,10 +166,7 @@ export function EmbryoBankClient({
       </div>
 
       {/* Metrics */}
-      <div
-        className="bp-metrics"
-        style={{ gridTemplateColumns: "repeat(5, 1fr)" }}
-      >
+      <div className="bp-metrics">
         <div className="bp-metric">
           <div className="bp-metric-label">Total in Bank</div>
           <div className="bp-metric-value">{metrics.total}</div>
@@ -258,7 +255,7 @@ export function EmbryoBankClient({
                 : "No embryos match the current filters."}
             </div>
           ) : (
-            <table className="bp-table">
+            <table className="bp-table bp-table-embryos">
               <thead>
                 <tr>
                   <th>Code</th>

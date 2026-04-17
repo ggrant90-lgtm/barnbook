@@ -1680,6 +1680,51 @@
   .bp-scope .bp-table {
     overflow-x: auto;
   }
+
+  /* Page title + meta stack so they don't collide on narrow screens. */
+  .bp-scope .bp-page-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  /* Toolbar search shouldn't hog 200px; let it shrink so chips + buttons
+     can fit without forcing horizontal overflow. */
+  .bp-scope .bp-search {
+    min-width: 120px;
+    max-width: none;
+    flex-basis: 100%;
+  }
+
+  /* Hide the least-critical columns on wide tables so the remaining cols
+     are readable without scroll. Data is still on the detail page / desktop.
+     Pregnancies: Method (4), Day (6), Due (7). */
+  .bp-scope .bp-table.bp-table-pregnancies th:nth-child(4),
+  .bp-scope .bp-table.bp-table-pregnancies td:nth-child(4),
+  .bp-scope .bp-table.bp-table-pregnancies th:nth-child(6),
+  .bp-scope .bp-table.bp-table-pregnancies td:nth-child(6),
+  .bp-scope .bp-table.bp-table-pregnancies th:nth-child(7),
+  .bp-scope .bp-table.bp-table-pregnancies td:nth-child(7) {
+    display: none;
+  }
+
+  /* Foalings: 24hr (9), 30d (10). */
+  .bp-scope .bp-table.bp-table-foalings th:nth-child(9),
+  .bp-scope .bp-table.bp-table-foalings td:nth-child(9),
+  .bp-scope .bp-table.bp-table-foalings th:nth-child(10),
+  .bp-scope .bp-table.bp-table-foalings td:nth-child(10) {
+    display: none;
+  }
+
+  /* Embryo Bank: Grade (4), Current Location (6), Flush Date (7). */
+  .bp-scope .bp-table.bp-table-embryos th:nth-child(4),
+  .bp-scope .bp-table.bp-table-embryos td:nth-child(4),
+  .bp-scope .bp-table.bp-table-embryos th:nth-child(6),
+  .bp-scope .bp-table.bp-table-embryos td:nth-child(6),
+  .bp-scope .bp-table.bp-table-embryos th:nth-child(7),
+  .bp-scope .bp-table.bp-table-embryos td:nth-child(7) {
+    display: none;
+  }
 }
 
 /* ==========================================================

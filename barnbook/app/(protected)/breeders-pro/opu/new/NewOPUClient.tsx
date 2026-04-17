@@ -79,7 +79,8 @@ export function NewOPUClient({
 
       <form
         onSubmit={handleSubmit}
-        style={{ padding: "0 32px 48px", maxWidth: 680 }}
+        className="px-4 md:px-8 pb-12"
+        style={{ maxWidth: 680 }}
       >
         {error && (
           <div

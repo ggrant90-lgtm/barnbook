@@ -113,7 +113,7 @@ export function OverviewClient({
         </p>
       </div>
 
-      <div style={{ padding: "0 32px 48px", maxWidth: 960 }}>
+      <div className="px-4 md:px-8 pb-12" style={{ maxWidth: 960 }}>
         {/* ════════ METRICS ROW ════════ */}
         <div
           style={{

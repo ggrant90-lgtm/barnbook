@@ -183,7 +183,7 @@ export function NewLiveCoverClient({
         </p>
       </div>
 
-      <div style={{ padding: "0 32px 48px", maxWidth: 720 }}>
+      <div className="px-4 md:px-8 pb-12" style={{ maxWidth: 720 }}>
         <form onSubmit={handleSubmit}>
           {error && (
             <div

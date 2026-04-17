@@ -88,8 +88,8 @@ export function BreedingHubClient() {
       </div>
 
       <div
+        className="px-4 md:px-8 pb-12"
         style={{
-          padding: "0 32px 48px",
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
           gap: 16,

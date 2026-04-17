@@ -57,7 +57,7 @@ export function FoalingRecordsClient({
         </p>
       </div>
 
-      <div style={{ padding: "0 32px 48px" }}>
+      <div className="px-4 md:px-8 pb-12">
         {foalings.length === 0 ? (
           <div
             style={{
@@ -72,7 +72,7 @@ export function FoalingRecordsClient({
           </div>
         ) : (
           <div className="bp-table-wrap">
-            <table className="bp-table">
+            <table className="bp-table bp-table-foalings">
               <thead>
                 <tr>
                   <th>Date</th>
