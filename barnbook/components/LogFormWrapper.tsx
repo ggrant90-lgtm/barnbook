@@ -44,6 +44,7 @@ export function LogFormWrapper({
   initialTotalCost,
   initialLineItems,
   hasBusinessPro,
+  horseOwnerName,
   initialCostType,
   initialBillableToUserId,
   initialBillableToName,
@@ -76,6 +77,7 @@ export function LogFormWrapper({
   initialTotalCost?: number | null;
   initialLineItems?: { description: string; amount: number }[];
   hasBusinessPro?: boolean;
+  horseOwnerName?: string | null;
   initialCostType?: CostType | null;
   initialBillableToUserId?: string | null;
   initialBillableToName?: string | null;
@@ -243,6 +245,7 @@ export function LogFormWrapper({
             logType={logType}
             totalCost={initialTotalCost ?? 0}
             barnMembers={barnMembers}
+            horseOwnerName={horseOwnerName ?? null}
             initial={{
               costType: initialCostType,
               billableToUserId: initialBillableToUserId,

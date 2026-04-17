@@ -32,6 +32,7 @@ interface Props {
   logType: string;
   totalCost: number; // for auto-filling paid_amount on "paid"
   barnMembers: BarnMember[];
+  horseOwnerName?: string | null; // from horses.owner_name
   initial?: Initial;
 }
 
@@ -46,22 +47,39 @@ interface Props {
  *   - paid_amount
  *   - paid_at
  */
-export function FinancialsSection({ logType, totalCost, barnMembers, initial }: Props) {
+export function FinancialsSection({
+  logType,
+  totalCost,
+  barnMembers,
+  horseOwnerName,
+  initial,
+}: Props) {
   const defaultType = DEFAULT_COST_TYPE[logType] ?? null;
 
   const [costType, setCostType] = useState<CostType | null>(
     initial?.costType ?? defaultType,
   );
 
-  // Billable To — either existing member (id) or free text name
-  const initBillableMode = initial?.billableToUserId
-    ? "member"
-    : initial?.billableToName
-      ? "other"
-      : "member";
-  const [billableMode, setBillableMode] = useState<"member" | "other">(
-    initBillableMode as "member" | "other",
-  );
+  // Billable To — three modes:
+  //   "owner"  — horse's owner_name (auto-filled, one-click)
+  //   "member" — pick a barn member (registered user)
+  //   "other"  — free-text name
+  const hasHorseOwner = !!horseOwnerName?.trim();
+
+  const initBillableMode: "owner" | "member" | "other" = (() => {
+    // If the existing entry was billed to the horse owner, restore that mode
+    if (
+      initial?.billableToName &&
+      hasHorseOwner &&
+      initial.billableToName.trim().toLowerCase() === horseOwnerName!.trim().toLowerCase()
+    ) return "owner";
+    if (initial?.billableToUserId) return "member";
+    if (initial?.billableToName) return "other";
+    // New entry: default to owner if horse has one, else member
+    return hasHorseOwner ? "owner" : "member";
+  })();
+
+  const [billableMode, setBillableMode] = useState<"owner" | "member" | "other">(initBillableMode);
   const [billableUserId, setBillableUserId] = useState(initial?.billableToUserId ?? "");
   const [billableName, setBillableName] = useState(initial?.billableToName ?? "");
 
@@ -124,7 +142,24 @@ export function FinancialsSection({ logType, totalCost, barnMembers, initial }: 
           <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-barn-dark/60">
             Billable To
           </label>
-          <div className="flex gap-2 mb-2">
+          <div className="flex flex-wrap gap-2 mb-2">
+            {hasHorseOwner && (
+              <button
+                type="button"
+                onClick={() => {
+                  setBillableMode("owner");
+                  setBillableUserId("");
+                  setBillableName(horseOwnerName!);
+                }}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                  billableMode === "owner"
+                    ? "bg-brass-gold text-barn-dark"
+                    : "bg-white text-barn-dark/60 border border-barn-dark/15"
+                }`}
+              >
+                🐴 Horse Owner
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setBillableMode("member")}
@@ -149,7 +184,16 @@ export function FinancialsSection({ logType, totalCost, barnMembers, initial }: 
             </button>
           </div>
 
-          {billableMode === "member" ? (
+          {billableMode === "owner" && hasHorseOwner ? (
+            <div className="rounded-xl border border-brass-gold/40 bg-brass-gold/10 px-4 py-2.5 text-sm text-barn-dark">
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{horseOwnerName}</span>
+                <span className="text-xs text-barn-dark/50">
+                  (from this horse&apos;s owner)
+                </span>
+              </div>
+            </div>
+          ) : billableMode === "member" ? (
             <select
               value={billableUserId}
               onChange={(e) => { setBillableUserId(e.target.value); setBillableName(""); }}
@@ -237,6 +281,9 @@ export function FinancialsSection({ logType, totalCost, barnMembers, initial }: 
       {costType && <input type="hidden" name="cost_type" value={costType} />}
       {showBillable && billableMode === "member" && billableUserId && (
         <input type="hidden" name="billable_to_user_id" value={billableUserId} />
+      )}
+      {showBillable && billableMode === "owner" && horseOwnerName && (
+        <input type="hidden" name="billable_to_name" value={horseOwnerName} />
       )}
       {showBillable && billableMode === "other" && billableName.trim() && (
         <input type="hidden" name="billable_to_name" value={billableName.trim()} />

@@ -44,7 +44,7 @@ export default async function HorseLogPage({
 
   const { data: horse } = await supabase
     .from("horses")
-    .select("id, name, barn_id")
+    .select("id, name, barn_id, owner_name")
     .eq("id", horseId)
     .single();
 
@@ -195,6 +195,7 @@ export default async function HorseLogPage({
         initialTotalCost={existing?.total_cost as number | null ?? null}
         initialLineItems={existingLineItems}
         hasBusinessPro={hasBusinessPro}
+        horseOwnerName={(horse as { owner_name?: string | null }).owner_name ?? null}
         initialCostType={(existing?.cost_type as "revenue" | "expense" | "pass_through" | null | undefined) ?? null}
         initialBillableToUserId={(existing?.billable_to_user_id as string | null | undefined) ?? null}
         initialBillableToName={(existing?.billable_to_name as string | null | undefined) ?? null}
