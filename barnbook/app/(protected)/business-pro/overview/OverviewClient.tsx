@@ -15,6 +15,7 @@ import {
   Bar,
   Cell,
 } from "recharts";
+import { BusinessProChrome } from "@/components/business-pro/BusinessProChrome";
 import { formatCurrency } from "@/lib/currency";
 import {
   COST_TYPE_COLORS,
@@ -28,6 +29,11 @@ import {
   logPartialPaymentAction,
   waiveChargeAction,
 } from "@/app/(protected)/actions/business-pro";
+
+const breadcrumb = [
+  { label: "Business Pro", href: "/business-pro" },
+  { label: "Overview" },
+];
 
 export interface FinancialEntry {
   id: string;
@@ -315,15 +321,17 @@ export function OverviewClient({
   };
 
   return (
-    <div className="min-h-screen bg-parchment">
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="font-serif text-3xl font-semibold text-barn-dark">Business Pro</h1>
-          <p className="mt-1 text-sm text-barn-dark/70">
-            Financial overview across {barns.length} barn{barns.length !== 1 ? "s" : ""}.
-          </p>
-        </div>
+    <BusinessProChrome breadcrumb={breadcrumb}>
+      <div className="bp-page-header">
+        <h1 className="bp-display" style={{ fontSize: 32 }}>
+          Overview
+        </h1>
+        <p style={{ color: "var(--bp-ink-secondary)", fontSize: 13, marginTop: 6 }}>
+          Financial snapshot across {barns.length} barn{barns.length !== 1 ? "s" : ""}.
+        </p>
+      </div>
+
+      <div style={{ padding: "0 32px 48px", maxWidth: 1100 }}>
 
         {/* Barn filter */}
         {barns.length > 1 && (
@@ -594,7 +602,7 @@ export function OverviewClient({
           </section>
         )}
       </div>
-    </div>
+    </BusinessProChrome>
   );
 }
 
