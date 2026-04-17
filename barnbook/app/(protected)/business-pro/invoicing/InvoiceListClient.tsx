@@ -11,6 +11,7 @@ interface InvoiceRow {
   id: string;
   barn_id: string;
   invoice_number: string;
+  client_id: string | null;
   billable_to_user_id: string | null;
   billable_to_name: string | null;
   issue_date: string;
@@ -50,11 +51,13 @@ export function InvoiceListClient({
   invoices,
   profileNames,
   barnNames,
+  clientNames,
 }: {
   barns: { id: string; name: string }[];
   invoices: InvoiceRow[];
   profileNames: Record<string, string>;
   barnNames: Record<string, string>;
+  clientNames: Record<string, string>;
 }) {
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
   const [search, setSearch] = useState("");
@@ -72,15 +75,18 @@ export function InvoiceListClient({
     return invoices.filter((inv) => {
       if (statusFilter !== "all" && inv.display_status !== statusFilter) return false;
       if (s) {
-        const client = inv.billable_to_user_id
-          ? (profileNames[inv.billable_to_user_id] ?? "").toLowerCase()
-          : (inv.billable_to_name ?? "").toLowerCase();
+        const clientStr = (
+          (inv.client_id ? clientNames[inv.client_id] : null) ??
+          (inv.billable_to_user_id ? profileNames[inv.billable_to_user_id] : null) ??
+          inv.billable_to_name ??
+          ""
+        ).toLowerCase();
         const num = inv.invoice_number.toLowerCase();
-        if (!client.includes(s) && !num.includes(s)) return false;
+        if (!clientStr.includes(s) && !num.includes(s)) return false;
       }
       return true;
     });
-  }, [invoices, statusFilter, search, profileNames]);
+  }, [invoices, statusFilter, search, profileNames, clientNames]);
 
   const totalOutstanding = useMemo(
     () =>
@@ -91,9 +97,10 @@ export function InvoiceListClient({
   );
 
   const clientDisplay = (inv: InvoiceRow) =>
-    inv.billable_to_user_id
-      ? profileNames[inv.billable_to_user_id] ?? inv.billable_to_name ?? "Member"
-      : inv.billable_to_name ?? "Unassigned";
+    (inv.client_id && clientNames[inv.client_id]) ||
+    (inv.billable_to_user_id && profileNames[inv.billable_to_user_id]) ||
+    inv.billable_to_name ||
+    "Unassigned";
 
   return (
     <BusinessProChrome breadcrumb={breadcrumb}>

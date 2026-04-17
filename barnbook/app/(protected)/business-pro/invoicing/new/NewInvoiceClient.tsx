@@ -18,8 +18,18 @@ interface Entry {
   record_type?: string;
   notes: string | null;
   total_cost: number | null;
+  client_id: string | null;
   billable_to_user_id: string | null;
   billable_to_name: string | null;
+}
+
+interface BarnClient {
+  id: string;
+  barn_id: string;
+  display_name: string;
+  user_id: string | null;
+  name_key: string;
+  email: string | null;
 }
 
 const breadcrumb = [
@@ -49,6 +59,7 @@ export function NewInvoiceClient({
   barnNames,
   profileNames,
   ownersByBarn,
+  clients,
 }: {
   barns: { id: string; name: string }[];
   entries: Entry[];
@@ -56,6 +67,7 @@ export function NewInvoiceClient({
   barnNames: Record<string, string>;
   profileNames: Record<string, string>;
   ownersByBarn: Record<string, { name: string; horseCount: number; horseIds: string[] }[]>;
+  clients: BarnClient[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -72,7 +84,14 @@ export function NewInvoiceClient({
   type ClientChoice =
     | { kind: "user"; id: string; display: string }
     | { kind: "name"; name: string }
-    | { kind: "owner"; name: string; horseIds: string[] };
+    | { kind: "owner"; name: string; horseIds: string[] }
+    | {
+        kind: "client";
+        id: string;
+        display: string;
+        userId: string | null;
+        nameKey: string;
+      };
   const [client, setClient] = useState<ClientChoice | null>(null);
   const [manualName, setManualName] = useState("");
 
@@ -98,8 +117,14 @@ export function NewInvoiceClient({
       }
     }
     return Array.from(seen.values()).sort((a, b) => {
-      const aName = a.kind === "user" ? a.display : a.name;
-      const bName = b.kind === "user" ? b.display : b.name;
+      const aName =
+        a.kind === "user" || a.kind === "client" ? a.display :
+        a.kind === "name" || a.kind === "owner" ? a.name :
+        "";
+      const bName =
+        b.kind === "user" || b.kind === "client" ? b.display :
+        b.kind === "name" || b.kind === "owner" ? b.name :
+        "";
       return aName.localeCompare(bName);
     });
   }, [entries, barnId, profileNames]);
@@ -120,6 +145,19 @@ export function NewInvoiceClient({
         // Owner: entries for horses the owner owns, filtered to active horse set
         if (!client.horseIds.includes(e.horse_id)) return false;
         return activeHorseIds.has(e.horse_id);
+      }
+      if (client.kind === "client") {
+        // Prefer direct client_id match; fall back to legacy user_id / name_key
+        if (e.client_id === client.id) return true;
+        if (e.client_id) return false;
+        if (client.userId && e.billable_to_user_id === client.userId) return true;
+        if (
+          !e.billable_to_user_id &&
+          e.billable_to_name &&
+          e.billable_to_name.trim().toLowerCase() === client.nameKey
+        )
+          return true;
+        return false;
       }
       return (e.billable_to_name ?? "").trim().toLowerCase() === client.name.trim().toLowerCase();
     }).sort((a, b) => entryDate(a).getTime() - entryDate(b).getTime());
@@ -159,6 +197,18 @@ export function NewInvoiceClient({
           ids.add(`${e.source}:${e.id}`);
         } else if (c.kind === "owner" && c.horseIds.includes(e.horse_id)) {
           ids.add(`${e.source}:${e.id}`);
+        } else if (c.kind === "client") {
+          const direct = e.client_id === c.id;
+          const userMatch =
+            !e.client_id && c.userId && e.billable_to_user_id === c.userId;
+          const nameMatch =
+            !e.client_id &&
+            !e.billable_to_user_id &&
+            e.billable_to_name &&
+            e.billable_to_name.trim().toLowerCase() === c.nameKey;
+          if (direct || userMatch || nameMatch) {
+            ids.add(`${e.source}:${e.id}`);
+          }
         }
       }
       setIncludedIds(ids);
@@ -284,10 +334,15 @@ export function NewInvoiceClient({
     startTransition(async () => {
       const res = await createInvoiceAction({
         barnId,
-        billable_to_user_id: client.kind === "user" ? client.id : null,
+        client_id: client.kind === "client" ? client.id : null,
+        billable_to_user_id:
+          client.kind === "user" ? client.id :
+          client.kind === "client" ? client.userId :
+          null,
         billable_to_name:
           client.kind === "name" ? client.name :
           client.kind === "owner" ? client.name :
+          client.kind === "client" ? client.display :
           null,
         due_date: dueDate || null,
         notes: notes.trim() || null,
@@ -343,6 +398,42 @@ export function NewInvoiceClient({
             <fieldset className="bp-fieldset">
               <legend className="bp-fieldset-legend">Client</legend>
 
+              {/* Saved clients from the CRM (preferred) */}
+              {clients.filter((c) => c.barn_id === barnId).length > 0 && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 500, color: "var(--bp-ink-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                    Clients
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                    {clients
+                      .filter((c) => c.barn_id === barnId)
+                      .map((c) => {
+                        const isActive =
+                          client?.kind === "client" && client.id === c.id;
+                        return (
+                          <button
+                            key={`c:${c.id}`}
+                            type="button"
+                            onClick={() =>
+                              onPickClient({
+                                kind: "client",
+                                id: c.id,
+                                display: c.display_name,
+                                userId: c.user_id,
+                                nameKey: c.name_key,
+                              })
+                            }
+                            className={`bp-chip ${isActive ? "bp-active" : ""}`}
+                            title={c.email ?? undefined}
+                          >
+                            {c.display_name}
+                          </button>
+                        );
+                      })}
+                  </div>
+                </>
+              )}
+
               {/* Horse Owners (from horses.owner_name in the selected barn) */}
               {(ownersByBarn[barnId]?.length ?? 0) > 0 && (
                 <>
@@ -379,20 +470,36 @@ export function NewInvoiceClient({
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
                     {availableClients.map((c) => {
-                      const label = c.kind === "user" ? c.display : c.name;
-                      const isActive =
-                        (c.kind === "user" && client?.kind === "user" && client.id === c.id) ||
-                        (c.kind === "name" && client?.kind === "name" && client.name.trim().toLowerCase() === c.name.trim().toLowerCase());
-                      return (
-                        <button
-                          key={c.kind === "user" ? `u:${c.id}` : `n:${c.name}`}
-                          type="button"
-                          onClick={() => onPickClient(c)}
-                          className={`bp-chip ${isActive ? "bp-active" : ""}`}
-                        >
-                          {label}
-                        </button>
-                      );
+                      if (c.kind === "user") {
+                        const isActive =
+                          client?.kind === "user" && client.id === c.id;
+                        return (
+                          <button
+                            key={`u:${c.id}`}
+                            type="button"
+                            onClick={() => onPickClient(c)}
+                            className={`bp-chip ${isActive ? "bp-active" : ""}`}
+                          >
+                            {c.display}
+                          </button>
+                        );
+                      }
+                      if (c.kind === "name") {
+                        const isActive =
+                          client?.kind === "name" &&
+                          client.name.trim().toLowerCase() === c.name.trim().toLowerCase();
+                        return (
+                          <button
+                            key={`n:${c.name}`}
+                            type="button"
+                            onClick={() => onPickClient(c)}
+                            className={`bp-chip ${isActive ? "bp-active" : ""}`}
+                          >
+                            {c.name}
+                          </button>
+                        );
+                      }
+                      return null;
                     })}
                   </div>
                 </>
@@ -682,7 +789,9 @@ export function NewInvoiceClient({
                   {client.kind === "owner" ? "Horse Owner" : "Client"}
                 </div>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>
-                  {client.kind === "user" ? client.display : client.name}
+                  {client.kind === "user" || client.kind === "client"
+                    ? client.display
+                    : client.name}
                 </div>
                 {client.kind === "owner" && (
                   <div style={{ fontSize: 11, color: "var(--bp-ink-tertiary)", marginTop: 2 }}>

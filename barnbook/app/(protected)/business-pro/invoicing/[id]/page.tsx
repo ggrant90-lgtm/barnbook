@@ -172,9 +172,21 @@ export default async function InvoiceDetailPage({
     }
   }
 
-  // Client display name
+  // Client display name — prefer the linked client_id over legacy billable_to_*
   let clientName = invoice.billable_to_name ?? "Unassigned";
-  if (invoice.billable_to_user_id) {
+  let clientProfileHref: string | null = null;
+  if (invoice.client_id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: c } = await (supabase as any)
+      .from("barn_clients")
+      .select("display_name")
+      .eq("id", invoice.client_id)
+      .maybeSingle();
+    if (c?.display_name) {
+      clientName = c.display_name;
+      clientProfileHref = `/business-pro/clients/${invoice.client_id}`;
+    }
+  } else if (invoice.billable_to_user_id) {
     const { data: p } = await supabase
       .from("profiles")
       .select("full_name")
@@ -199,6 +211,7 @@ export default async function InvoiceDetailPage({
       invoice={invoice as any}
       barnName={barn.name}
       clientName={clientName}
+      clientProfileHref={clientProfileHref}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       entries={entries as any[]}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -49,7 +49,7 @@ export default async function NewInvoicePage() {
   const [{ data: actEntries }, { data: healthEntries }] = await Promise.all([
     supabase
       .from("activity_log")
-      .select("id, horse_id, activity_type, notes, performed_at, created_at, total_cost, cost_type, billable_to_user_id, billable_to_name, payment_status, invoice_id")
+      .select("id, horse_id, activity_type, notes, performed_at, created_at, total_cost, cost_type, client_id, billable_to_user_id, billable_to_name, payment_status, invoice_id")
       .in("horse_id", horseIds.length > 0 ? horseIds : ["__none__"])
       .in("cost_type", ["revenue", "pass_through"])
       .in("payment_status", ["unpaid", "partial"])
@@ -57,13 +57,31 @@ export default async function NewInvoicePage() {
       .limit(5000),
     supabase
       .from("health_records")
-      .select("id, horse_id, record_type, notes, performed_at, created_at, total_cost, cost_type, billable_to_user_id, billable_to_name, payment_status, invoice_id")
+      .select("id, horse_id, record_type, notes, performed_at, created_at, total_cost, cost_type, client_id, billable_to_user_id, billable_to_name, payment_status, invoice_id")
       .in("horse_id", horseIds.length > 0 ? horseIds : ["__none__"])
       .in("cost_type", ["revenue", "pass_through"])
       .in("payment_status", ["unpaid", "partial"])
       .is("invoice_id", null)
       .limit(5000),
   ]);
+
+  // Fetch active clients for the "Select client" picker mode
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: clientRows } = await (supabase as any)
+    .from("barn_clients")
+    .select("id, barn_id, display_name, user_id, name_key, email")
+    .in("barn_id", barnIds)
+    .eq("archived", false)
+    .order("display_name", { ascending: true })
+    .limit(2000);
+  const clients = (clientRows ?? []) as Array<{
+    id: string;
+    barn_id: string;
+    display_name: string;
+    user_id: string | null;
+    name_key: string;
+    email: string | null;
+  }>;
 
   const horseNames: Record<string, string> = {};
   const horseToBarn: Record<string, string> = {};
@@ -126,6 +144,7 @@ export default async function NewInvoicePage() {
       barnNames={barnNames}
       profileNames={profileNames}
       ownersByBarn={ownersByBarn}
+      clients={clients}
     />
   );
 }

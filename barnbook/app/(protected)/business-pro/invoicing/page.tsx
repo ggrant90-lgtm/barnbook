@@ -15,7 +15,7 @@ export default async function InvoicingPage() {
   const barnIds = barns.map((b) => b.id);
 
   if (barnIds.length === 0) {
-    return <InvoiceListClient barns={[]} invoices={[]} profileNames={{}} barnNames={{}} />;
+    return <InvoiceListClient barns={[]} invoices={[]} profileNames={{}} barnNames={{}} clientNames={{}} />;
   }
 
   // Fetch all invoices across owned barns
@@ -61,6 +61,24 @@ export default async function InvoicingPage() {
   const barnNames: Record<string, string> = {};
   for (const b of barns) barnNames[b.id] = b.name;
 
+  // Look up client names for invoices that were stamped with client_id
+  const clientIds = new Set<string>();
+  for (const inv of withComputedStatus) {
+    const i = inv as unknown as { client_id: string | null };
+    if (i.client_id) clientIds.add(i.client_id);
+  }
+  const clientNames: Record<string, string> = {};
+  if (clientIds.size > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: clientRows } = await (supabase as any)
+      .from("barn_clients")
+      .select("id, display_name")
+      .in("id", [...clientIds]);
+    for (const c of (clientRows ?? []) as { id: string; display_name: string }[]) {
+      clientNames[c.id] = c.display_name;
+    }
+  }
+
   return (
     <InvoiceListClient
       barns={barns}
@@ -68,6 +86,7 @@ export default async function InvoicingPage() {
       invoices={withComputedStatus as any[]}
       profileNames={profileNames}
       barnNames={barnNames}
+      clientNames={clientNames}
     />
   );
 }

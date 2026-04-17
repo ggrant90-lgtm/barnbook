@@ -23,6 +23,7 @@ export interface Entry {
   notes: string | null;
   total_cost: number | null;
   cost_type: "revenue" | "expense" | "pass_through" | null;
+  client_id: string | null;
   billable_to_user_id: string | null;
   billable_to_name: string | null;
   payment_status: "unpaid" | "paid" | "partial" | "waived" | null;
@@ -45,7 +46,12 @@ function entryType(e: Entry): string {
   return e.activity_type || e.record_type || "other";
 }
 
-function getClientKey(e: Entry): string {
+function getClientKey(e: {
+  client_id?: string | null;
+  billable_to_user_id?: string | null;
+  billable_to_name?: string | null;
+}): string {
+  if (e.client_id) return `c:${e.client_id}`;
   if (e.billable_to_user_id) return `u:${e.billable_to_user_id}`;
   if (e.billable_to_name) return `n:${e.billable_to_name.trim().toLowerCase()}`;
   return "unassigned";
@@ -53,9 +59,14 @@ function getClientKey(e: Entry): string {
 
 function getClientDisplay(
   key: string,
-  entry: Entry,
+  entry: { billable_to_name?: string | null },
   profileNames: Record<string, string>,
+  clientNames: Record<string, string>,
 ): string {
+  if (key.startsWith("c:")) {
+    const id = key.slice(2);
+    return clientNames[id] ?? entry.billable_to_name ?? "Client";
+  }
   if (key.startsWith("u:")) {
     const id = key.slice(2);
     return profileNames[id] ?? entry.billable_to_name ?? "Member";
@@ -92,6 +103,7 @@ interface UnpaidInvoice {
   id: string;
   barn_id: string;
   invoice_number: string;
+  client_id: string | null;
   billable_to_user_id: string | null;
   billable_to_name: string | null;
   issue_date: string;
@@ -108,6 +120,7 @@ export function ReceivablesClient({
   entries,
   horseNames,
   profileNames,
+  clientNames,
   barnNames,
   invoices,
 }: {
@@ -115,6 +128,7 @@ export function ReceivablesClient({
   entries: Entry[];
   horseNames: Record<string, string>;
   profileNames: Record<string, string>;
+  clientNames: Record<string, string>;
   barnNames: Record<string, string>;
   invoices: UnpaidInvoice[];
 }) {
@@ -141,15 +155,18 @@ export function ReceivablesClient({
         if (agingBucket(days) !== filter) return false;
       }
       if (s) {
-        const client = inv.billable_to_user_id
-          ? (profileNames[inv.billable_to_user_id] ?? "").toLowerCase()
-          : (inv.billable_to_name ?? "").toLowerCase();
+        const clientStr = (
+          (inv.client_id ? clientNames[inv.client_id] : null) ??
+          (inv.billable_to_user_id ? profileNames[inv.billable_to_user_id] : null) ??
+          inv.billable_to_name ??
+          ""
+        ).toLowerCase();
         const num = inv.invoice_number.toLowerCase();
-        if (!client.includes(s) && !num.includes(s)) return false;
+        if (!clientStr.includes(s) && !num.includes(s)) return false;
       }
       return true;
     });
-  }, [invoices, selectedBarnIds, search, filter, profileNames, now]);
+  }, [invoices, selectedBarnIds, search, filter, profileNames, clientNames, now]);
 
   const filteredEntries = useMemo(() => {
     const barnSet = new Set(selectedBarnIds);
@@ -164,19 +181,22 @@ export function ReceivablesClient({
         const horse = (horseNames[e.horse_id] ?? "").toLowerCase();
         const type = entryType(e).toLowerCase();
         const notes = (e.notes ?? "").toLowerCase();
-        const client = e.billable_to_user_id
-          ? (profileNames[e.billable_to_user_id] ?? "").toLowerCase()
-          : (e.billable_to_name ?? "").toLowerCase();
+        const clientStr = (
+          (e.client_id ? clientNames[e.client_id] : null) ??
+          (e.billable_to_user_id ? profileNames[e.billable_to_user_id] : null) ??
+          e.billable_to_name ??
+          ""
+        ).toLowerCase();
         if (
           !horse.includes(s) &&
           !type.includes(s) &&
           !notes.includes(s) &&
-          !client.includes(s)
+          !clientStr.includes(s)
         ) return false;
       }
       return true;
     });
-  }, [entries, filter, selectedBarnIds, search, horseNames, profileNames, now]);
+  }, [entries, filter, selectedBarnIds, search, horseNames, profileNames, clientNames, now]);
 
   // Summary stats (combine loose entries + invoices)
   const stats = useMemo(() => {
@@ -204,31 +224,16 @@ export function ReceivablesClient({
       byClient[key] = (byClient[key] ?? 0) + ((e.total_cost ?? 0) - (e.paid_amount ?? 0));
     }
     for (const inv of filteredInvoices) {
-      const key = inv.billable_to_user_id
-        ? `u:${inv.billable_to_user_id}`
-        : inv.billable_to_name
-          ? `n:${inv.billable_to_name.trim().toLowerCase()}`
-          : "unassigned";
+      const key = getClientKey(inv);
       byClient[key] = (byClient[key] ?? 0) + ((inv.subtotal ?? 0) - (inv.paid_amount ?? 0));
     }
     const topEntry = Object.entries(byClient).sort((a, b) => b[1] - a[1])[0];
     const topClientAmount = topEntry?.[1] ?? 0;
     const getName = (key: string) => {
       const entry = filteredEntries.find((e) => getClientKey(e) === key);
-      if (entry) return getClientDisplay(key, entry, profileNames);
-      const inv = filteredInvoices.find((i) => {
-        const k = i.billable_to_user_id
-          ? `u:${i.billable_to_user_id}`
-          : i.billable_to_name
-            ? `n:${i.billable_to_name.trim().toLowerCase()}`
-            : "unassigned";
-        return k === key;
-      });
-      if (inv) {
-        return inv.billable_to_user_id
-          ? profileNames[inv.billable_to_user_id] ?? inv.billable_to_name ?? "Member"
-          : inv.billable_to_name ?? "Unassigned";
-      }
+      if (entry) return getClientDisplay(key, entry, profileNames, clientNames);
+      const inv = filteredInvoices.find((i) => getClientKey(i) === key);
+      if (inv) return getClientDisplay(key, inv, profileNames, clientNames);
       return "—";
     };
     const topClientName = topEntry ? getName(topEntry[0]) : "—";
@@ -261,7 +266,7 @@ export function ReceivablesClient({
       buckets,
       allCount: unfilteredEntries.length + unfilteredInvoices.length,
     };
-  }, [filteredEntries, filteredInvoices, entries, invoices, selectedBarnIds, profileNames, now]);
+  }, [filteredEntries, filteredInvoices, entries, invoices, selectedBarnIds, profileNames, clientNames, now]);
 
   // Group filtered entries by client
   const groups = useMemo(() => {
@@ -280,7 +285,7 @@ export function ReceivablesClient({
       if (!groupMap[key]) {
         groupMap[key] = {
           clientKey: key,
-          name: getClientDisplay(key, e, profileNames),
+          name: getClientDisplay(key, e, profileNames, clientNames),
           entries: [],
           outstanding: 0,
           oldestDate: entryDate(e),
@@ -292,7 +297,7 @@ export function ReceivablesClient({
       if (d < groupMap[key].oldestDate) groupMap[key].oldestDate = d;
     }
     return Object.values(groupMap).sort((a, b) => b.outstanding - a.outstanding);
-  }, [filteredEntries, profileNames]);
+  }, [filteredEntries, profileNames, clientNames]);
 
   // Handlers
   const handleMarkPaid = (entryId: string, source: "activity" | "health") => {

@@ -96,6 +96,7 @@ export function InvoiceDetailClient({
   invoice,
   barnName,
   clientName,
+  clientProfileHref,
   entries: initialEntries,
   addableEntries: initialAddable,
   horseNames,
@@ -105,6 +106,7 @@ export function InvoiceDetailClient({
   invoice: Invoice;
   barnName: string;
   clientName: string;
+  clientProfileHref: string | null;
   entries: Entry[];
   addableEntries: Entry[];
   horseNames: Record<string, string>;
@@ -367,7 +369,19 @@ export function InvoiceDetailClient({
           <div style={{ fontSize: 10, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--bp-ink-tertiary)", marginBottom: 4 }}>
             Bill To
           </div>
-          <div style={{ fontSize: 15, fontWeight: 500 }}>{clientName}</div>
+          <div style={{ fontSize: 15, fontWeight: 500 }}>
+            {clientProfileHref ? (
+              <Link
+                href={clientProfileHref}
+                className="hover:underline"
+                style={{ color: "inherit" }}
+              >
+                {clientName}
+              </Link>
+            ) : (
+              clientName
+            )}
+          </div>
         </div>
 
         {/* ════ Entries table ════ */}

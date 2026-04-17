@@ -14,6 +14,7 @@ type FinancialRow = {
   notes: string | null;
   total_cost: number | null;
   cost_type: "revenue" | "expense" | "pass_through" | null;
+  client_id: string | null;
   billable_to_user_id: string | null;
   billable_to_name: string | null;
   payment_status: "unpaid" | "paid" | "partial" | "waived" | null;
@@ -42,6 +43,7 @@ export default async function ReceivablesPage() {
         entries={[]}
         horseNames={{}}
         profileNames={{}}
+        clientNames={{}}
         barnNames={{}}
         invoices={[]}
       />
@@ -75,6 +77,7 @@ export default async function ReceivablesPage() {
         entries={[]}
         horseNames={horseNames}
         profileNames={{}}
+        clientNames={{}}
         barnNames={barnNames}
         invoices={[]}
       />
@@ -86,7 +89,7 @@ export default async function ReceivablesPage() {
   const [{ data: actUnpaid }, { data: healthUnpaid }] = await Promise.all([
     supabase
       .from("activity_log")
-      .select("id, horse_id, activity_type, notes, performed_at, created_at, total_cost, cost_type, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at")
+      .select("id, horse_id, activity_type, notes, performed_at, created_at, total_cost, cost_type, client_id, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at")
       .in("horse_id", horseIds)
       .in("payment_status", ["unpaid", "partial"])
       .in("cost_type", ["revenue", "pass_through"])
@@ -94,7 +97,7 @@ export default async function ReceivablesPage() {
       .limit(5000),
     supabase
       .from("health_records")
-      .select("id, horse_id, record_type, notes, performed_at, created_at, total_cost, cost_type, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at")
+      .select("id, horse_id, record_type, notes, performed_at, created_at, total_cost, cost_type, client_id, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at")
       .in("horse_id", horseIds)
       .in("payment_status", ["unpaid", "partial"])
       .in("cost_type", ["revenue", "pass_through"])
@@ -106,7 +109,7 @@ export default async function ReceivablesPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: unpaidInvoicesRaw } = await (supabase as any)
     .from("invoices")
-    .select("id, barn_id, invoice_number, billable_to_user_id, billable_to_name, issue_date, due_date, status, subtotal, paid_amount, created_at")
+    .select("id, barn_id, invoice_number, client_id, billable_to_user_id, billable_to_name, issue_date, due_date, status, subtotal, paid_amount, created_at")
     .in("barn_id", barnIds)
     .in("status", ["sent", "partial"])
     .order("issue_date", { ascending: true })
@@ -157,12 +160,36 @@ export default async function ReceivablesPage() {
     }
   }
 
+  // Look up client names for entries + invoices stamped with client_id
+  const clientIds = new Set<string>();
+  for (const e of entries) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cId = (e as any).client_id as string | null;
+    if (cId) clientIds.add(cId);
+  }
+  for (const inv of unpaidInvoices) {
+    const i = inv as unknown as { client_id: string | null };
+    if (i.client_id) clientIds.add(i.client_id);
+  }
+  const clientNames: Record<string, string> = {};
+  if (clientIds.size > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: clientRows } = await (supabase as any)
+      .from("barn_clients")
+      .select("id, display_name")
+      .in("id", [...clientIds]);
+    for (const c of (clientRows ?? []) as { id: string; display_name: string }[]) {
+      clientNames[c.id] = c.display_name;
+    }
+  }
+
   return (
     <ReceivablesClient
       barns={barns}
       entries={entries}
       horseNames={horseNames}
       profileNames={profileNames}
+      clientNames={clientNames}
       barnNames={barnNames}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       invoices={unpaidInvoices as any[]}

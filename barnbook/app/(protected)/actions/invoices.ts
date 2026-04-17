@@ -80,6 +80,7 @@ async function recomputeSubtotal(
 
 export async function createInvoiceAction(input: {
   barnId: string;
+  client_id?: string | null;
   billable_to_user_id?: string | null;
   billable_to_name?: string | null;
   due_date?: string | null;
@@ -106,6 +107,24 @@ export async function createInvoiceAction(input: {
     .eq("id", input.barnId)
     .maybeSingle();
 
+  // If a client_id was provided, snapshot billable_to_* from the client
+  // record so the invoice is self-describing even if the client is later
+  // archived or merged.
+  let snapshot_user_id = input.billable_to_user_id ?? null;
+  let snapshot_name = input.billable_to_name ?? null;
+  if (input.client_id) {
+    const { data: client } = await db
+      .from("barn_clients")
+      .select("barn_id, user_id, display_name")
+      .eq("id", input.client_id)
+      .maybeSingle();
+    if (!client || client.barn_id !== input.barnId) {
+      return { error: "Client does not belong to this barn" };
+    }
+    snapshot_user_id = client.user_id ?? null;
+    snapshot_name = client.display_name;
+  }
+
   const invoiceNumber = await nextInvoiceNumber(db, input.barnId);
 
   const { data: invoice, error } = await db
@@ -113,8 +132,9 @@ export async function createInvoiceAction(input: {
     .insert({
       barn_id: input.barnId,
       invoice_number: invoiceNumber,
-      billable_to_user_id: input.billable_to_user_id ?? null,
-      billable_to_name: input.billable_to_name ?? null,
+      client_id: input.client_id ?? null,
+      billable_to_user_id: snapshot_user_id,
+      billable_to_name: snapshot_name,
       due_date: input.due_date ?? null,
       status: "draft",
       notes: input.notes ?? barn?.invoice_notes_default ?? null,
@@ -131,16 +151,19 @@ export async function createInvoiceAction(input: {
 
   if (error || !invoice) return { error: error?.message ?? "Failed to create invoice" };
 
-  // Link entries
+  // Link entries (also stamp them with client_id if present)
   const invoiceId = invoice.id as string;
   const actIds = input.entryIds.filter((e) => e.source === "activity").map((e) => e.id);
   const healthIds = input.entryIds.filter((e) => e.source === "health").map((e) => e.id);
 
+  const entryPatch: Record<string, string | null> = { invoice_id: invoiceId };
+  if (input.client_id) entryPatch.client_id = input.client_id;
+
   if (actIds.length > 0) {
-    await db.from("activity_log").update({ invoice_id: invoiceId }).in("id", actIds);
+    await db.from("activity_log").update(entryPatch).in("id", actIds);
   }
   if (healthIds.length > 0) {
-    await db.from("health_records").update({ invoice_id: invoiceId }).in("id", healthIds);
+    await db.from("health_records").update(entryPatch).in("id", healthIds);
   }
 
   // Insert initial custom line items (if provided)
