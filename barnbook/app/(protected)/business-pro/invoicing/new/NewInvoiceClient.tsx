@@ -218,16 +218,37 @@ export function NewInvoiceClient({
   const [draftLineItems, setDraftLineItems] = useState<DraftLineItem[]>([]);
   const [showAddLineItem, setShowAddLineItem] = useState(false);
 
-  // Horses available for line item assignment — all horses in the selected barn
+  // Horses available for line item assignment.
+  // Scoped to the selected client:
+  //  - Owner client → only the horses currently checked in the "Horses
+  //    included" section (activeHorseIds). User unchecks a horse, it
+  //    disappears from this dropdown too.
+  //  - User / name client → horses that appear in their matching entries
+  //    (falls back to all barn horses if the client has no entries yet).
+  //  - No client selected → all horses in the selected barn.
   const barnHorsesForLineItems = useMemo(() => {
-    return Object.entries(horseNames)
+    const allInBarn = Object.entries(horseNames)
       .map(([id, name]) => {
         const horseEntry = entries.find((e) => e.horse_id === id);
         return { id, name, barn_id: horseEntry?.barn_id ?? null };
       })
       .filter((h) => h.barn_id === barnId || !h.barn_id)
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [horseNames, entries, barnId]);
+
+    if (!client) return allInBarn;
+
+    if (client.kind === "owner") {
+      return allInBarn.filter((h) => activeHorseIds.has(h.id));
+    }
+
+    // user / name: derive from horses that appear in their matching entries.
+    const horseIdsForClient = new Set<string>();
+    for (const e of matchingEntries) {
+      if (e.horse_id) horseIdsForClient.add(e.horse_id);
+    }
+    if (horseIdsForClient.size === 0) return allInBarn;
+    return allInBarn.filter((h) => horseIdsForClient.has(h.id));
+  }, [horseNames, entries, barnId, client, activeHorseIds, matchingEntries]);
 
   const addDraftLineItem = (li: Omit<DraftLineItem, "key">) => {
     setDraftLineItems((prev) => [...prev, { ...li, key: `li-${Date.now()}-${Math.random()}` }]);
