@@ -18,6 +18,7 @@ type FinancialRow = {
   payment_status: "unpaid" | "paid" | "partial" | "waived" | null;
   paid_amount: number | null;
   paid_at: string | null;
+  invoice_id: string | null;
 };
 
 export default async function BusinessProOverviewPage() {
@@ -42,6 +43,7 @@ export default async function BusinessProOverviewPage() {
         profileNames={{}}
         horseNames={{}}
         unpaidInvoices={[]}
+        lineItemsForRevenue={[]}
       />
     );
   }
@@ -75,6 +77,7 @@ export default async function BusinessProOverviewPage() {
         profileNames={{}}
         horseNames={horseNames}
         unpaidInvoices={[]}
+        lineItemsForRevenue={[]}
       />
     );
   }
@@ -88,7 +91,7 @@ export default async function BusinessProOverviewPage() {
   const [{ data: actEntries }, { data: healthEntries }] = await Promise.all([
     supabase
       .from("activity_log")
-      .select("id, horse_id, activity_type, notes, performed_at, created_at, total_cost, cost_type, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at")
+      .select("id, horse_id, activity_type, notes, performed_at, created_at, total_cost, cost_type, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at, invoice_id")
       .in("horse_id", horseIds)
       .not("cost_type", "is", null)
       .or(`performed_at.gte.${sinceISO},created_at.gte.${sinceISO}`)
@@ -96,7 +99,7 @@ export default async function BusinessProOverviewPage() {
       .limit(5000),
     supabase
       .from("health_records")
-      .select("id, horse_id, record_type, notes, performed_at, created_at, total_cost, cost_type, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at")
+      .select("id, horse_id, record_type, notes, performed_at, created_at, total_cost, cost_type, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at, invoice_id")
       .in("horse_id", horseIds)
       .not("cost_type", "is", null)
       .or(`performed_at.gte.${sinceISO},created_at.gte.${sinceISO}`)
@@ -135,6 +138,48 @@ export default async function BusinessProOverviewPage() {
     .in("status", ["sent", "partial"])
     .order("issue_date", { ascending: true })
     .limit(2000);
+
+  // Fetch ALL billed invoices (sent/partial/paid) in the last 6 months so
+  // their custom line items flow into the Revenue calc at invoice issue_date.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: billedInvoicesForRevenueRaw } = await (supabase as any)
+    .from("invoices")
+    .select("id, barn_id, issue_date, status")
+    .in("barn_id", barnIds)
+    .in("status", ["sent", "partial", "paid"])
+    .gte("issue_date", sinceISO.slice(0, 10))
+    .limit(2000);
+  const billedInvoiceIds = ((billedInvoicesForRevenueRaw ?? []) as { id: string }[]).map((i) => i.id);
+  const billedInvoiceMetaById: Record<string, { issue_date: string; barn_id: string }> = {};
+  for (const inv of (billedInvoicesForRevenueRaw ?? []) as { id: string; issue_date: string; barn_id: string }[]) {
+    billedInvoiceMetaById[inv.id] = { issue_date: inv.issue_date, barn_id: inv.barn_id };
+  }
+
+  // Fetch line items for those invoices
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: invoiceLineItems } = billedInvoiceIds.length > 0
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ? await (supabase as any)
+        .from("invoice_line_items")
+        .select("id, invoice_id, amount")
+        .in("invoice_id", billedInvoiceIds)
+        .limit(5000)
+    : { data: [] };
+
+  // Tag each line item with its invoice's issue_date + barn_id for
+  // client-side grouping and per-barn breakdowns
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lineItemsForRevenue = ((invoiceLineItems ?? []) as any[])
+    .map((li) => {
+      const meta = billedInvoiceMetaById[li.invoice_id as string];
+      return {
+        id: li.id as string,
+        amount: (li.amount as number | null) ?? 0,
+        issue_date: meta?.issue_date ?? null,
+        barn_id: meta?.barn_id ?? null,
+      };
+    })
+    .filter((li) => li.issue_date);
 
   // Compute display_status (overdue) for invoices past due date
   const today = new Date().toISOString().slice(0, 10);
@@ -192,6 +237,7 @@ export default async function BusinessProOverviewPage() {
       horseNames={horseNames}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       unpaidInvoices={unpaidInvoices as any[]}
+      lineItemsForRevenue={lineItemsForRevenue}
     />
   );
 }

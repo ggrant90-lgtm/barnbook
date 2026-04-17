@@ -52,6 +52,7 @@ export interface FinancialEntry {
   payment_status: "unpaid" | "paid" | "partial" | "waived" | null;
   paid_amount: number | null;
   paid_at: string | null;
+  invoice_id: string | null;
 }
 
 interface Barn {
@@ -105,6 +106,13 @@ interface UnpaidInvoice {
   created_at: string;
 }
 
+interface LineItemForRevenue {
+  id: string;
+  amount: number;
+  issue_date: string;
+  barn_id: string | null;
+}
+
 export function OverviewClient({
   barns,
   horseCountByBarn,
@@ -112,6 +120,7 @@ export function OverviewClient({
   profileNames,
   horseNames,
   unpaidInvoices,
+  lineItemsForRevenue,
 }: {
   barns: Barn[];
   horseCountByBarn: Record<string, number>;
@@ -119,6 +128,7 @@ export function OverviewClient({
   profileNames: Record<string, string>;
   horseNames: Record<string, string>;
   unpaidInvoices: UnpaidInvoice[];
+  lineItemsForRevenue: LineItemForRevenue[];
 }) {
   const [selectedBarnIds, setSelectedBarnIds] = useState<string[]>(barns.map((b) => b.id));
   const [, startTransition] = useTransition();
@@ -133,6 +143,11 @@ export function OverviewClient({
     const set = new Set(selectedBarnIds);
     return unpaidInvoices.filter((inv) => set.has(inv.barn_id));
   }, [unpaidInvoices, selectedBarnIds]);
+
+  const lineItems = useMemo(() => {
+    const set = new Set(selectedBarnIds);
+    return lineItemsForRevenue.filter((li) => li.barn_id && set.has(li.barn_id));
+  }, [lineItemsForRevenue, selectedBarnIds]);
 
   const now = new Date();
   const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -153,20 +168,38 @@ export function OverviewClient({
         .filter((e) => types.includes(e.cost_type))
         .reduce((s, e) => s + (e.total_cost ?? 0), 0);
 
-    // Revenue: only true revenue entries (what the barn earned)
-    const revThis = sum(thisMonth, ["revenue"]);
-    const revLast = sum(lastMonth, ["revenue"]);
+    // Invoice line items count as revenue at invoice issue_date
+    // (board, training, hauling, etc. — things that aren't log entries)
+    const lineItemsInRange = (from: Date, to: Date) =>
+      lineItems
+        .filter((li) => {
+          const d = new Date(li.issue_date);
+          return d >= from && d < to;
+        })
+        .reduce((s, li) => s + (li.amount ?? 0), 0);
+
+    // Revenue: true revenue entries + invoice line items (at issue_date)
+    const revThis = sum(thisMonth, ["revenue"]) + lineItemsInRange(firstOfMonth, firstOfNextMonth);
+    const revLast = sum(lastMonth, ["revenue"]) + lineItemsInRange(firstOfLastMonth, firstOfMonth);
 
     // Expenses: only true expense entries (what the barn spent out of pocket)
     const expThis = sum(thisMonth, ["expense"]);
     const expLast = sum(lastMonth, ["expense"]);
 
-    // Pass-through: charges the barn paid on behalf of owners — billable.
-    // Doesn't touch P&L, but flows into Outstanding until the owner pays.
-    const passThroughThis = sum(thisMonth, ["pass_through"]);
-    const passThroughLast = sum(lastMonth, ["pass_through"]);
+    // Pass-through: charges the barn paid on behalf of owners — billable,
+    // not yet invoiced. Once invoiced, the charge is tracked via the invoice
+    // in Outstanding, so exclude invoiced entries here to avoid double-count.
+    const passThroughThis = sum(
+      thisMonth.filter((e) => !e.invoice_id),
+      ["pass_through"],
+    );
+    const passThroughLast = sum(
+      lastMonth.filter((e) => !e.invoice_id),
+      ["pass_through"],
+    );
 
     // Net: Revenue − Expenses (pass-throughs are not in P&L)
+    // revThis/revLast already include invoice line items
     const netThis = revThis - expThis;
     const netLast = revLast - expLast;
 
@@ -202,7 +235,7 @@ export function OverviewClient({
       netThis, netLast, netPct: pct(netThis, netLast),
       outstanding, outstandingCount,
     };
-  }, [entries, invoices, firstOfMonth, firstOfNextMonth, firstOfLastMonth]);
+  }, [entries, invoices, lineItems, firstOfMonth, firstOfNextMonth, firstOfLastMonth]);
 
   // ── Accounts Receivable, grouped by client (invoices + loose entries) ──
   const receivables = useMemo(() => {
@@ -288,15 +321,22 @@ export function OverviewClient({
         const d = entryDate(e);
         return d >= m.start && d < m.end;
       });
-      const revenue = inMonth
+      const entryRevenue = inMonth
         .filter((e) => e.cost_type === "revenue")
         .reduce((s, e) => s + (e.total_cost ?? 0), 0);
+      const lineItemRevenue = lineItems
+        .filter((li) => {
+          const d = new Date(li.issue_date);
+          return d >= m.start && d < m.end;
+        })
+        .reduce((s, li) => s + (li.amount ?? 0), 0);
+      const revenue = entryRevenue + lineItemRevenue;
       const expenses = inMonth
         .filter((e) => e.cost_type === "expense")
         .reduce((s, e) => s + (e.total_cost ?? 0), 0);
       return { month: m.label, revenue: Math.round(revenue), expenses: Math.round(expenses) };
     });
-  }, [entries, now]);
+  }, [entries, lineItems, now]);
 
   // ── Revenue by category (this month) ──
   const categoryData = useMemo(() => {
@@ -323,9 +363,17 @@ export function OverviewClient({
         const d = entryDate(e);
         return d >= firstOfMonth && d < firstOfNextMonth;
       });
-      const revenue = thisMonth
+      const entryRevenue = thisMonth
         .filter((e) => e.cost_type === "revenue")
         .reduce((s, e) => s + (e.total_cost ?? 0), 0);
+      const lineItemRevenue = lineItems
+        .filter((li) => {
+          if (li.barn_id !== b.id) return false;
+          const d = new Date(li.issue_date);
+          return d >= firstOfMonth && d < firstOfNextMonth;
+        })
+        .reduce((s, li) => s + (li.amount ?? 0), 0);
+      const revenue = entryRevenue + lineItemRevenue;
       const expenses = thisMonth
         .filter((e) => e.cost_type === "expense")
         .reduce((s, e) => s + (e.total_cost ?? 0), 0);
@@ -443,7 +491,7 @@ export function OverviewClient({
             label="Pass-through"
             value={pulse.passThroughThis}
             pct={pulse.passThroughPct}
-            subtitle="Billable — not P&L"
+            subtitle="Billable — not yet invoiced"
             color="#a16207"
             bg="#fef3c7"
             noPct
