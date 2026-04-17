@@ -43,6 +43,7 @@ export default async function ReceivablesPage() {
         horseNames={{}}
         profileNames={{}}
         barnNames={{}}
+        invoices={[]}
       />
     );
   }
@@ -75,11 +76,13 @@ export default async function ReceivablesPage() {
         horseNames={horseNames}
         profileNames={{}}
         barnNames={barnNames}
+        invoices={[]}
       />
     );
   }
 
-  // Fetch ALL unpaid/partial revenue + pass_through entries (no date limit — AR is forever until paid)
+  // Fetch ALL unpaid/partial revenue + pass_through entries that are NOT
+  // already bundled onto an invoice (those are tracked at the invoice level).
   const [{ data: actUnpaid }, { data: healthUnpaid }] = await Promise.all([
     supabase
       .from("activity_log")
@@ -87,6 +90,7 @@ export default async function ReceivablesPage() {
       .in("horse_id", horseIds)
       .in("payment_status", ["unpaid", "partial"])
       .in("cost_type", ["revenue", "pass_through"])
+      .is("invoice_id", null)
       .limit(5000),
     supabase
       .from("health_records")
@@ -94,8 +98,28 @@ export default async function ReceivablesPage() {
       .in("horse_id", horseIds)
       .in("payment_status", ["unpaid", "partial"])
       .in("cost_type", ["revenue", "pass_through"])
+      .is("invoice_id", null)
       .limit(5000),
   ]);
+
+  // Fetch unpaid invoices (sent/partial) with computed overdue flag
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: unpaidInvoicesRaw } = await (supabase as any)
+    .from("invoices")
+    .select("id, barn_id, invoice_number, billable_to_user_id, billable_to_name, issue_date, due_date, status, subtotal, paid_amount, created_at")
+    .in("barn_id", barnIds)
+    .in("status", ["sent", "partial"])
+    .order("issue_date", { ascending: true })
+    .limit(2000);
+  const today = new Date().toISOString().slice(0, 10);
+  const unpaidInvoices = ((unpaidInvoicesRaw ?? []) as Record<string, unknown>[]).map((inv) => {
+    const i = inv as unknown as { status: string; due_date: string | null };
+    const displayStatus =
+      (i.status === "sent" || i.status === "partial") && i.due_date && i.due_date < today
+        ? "overdue"
+        : i.status;
+    return { ...inv, display_status: displayStatus };
+  });
 
   const entries: FinancialRow[] = [];
   for (const e of (actUnpaid ?? []) as Record<string, unknown>[]) {
@@ -113,10 +137,14 @@ export default async function ReceivablesPage() {
     });
   }
 
-  // Look up profile names for billable_to_user_id
+  // Look up profile names for billable_to_user_id (entries + invoices)
   const billableUserIds = new Set<string>();
   for (const e of entries) {
     if (e.billable_to_user_id) billableUserIds.add(e.billable_to_user_id);
+  }
+  for (const inv of unpaidInvoices) {
+    const i = inv as unknown as { billable_to_user_id: string | null };
+    if (i.billable_to_user_id) billableUserIds.add(i.billable_to_user_id);
   }
   const profileNames: Record<string, string> = {};
   if (billableUserIds.size > 0) {
@@ -136,6 +164,8 @@ export default async function ReceivablesPage() {
       horseNames={horseNames}
       profileNames={profileNames}
       barnNames={barnNames}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      invoices={unpaidInvoices as any[]}
     />
   );
 }

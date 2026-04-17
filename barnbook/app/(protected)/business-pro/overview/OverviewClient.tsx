@@ -90,18 +90,35 @@ function getClientDisplay(
   return "Unassigned";
 }
 
+interface UnpaidInvoice {
+  id: string;
+  barn_id: string;
+  invoice_number: string;
+  billable_to_user_id: string | null;
+  billable_to_name: string | null;
+  issue_date: string;
+  due_date: string | null;
+  status: string;
+  display_status: string;
+  subtotal: number;
+  paid_amount: number;
+  created_at: string;
+}
+
 export function OverviewClient({
   barns,
   horseCountByBarn,
   allEntries,
   profileNames,
   horseNames,
+  unpaidInvoices,
 }: {
   barns: Barn[];
   horseCountByBarn: Record<string, number>;
   allEntries: FinancialEntry[];
   profileNames: Record<string, string>;
   horseNames: Record<string, string>;
+  unpaidInvoices: UnpaidInvoice[];
 }) {
   const [selectedBarnIds, setSelectedBarnIds] = useState<string[]>(barns.map((b) => b.id));
   const [, startTransition] = useTransition();
@@ -111,6 +128,11 @@ export function OverviewClient({
     const set = new Set(selectedBarnIds);
     return allEntries.filter((e) => e.barn_id && set.has(e.barn_id));
   }, [allEntries, selectedBarnIds]);
+
+  const invoices = useMemo(() => {
+    const set = new Set(selectedBarnIds);
+    return unpaidInvoices.filter((inv) => set.has(inv.barn_id));
+  }, [unpaidInvoices, selectedBarnIds]);
 
   const now = new Date();
   const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -143,19 +165,25 @@ export function OverviewClient({
     const netThis = sum(thisMonth, ["revenue"]) - sum(thisMonth, ["expense"]);
     const netLast = sum(lastMonth, ["revenue"]) - sum(lastMonth, ["expense"]);
 
-    // Outstanding = sum(total_cost - paid_amount) for unpaid/partial rev+pass_through
-    const outstanding = entries
+    // Outstanding = loose entries outstanding + invoice outstanding
+    const looseOutstanding = entries
       .filter(
         (e) =>
           (e.cost_type === "revenue" || e.cost_type === "pass_through") &&
           (e.payment_status === "unpaid" || e.payment_status === "partial"),
       )
       .reduce((s, e) => s + ((e.total_cost ?? 0) - (e.paid_amount ?? 0)), 0);
-    const outstandingCount = entries.filter(
+    const looseCount = entries.filter(
       (e) =>
         (e.cost_type === "revenue" || e.cost_type === "pass_through") &&
         (e.payment_status === "unpaid" || e.payment_status === "partial"),
     ).length;
+    const invoiceOutstanding = invoices.reduce(
+      (s, inv) => s + (inv.subtotal ?? 0) - (inv.paid_amount ?? 0),
+      0,
+    );
+    const outstanding = looseOutstanding + invoiceOutstanding;
+    const outstandingCount = looseCount + invoices.length;
 
     const pct = (curr: number, prev: number): number | null => {
       if (prev === 0) return null;
@@ -168,9 +196,9 @@ export function OverviewClient({
       netThis, netLast, netPct: pct(netThis, netLast),
       outstanding, outstandingCount,
     };
-  }, [entries, firstOfMonth, firstOfNextMonth, firstOfLastMonth]);
+  }, [entries, invoices, firstOfMonth, firstOfNextMonth, firstOfLastMonth]);
 
-  // ── Accounts Receivable, grouped by client ──
+  // ── Accounts Receivable, grouped by client (invoices + loose entries) ──
   const receivables = useMemo(() => {
     const unpaid = entries.filter(
       (e) =>
@@ -184,29 +212,54 @@ export function OverviewClient({
         clientKey: string;
         name: string;
         entries: FinancialEntry[];
+        invoices: UnpaidInvoice[];
         outstanding: number;
         oldestDate: Date;
       }
     > = {};
-    for (const e of unpaid) {
-      const key = getClientKey(e);
+
+    const ensureGroup = (key: string, displayName: string, refDate: Date) => {
       if (!groups[key]) {
         groups[key] = {
           clientKey: key,
-          name: getClientDisplay(key, e, profileNames),
+          name: displayName,
           entries: [],
+          invoices: [],
           outstanding: 0,
-          oldestDate: entryDate(e),
+          oldestDate: refDate,
         };
       }
+    };
+
+    // Loose entries (not invoiced)
+    for (const e of unpaid) {
+      const key = getClientKey(e);
+      ensureGroup(key, getClientDisplay(key, e, profileNames), entryDate(e));
       groups[key].entries.push(e);
       groups[key].outstanding += (e.total_cost ?? 0) - (e.paid_amount ?? 0);
       const d = entryDate(e);
       if (d < groups[key].oldestDate) groups[key].oldestDate = d;
     }
 
+    // Invoices
+    for (const inv of invoices) {
+      const key = inv.billable_to_user_id
+        ? `u:${inv.billable_to_user_id}`
+        : inv.billable_to_name
+          ? `n:${inv.billable_to_name.trim().toLowerCase()}`
+          : "unassigned";
+      const name = inv.billable_to_user_id
+        ? profileNames[inv.billable_to_user_id] ?? inv.billable_to_name ?? "Member"
+        : inv.billable_to_name ?? "Unassigned";
+      const invDate = new Date(inv.issue_date);
+      ensureGroup(key, name, invDate);
+      groups[key].invoices.push(inv);
+      groups[key].outstanding += (inv.subtotal ?? 0) - (inv.paid_amount ?? 0);
+      if (invDate < groups[key].oldestDate) groups[key].oldestDate = invDate;
+    }
+
     return Object.values(groups).sort((a, b) => b.outstanding - a.outstanding);
-  }, [entries, profileNames]);
+  }, [entries, invoices, profileNames]);
 
   // ── Recent transactions (last 20 sorted desc) ──
   const recentTransactions = useMemo(() => {
@@ -437,11 +490,12 @@ export function OverviewClient({
                     key={r.clientKey}
                     name={r.name}
                     outstanding={r.outstanding}
-                    count={r.entries.length}
+                    count={r.entries.length + r.invoices.length}
                     daysOld={daysOld}
                     agingColor={agingColor}
                     agingLabel={agingLabel}
                     entries={r.entries}
+                    invoices={r.invoices}
                     horseNames={horseNames}
                     onMarkPaid={handleMarkPaid}
                     onPartial={handlePartial}
@@ -679,6 +733,7 @@ function ReceivableRow({
   agingColor,
   agingLabel,
   entries,
+  invoices,
   horseNames,
   onMarkPaid,
   onPartial,
@@ -691,6 +746,7 @@ function ReceivableRow({
   agingColor: string;
   agingLabel: string;
   entries: FinancialEntry[];
+  invoices: UnpaidInvoice[];
   horseNames: Record<string, string>;
   onMarkPaid: (id: string, source: "activity" | "health") => void;
   onPartial: (id: string, source: "activity" | "health") => void;
@@ -728,6 +784,51 @@ function ReceivableRow({
       </button>
       {expanded && (
         <div className="border-t border-barn-dark/10 divide-y divide-barn-dark/5">
+          {/* Invoices first — they represent bundled AR */}
+          {invoices.map((inv) => {
+            const remaining = (inv.subtotal ?? 0) - (inv.paid_amount ?? 0);
+            return (
+              <Link
+                key={`inv-${inv.id}`}
+                href={`/business-pro/invoicing/${inv.id}`}
+                className="px-4 py-3 flex items-center justify-between gap-3 text-sm hover:bg-parchment/30 transition"
+                style={{ textDecoration: "none", color: "inherit" }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-barn-dark flex items-center gap-2">
+                    <span className="font-mono text-xs text-barn-dark/50">
+                      {new Date(inv.issue_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                    </span>
+                    <span className="font-mono font-medium">{inv.invoice_number}</span>
+                    <span
+                      className="font-mono"
+                      style={{
+                        fontSize: 9,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        padding: "2px 6px",
+                        borderRadius: 4,
+                        background: inv.display_status === "overdue" ? "#fee2e2" : "#dbeafe",
+                        color: inv.display_status === "overdue" ? "#991b1b" : "#1e40af",
+                      }}
+                    >
+                      {inv.display_status === "overdue" ? "Overdue" : inv.display_status === "partial" ? "Partial" : "Sent"}
+                    </span>
+                  </div>
+                  {inv.due_date && (
+                    <div className="text-xs text-barn-dark/60 mt-0.5">
+                      Due {new Date(inv.due_date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" })}
+                    </div>
+                  )}
+                </div>
+                <span className="font-mono text-sm text-[#c9a84c] font-semibold">
+                  {formatCurrency(remaining)}
+                </span>
+                <span className="text-xs text-barn-dark/40">→</span>
+              </Link>
+            );
+          })}
+
           {entries.map((e) => {
             const remaining = (e.total_cost ?? 0) - (e.paid_amount ?? 0);
             const d = entryDate(e);

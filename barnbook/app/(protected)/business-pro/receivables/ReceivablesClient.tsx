@@ -88,18 +88,35 @@ function agingBucket(days: number): AgingFilter {
   return "current";
 }
 
+interface UnpaidInvoice {
+  id: string;
+  barn_id: string;
+  invoice_number: string;
+  billable_to_user_id: string | null;
+  billable_to_name: string | null;
+  issue_date: string;
+  due_date: string | null;
+  status: string;
+  display_status: string;
+  subtotal: number;
+  paid_amount: number;
+  created_at: string;
+}
+
 export function ReceivablesClient({
   barns,
   entries,
   horseNames,
   profileNames,
   barnNames,
+  invoices,
 }: {
   barns: { id: string; name: string }[];
   entries: Entry[];
   horseNames: Record<string, string>;
   profileNames: Record<string, string>;
   barnNames: Record<string, string>;
+  invoices: UnpaidInvoice[];
 }) {
   const now = new Date();
   const [, startTransition] = useTransition();
@@ -111,6 +128,29 @@ export function ReceivablesClient({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Apply filters to entries
+  // Filter invoices by selected barns + search (filter tab is applied
+  // for loose entries only — invoices use their own due-date aging)
+  const filteredInvoices = useMemo(() => {
+    const barnSet = new Set(selectedBarnIds);
+    const s = search.trim().toLowerCase();
+    return invoices.filter((inv) => {
+      if (!barnSet.has(inv.barn_id)) return false;
+      if (filter === "current" || filter === "aging" || filter === "overdue") {
+        const issue = new Date(inv.issue_date);
+        const days = daysSince(issue, now);
+        if (agingBucket(days) !== filter) return false;
+      }
+      if (s) {
+        const client = inv.billable_to_user_id
+          ? (profileNames[inv.billable_to_user_id] ?? "").toLowerCase()
+          : (inv.billable_to_name ?? "").toLowerCase();
+        const num = inv.invoice_number.toLowerCase();
+        if (!client.includes(s) && !num.includes(s)) return false;
+      }
+      return true;
+    });
+  }, [invoices, selectedBarnIds, search, filter, profileNames, now]);
+
   const filteredEntries = useMemo(() => {
     const barnSet = new Set(selectedBarnIds);
     const s = search.trim().toLowerCase();
@@ -138,40 +178,76 @@ export function ReceivablesClient({
     });
   }, [entries, filter, selectedBarnIds, search, horseNames, profileNames, now]);
 
-  // Summary stats
+  // Summary stats (combine loose entries + invoices)
   const stats = useMemo(() => {
-    const totalAR = filteredEntries.reduce(
+    const entriesAR = filteredEntries.reduce(
       (s, e) => s + ((e.total_cost ?? 0) - (e.paid_amount ?? 0)),
       0,
     );
-    const days = filteredEntries.map((e) => daysSince(entryDate(e), now));
-    const avgDays = days.length > 0
-      ? Math.round(days.reduce((s, d) => s + d, 0) / days.length)
+    const invoicesAR = filteredInvoices.reduce(
+      (s, inv) => s + (inv.subtotal ?? 0) - (inv.paid_amount ?? 0),
+      0,
+    );
+    const totalAR = entriesAR + invoicesAR;
+
+    const entryDays = filteredEntries.map((e) => daysSince(entryDate(e), now));
+    const invDays = filteredInvoices.map((inv) => daysSince(new Date(inv.issue_date), now));
+    const allDays = [...entryDays, ...invDays];
+    const avgDays = allDays.length > 0
+      ? Math.round(allDays.reduce((s, d) => s + d, 0) / allDays.length)
       : 0;
 
-    // Biggest client
+    // Biggest client (across entries + invoices)
     const byClient: Record<string, number> = {};
     for (const e of filteredEntries) {
       const key = getClientKey(e);
       byClient[key] = (byClient[key] ?? 0) + ((e.total_cost ?? 0) - (e.paid_amount ?? 0));
     }
+    for (const inv of filteredInvoices) {
+      const key = inv.billable_to_user_id
+        ? `u:${inv.billable_to_user_id}`
+        : inv.billable_to_name
+          ? `n:${inv.billable_to_name.trim().toLowerCase()}`
+          : "unassigned";
+      byClient[key] = (byClient[key] ?? 0) + ((inv.subtotal ?? 0) - (inv.paid_amount ?? 0));
+    }
     const topEntry = Object.entries(byClient).sort((a, b) => b[1] - a[1])[0];
     const topClientAmount = topEntry?.[1] ?? 0;
-    const topClientName = topEntry
-      ? getClientDisplay(
-          topEntry[0],
-          filteredEntries.find((e) => getClientKey(e) === topEntry[0])!,
-          profileNames,
-        )
-      : "—";
+    const getName = (key: string) => {
+      const entry = filteredEntries.find((e) => getClientKey(e) === key);
+      if (entry) return getClientDisplay(key, entry, profileNames);
+      const inv = filteredInvoices.find((i) => {
+        const k = i.billable_to_user_id
+          ? `u:${i.billable_to_user_id}`
+          : i.billable_to_name
+            ? `n:${i.billable_to_name.trim().toLowerCase()}`
+            : "unassigned";
+        return k === key;
+      });
+      if (inv) {
+        return inv.billable_to_user_id
+          ? profileNames[inv.billable_to_user_id] ?? inv.billable_to_name ?? "Member"
+          : inv.billable_to_name ?? "Unassigned";
+      }
+      return "—";
+    };
+    const topClientName = topEntry ? getName(topEntry[0]) : "—";
 
     // Aging counts across unfiltered (full list) for tab badges
-    const unfilteredByBarn = entries.filter((e) => {
-      return e.barn_id && selectedBarnIds.includes(e.barn_id);
-    });
+    const unfilteredEntries = entries.filter(
+      (e) => e.barn_id && selectedBarnIds.includes(e.barn_id),
+    );
+    const unfilteredInvoices = invoices.filter((inv) =>
+      selectedBarnIds.includes(inv.barn_id),
+    );
     const buckets = { current: 0, aging: 0, overdue: 0 };
-    for (const e of unfilteredByBarn) {
+    for (const e of unfilteredEntries) {
       const days = daysSince(entryDate(e), now);
+      const b = agingBucket(days);
+      if (b !== "all") buckets[b]++;
+    }
+    for (const inv of unfilteredInvoices) {
+      const days = daysSince(new Date(inv.issue_date), now);
       const b = agingBucket(days);
       if (b !== "all") buckets[b]++;
     }
@@ -179,13 +255,13 @@ export function ReceivablesClient({
     return {
       totalAR,
       avgDays,
-      entryCount: filteredEntries.length,
+      entryCount: filteredEntries.length + filteredInvoices.length,
       topClientName,
       topClientAmount,
       buckets,
-      allCount: unfilteredByBarn.length,
+      allCount: unfilteredEntries.length + unfilteredInvoices.length,
     };
-  }, [filteredEntries, entries, selectedBarnIds, profileNames, now]);
+  }, [filteredEntries, filteredInvoices, entries, invoices, selectedBarnIds, profileNames, now]);
 
   // Group filtered entries by client
   const groups = useMemo(() => {
@@ -338,7 +414,7 @@ export function ReceivablesClient({
           }}
         >
           <StatCard label="Total Outstanding" value={formatCurrency(stats.totalAR)} color="#c9a84c" />
-          <StatCard label="Unpaid Entries" value={String(stats.entryCount)} color="var(--bp-ink)" />
+          <StatCard label="Unpaid Items" value={String(stats.entryCount)} color="var(--bp-ink)" />
           <StatCard label="Avg Days Outstanding" value={`${stats.avgDays}d`} color="var(--bp-ink)" />
           <StatCard label="Top Client" value={stats.topClientName} subtitle={formatCurrency(stats.topClientAmount)} color="#8b4a2b" />
         </div>
@@ -464,8 +540,84 @@ export function ReceivablesClient({
           </div>
         )}
 
-        {/* ════════ Grouped receivables list ════════ */}
-        {groups.length === 0 ? (
+        {/* ════════ Unpaid Invoices ════════ */}
+        {filteredInvoices.length > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--bp-ink-tertiary)", marginBottom: 8 }}>
+              Unpaid Invoices ({filteredInvoices.length})
+            </div>
+            <div style={{ background: "var(--bp-bg-elevated)", border: "1px solid var(--bp-border)", borderRadius: 8, overflow: "hidden" }}>
+              {filteredInvoices
+                .slice()
+                .sort((a, b) => new Date(a.issue_date).getTime() - new Date(b.issue_date).getTime())
+                .map((inv, i, arr) => {
+                  const remaining = (inv.subtotal ?? 0) - (inv.paid_amount ?? 0);
+                  const days = daysSince(new Date(inv.issue_date), now);
+                  const color = agingColor(days);
+                  const clientName = inv.billable_to_user_id
+                    ? profileNames[inv.billable_to_user_id] ?? inv.billable_to_name ?? "Member"
+                    : inv.billable_to_name ?? "Unassigned";
+                  const statusBg = inv.display_status === "overdue" ? "#fee2e2"
+                    : inv.display_status === "partial" ? "#fef3c7"
+                    : "#dbeafe";
+                  const statusFg = inv.display_status === "overdue" ? "#991b1b"
+                    : inv.display_status === "partial" ? "#92400e"
+                    : "#1e40af";
+                  return (
+                    <a
+                      key={inv.id}
+                      href={`/business-pro/invoicing/${inv.id}`}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "12px 16px",
+                        borderBottom: i < arr.length - 1 ? "1px solid var(--bp-border)" : "none",
+                        textDecoration: "none",
+                        color: "inherit",
+                        fontSize: 13,
+                      }}
+                    >
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                      <span className="bp-mono" style={{ fontWeight: 600, minWidth: 120 }}>
+                        {inv.invoice_number}
+                      </span>
+                      <span style={{ flex: 1, fontWeight: 500 }}>{clientName}</span>
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 500,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                          padding: "2px 8px",
+                          borderRadius: 4,
+                          background: statusBg,
+                          color: statusFg,
+                        }}
+                      >
+                        {inv.display_status === "overdue" ? "Overdue" : inv.display_status === "partial" ? "Partial" : "Sent"}
+                      </span>
+                      <span style={{ fontSize: 11, color: "var(--bp-ink-tertiary)", minWidth: 100, textAlign: "right" }}>
+                        {inv.due_date ? `Due ${new Date(inv.due_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : `${days}d old`}
+                      </span>
+                      <span className="bp-mono" style={{ fontSize: 15, fontWeight: 600, color: "#c9a84c", minWidth: 100, textAlign: "right" }}>
+                        {formatCurrency(remaining)}
+                      </span>
+                      <span style={{ color: "var(--bp-ink-tertiary)", fontSize: 14 }}>→</span>
+                    </a>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+
+        {/* ════════ Uninvoiced Charges (loose entries not yet on an invoice) ════════ */}
+        {groups.length > 0 && (
+          <div style={{ fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--bp-ink-tertiary)", marginBottom: 8 }}>
+            Uninvoiced Charges ({groups.length} {groups.length === 1 ? "client" : "clients"})
+          </div>
+        )}
+        {groups.length === 0 && filteredInvoices.length === 0 ? (
           <div
             style={{
               background: "var(--bp-bg-elevated)",
@@ -477,11 +629,11 @@ export function ReceivablesClient({
               fontSize: 14,
             }}
           >
-            {entries.length === 0
+            {entries.length === 0 && invoices.length === 0
               ? "No outstanding balances. You're all caught up!"
               : "No receivables match the current filters."}
           </div>
-        ) : (
+        ) : groups.length === 0 ? null : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {/* Header row with select all */}
             <div

@@ -41,6 +41,7 @@ export default async function BusinessProOverviewPage() {
         allEntries={[]}
         profileNames={{}}
         horseNames={{}}
+        unpaidInvoices={[]}
       />
     );
   }
@@ -73,6 +74,7 @@ export default async function BusinessProOverviewPage() {
         allEntries={[]}
         profileNames={{}}
         horseNames={horseNames}
+        unpaidInvoices={[]}
       />
     );
   }
@@ -103,20 +105,47 @@ export default async function BusinessProOverviewPage() {
   ]);
 
   // Also fetch ALL unpaid entries regardless of date (for accurate AR total)
+  // IMPORTANT: filter out entries that are bundled onto an invoice — those
+  // are tracked at the invoice level (see invoices query below) so we don't
+  // double-count.
   const [{ data: actUnpaid }, { data: healthUnpaid }] = await Promise.all([
     supabase
       .from("activity_log")
-      .select("id, horse_id, activity_type, notes, performed_at, created_at, total_cost, cost_type, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at")
+      .select("id, horse_id, activity_type, notes, performed_at, created_at, total_cost, cost_type, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at, invoice_id")
       .in("horse_id", horseIds)
       .in("payment_status", ["unpaid", "partial"])
+      .is("invoice_id", null)
       .limit(5000),
     supabase
       .from("health_records")
-      .select("id, horse_id, record_type, notes, performed_at, created_at, total_cost, cost_type, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at")
+      .select("id, horse_id, record_type, notes, performed_at, created_at, total_cost, cost_type, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at, invoice_id")
       .in("horse_id", horseIds)
       .in("payment_status", ["unpaid", "partial"])
+      .is("invoice_id", null)
       .limit(5000),
   ]);
+
+  // Fetch unpaid invoices (sent/partial/overdue) — these are the authoritative
+  // receivables for anything that's been invoiced.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: unpaidInvoicesRaw } = await (supabase as any)
+    .from("invoices")
+    .select("id, barn_id, invoice_number, billable_to_user_id, billable_to_name, issue_date, due_date, status, subtotal, paid_amount, created_at")
+    .in("barn_id", barnIds)
+    .in("status", ["sent", "partial"])
+    .order("issue_date", { ascending: true })
+    .limit(2000);
+
+  // Compute display_status (overdue) for invoices past due date
+  const today = new Date().toISOString().slice(0, 10);
+  const unpaidInvoices = ((unpaidInvoicesRaw ?? []) as Record<string, unknown>[]).map((inv) => {
+    const i = inv as unknown as { status: string; due_date: string | null };
+    const displayStatus =
+      (i.status === "sent" || i.status === "partial") && i.due_date && i.due_date < today
+        ? "overdue"
+        : i.status;
+    return { ...inv, display_status: displayStatus };
+  });
 
   // Merge, tag with source, dedupe by id
   const allEntriesMap = new Map<string, FinancialRow>();
@@ -134,10 +163,14 @@ export default async function BusinessProOverviewPage() {
   }
   const allEntries = Array.from(allEntriesMap.values());
 
-  // ── 4. Look up billable-to profile names ──
+  // ── 4. Look up billable-to profile names (entries + invoices) ──
   const billableUserIds = new Set<string>();
   for (const e of allEntries) {
     if (e.billable_to_user_id) billableUserIds.add(e.billable_to_user_id);
+  }
+  for (const inv of unpaidInvoices) {
+    const i = inv as unknown as { billable_to_user_id: string | null };
+    if (i.billable_to_user_id) billableUserIds.add(i.billable_to_user_id);
   }
   const profileNames: Record<string, string> = {};
   if (billableUserIds.size > 0) {
@@ -157,6 +190,8 @@ export default async function BusinessProOverviewPage() {
       allEntries={allEntries.map((e) => ({ ...e, barn_id: horseToBarn[e.horse_id] ?? null }))}
       profileNames={profileNames}
       horseNames={horseNames}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      unpaidInvoices={unpaidInvoices as any[]}
     />
   );
 }
