@@ -1,0 +1,493 @@
+"use client";
+
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { BusinessProChrome } from "@/components/business-pro/BusinessProChrome";
+import { formatCurrency } from "@/lib/currency";
+import { createInvoiceAction } from "@/app/(protected)/actions/invoices";
+
+interface Entry {
+  id: string;
+  source: "activity" | "health";
+  horse_id: string;
+  barn_id: string | null;
+  performed_at: string | null;
+  created_at: string;
+  activity_type?: string;
+  record_type?: string;
+  notes: string | null;
+  total_cost: number | null;
+  billable_to_user_id: string | null;
+  billable_to_name: string | null;
+}
+
+const breadcrumb = [
+  { label: "Business Pro", href: "/business-pro" },
+  { label: "Invoicing", href: "/business-pro/invoicing" },
+  { label: "New Invoice" },
+];
+
+function entryDate(e: Entry): Date {
+  return new Date(e.performed_at || e.created_at);
+}
+
+function entryType(e: Entry): string {
+  return e.activity_type || e.record_type || "other";
+}
+
+function clientKey(e: Entry): string {
+  if (e.billable_to_user_id) return `u:${e.billable_to_user_id}`;
+  if (e.billable_to_name) return `n:${e.billable_to_name.trim().toLowerCase()}`;
+  return "unassigned";
+}
+
+export function NewInvoiceClient({
+  barns,
+  entries,
+  horseNames,
+  barnNames,
+  profileNames,
+}: {
+  barns: { id: string; name: string }[];
+  entries: Entry[];
+  horseNames: Record<string, string>;
+  barnNames: Record<string, string>;
+  profileNames: Record<string, string>;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  // Step 1: Pick barn
+  const [barnId, setBarnId] = useState(barns[0]?.id ?? "");
+
+  // Step 2: Pick client — either select from existing clients in entries,
+  // barn members, or type a name manually
+  type ClientChoice = { kind: "user"; id: string; display: string } | { kind: "name"; name: string };
+  const [client, setClient] = useState<ClientChoice | null>(null);
+  const [manualName, setManualName] = useState("");
+
+  // Pre-computed clients from existing entries (in selected barn only)
+  const availableClients = useMemo(() => {
+    const seen = new Map<string, ClientChoice>();
+    for (const e of entries) {
+      if (e.barn_id !== barnId) continue;
+      if (e.billable_to_user_id) {
+        const key = `u:${e.billable_to_user_id}`;
+        if (!seen.has(key)) {
+          seen.set(key, {
+            kind: "user",
+            id: e.billable_to_user_id,
+            display: profileNames[e.billable_to_user_id] ?? e.billable_to_name ?? "Member",
+          });
+        }
+      } else if (e.billable_to_name) {
+        const key = `n:${e.billable_to_name.trim().toLowerCase()}`;
+        if (!seen.has(key)) {
+          seen.set(key, { kind: "name", name: e.billable_to_name });
+        }
+      }
+    }
+    return Array.from(seen.values()).sort((a, b) => {
+      const aName = a.kind === "user" ? a.display : a.name;
+      const bName = b.kind === "user" ? b.display : b.name;
+      return aName.localeCompare(bName);
+    });
+  }, [entries, barnId, profileNames]);
+
+  // Step 3: Pick entries — filtered by client + barn
+  const [includedIds, setIncludedIds] = useState<Set<string>>(new Set());
+
+  const matchingEntries = useMemo(() => {
+    if (!client) return [];
+    return entries.filter((e) => {
+      if (e.barn_id !== barnId) return false;
+      if (client.kind === "user") return e.billable_to_user_id === client.id;
+      return (e.billable_to_name ?? "").trim().toLowerCase() === client.name.trim().toLowerCase();
+    }).sort((a, b) => entryDate(a).getTime() - entryDate(b).getTime());
+  }, [entries, barnId, client]);
+
+  // Also show unassigned entries so user can bundle them in if they're really
+  // for this client (common case: log entry was missing billable_to but the
+  // service was actually for this client)
+  const unassignedEntries = useMemo(() => {
+    if (!client) return [];
+    return entries.filter((e) => {
+      if (e.barn_id !== barnId) return false;
+      return !e.billable_to_user_id && !e.billable_to_name;
+    }).sort((a, b) => entryDate(a).getTime() - entryDate(b).getTime());
+  }, [entries, barnId, client]);
+
+  // When client changes, pre-select all matching entries
+  // (keep unassigned opt-in)
+  const onPickClient = (c: ClientChoice | null) => {
+    setClient(c);
+    if (c) {
+      const ids = new Set<string>();
+      for (const e of entries) {
+        if (e.barn_id !== barnId) continue;
+        if (c.kind === "user" && e.billable_to_user_id === c.id) ids.add(`${e.source}:${e.id}`);
+        if (c.kind === "name" && (e.billable_to_name ?? "").trim().toLowerCase() === c.name.trim().toLowerCase()) {
+          ids.add(`${e.source}:${e.id}`);
+        }
+      }
+      setIncludedIds(ids);
+    } else {
+      setIncludedIds(new Set());
+    }
+  };
+
+  const toggle = (compoundId: string) => {
+    setIncludedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(compoundId)) next.delete(compoundId);
+      else next.add(compoundId);
+      return next;
+    });
+  };
+
+  // Step 4: Due date + notes
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const default30 = new Date();
+  default30.setDate(default30.getDate() + 30);
+  const [dueDate, setDueDate] = useState(default30.toISOString().slice(0, 10));
+  const [notes, setNotes] = useState("");
+
+  // Totals
+  const selectedEntries = useMemo(() => {
+    return [...matchingEntries, ...unassignedEntries].filter((e) => includedIds.has(`${e.source}:${e.id}`));
+  }, [matchingEntries, unassignedEntries, includedIds]);
+
+  const total = useMemo(
+    () => selectedEntries.reduce((s, e) => s + (e.total_cost ?? 0), 0),
+    [selectedEntries],
+  );
+
+  const canSubmit = client && barnId && includedIds.size > 0 && !pending;
+
+  const handleCreate = () => {
+    if (!canSubmit || !client) return;
+    const entriesArr = [...includedIds].map((id) => {
+      const [source, eid] = id.split(":");
+      return { id: eid, source: source as "activity" | "health" };
+    });
+    startTransition(async () => {
+      const res = await createInvoiceAction({
+        barnId,
+        billable_to_user_id: client.kind === "user" ? client.id : null,
+        billable_to_name: client.kind === "name" ? client.name : null,
+        due_date: dueDate || null,
+        notes: notes.trim() || null,
+        entryIds: entriesArr,
+      });
+      if (res.error) {
+        alert(`Failed: ${res.error}`);
+        return;
+      }
+      if (res.invoiceId) {
+        router.push(`/business-pro/invoicing/${res.invoiceId}`);
+      }
+    });
+  };
+
+  // Render
+  return (
+    <BusinessProChrome breadcrumb={breadcrumb}>
+      <div className="bp-page-header">
+        <h1 className="bp-display" style={{ fontSize: 32 }}>New Invoice</h1>
+        <p style={{ color: "var(--bp-ink-secondary)", fontSize: 13, marginTop: 6 }}>
+          Bundle unpaid entries into an invoice. Click to add, click to remove.
+        </p>
+      </div>
+
+      <div style={{ padding: "0 32px 48px", maxWidth: 1000 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20, alignItems: "start" }}>
+          {/* Left: picker */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Barn */}
+            {barns.length > 1 && (
+              <fieldset className="bp-fieldset">
+                <legend className="bp-fieldset-legend">Barn</legend>
+                <select
+                  value={barnId}
+                  onChange={(e) => { setBarnId(e.target.value); onPickClient(null); }}
+                  className="bp-select"
+                >
+                  {barns.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </fieldset>
+            )}
+
+            {/* Client */}
+            <fieldset className="bp-fieldset">
+              <legend className="bp-fieldset-legend">Client</legend>
+              {availableClients.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                  {availableClients.map((c) => {
+                    const label = c.kind === "user" ? c.display : c.name;
+                    const isActive =
+                      (c.kind === "user" && client?.kind === "user" && client.id === c.id) ||
+                      (c.kind === "name" && client?.kind === "name" && client.name.trim().toLowerCase() === c.name.trim().toLowerCase());
+                    return (
+                      <button
+                        key={c.kind === "user" ? `u:${c.id}` : `n:${c.name}`}
+                        type="button"
+                        onClick={() => onPickClient(c)}
+                        className={`bp-chip ${isActive ? "bp-active" : ""}`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="Or type a client name..."
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  className="bp-input"
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (manualName.trim()) {
+                      onPickClient({ kind: "name", name: manualName.trim() });
+                      setManualName("");
+                    }
+                  }}
+                  className="bp-btn"
+                  disabled={!manualName.trim()}
+                >
+                  Use
+                </button>
+              </div>
+            </fieldset>
+
+            {/* Entries */}
+            {client && (
+              <fieldset className="bp-fieldset">
+                <legend className="bp-fieldset-legend">
+                  Entries ({includedIds.size} of {matchingEntries.length + unassignedEntries.length})
+                </legend>
+
+                {matchingEntries.length === 0 && unassignedEntries.length === 0 ? (
+                  <p style={{ fontSize: 13, color: "var(--bp-ink-tertiary)", padding: "12px 0" }}>
+                    No unpaid entries found for this client in this barn.
+                  </p>
+                ) : (
+                  <>
+                    {matchingEntries.length > 0 && (
+                      <>
+                        <div style={{ fontSize: 11, fontWeight: 500, color: "var(--bp-ink-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6, marginTop: 4 }}>
+                          Billed to this client
+                        </div>
+                        <EntryPicker
+                          entries={matchingEntries}
+                          includedIds={includedIds}
+                          toggle={toggle}
+                          horseNames={horseNames}
+                        />
+                      </>
+                    )}
+
+                    {unassignedEntries.length > 0 && (
+                      <>
+                        <div style={{ fontSize: 11, fontWeight: 500, color: "var(--bp-ink-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6, marginTop: 12 }}>
+                          Unassigned (click to include)
+                        </div>
+                        <EntryPicker
+                          entries={unassignedEntries}
+                          includedIds={includedIds}
+                          toggle={toggle}
+                          horseNames={horseNames}
+                        />
+                      </>
+                    )}
+                  </>
+                )}
+              </fieldset>
+            )}
+
+            {/* Details */}
+            {client && (
+              <fieldset className="bp-fieldset">
+                <legend className="bp-fieldset-legend">Details</legend>
+                <div className="bp-field-row">
+                  <div>
+                    <label className="bp-label">Due Date</label>
+                    <input
+                      type="date"
+                      value={dueDate}
+                      min={todayIso}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      className="bp-input"
+                    />
+                  </div>
+                </div>
+                <div style={{ marginTop: 12 }}>
+                  <label className="bp-label">Notes (shown on invoice)</label>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={3}
+                    className="bp-input"
+                    placeholder="e.g., Thank you for your business!"
+                    style={{ resize: "vertical" }}
+                  />
+                </div>
+              </fieldset>
+            )}
+          </div>
+
+          {/* Right: summary sidebar (sticky) */}
+          <aside
+            style={{
+              position: "sticky",
+              top: 80,
+              background: "var(--bp-bg-elevated)",
+              border: "1px solid var(--bp-border)",
+              borderRadius: 8,
+              padding: 16,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--bp-ink-tertiary)" }}>
+              Invoice Summary
+            </div>
+            {client ? (
+              <div>
+                <div style={{ fontSize: 12, color: "var(--bp-ink-tertiary)" }}>Client</div>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>
+                  {client.kind === "user" ? client.display : client.name}
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: "var(--bp-ink-tertiary)" }}>
+                Pick a client to begin.
+              </div>
+            )}
+            {barnId && barns.length > 1 && (
+              <div>
+                <div style={{ fontSize: 12, color: "var(--bp-ink-tertiary)" }}>Barn</div>
+                <div style={{ fontSize: 14 }}>{barnNames[barnId]}</div>
+              </div>
+            )}
+            <div>
+              <div style={{ fontSize: 12, color: "var(--bp-ink-tertiary)" }}>Entries</div>
+              <div style={{ fontSize: 14 }}>{includedIds.size}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--bp-ink-tertiary)" }}>Total</div>
+              <div className="bp-mono" style={{ fontSize: 22, fontWeight: 600, color: "var(--bp-ink)" }}>
+                {formatCurrency(total)}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={!canSubmit}
+              className="bp-btn bp-primary"
+              style={{ marginTop: 8 }}
+            >
+              {pending ? "Creating..." : "Create Draft Invoice"}
+            </button>
+            <Link href="/business-pro/invoicing" className="bp-btn" style={{ textAlign: "center" }}>
+              Cancel
+            </Link>
+          </aside>
+        </div>
+
+        {/* Empty state */}
+        {entries.length === 0 && (
+          <div
+            style={{
+              marginTop: 24,
+              background: "var(--bp-bg-elevated)",
+              border: "1px solid var(--bp-border)",
+              borderRadius: 8,
+              padding: 24,
+              textAlign: "center",
+              color: "var(--bp-ink-tertiary)",
+              fontSize: 13,
+            }}
+          >
+            No unpaid revenue or pass-through entries available.{" "}
+            <Link href="/business-pro/overview" style={{ color: "var(--bp-accent)" }}>
+              Back to overview
+            </Link>
+          </div>
+        )}
+      </div>
+    </BusinessProChrome>
+  );
+}
+
+function EntryPicker({
+  entries,
+  includedIds,
+  toggle,
+  horseNames,
+}: {
+  entries: Entry[];
+  includedIds: Set<string>;
+  toggle: (id: string) => void;
+  horseNames: Record<string, string>;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {entries.map((e) => {
+        const compoundId = `${e.source}:${e.id}`;
+        const isIncluded = includedIds.has(compoundId);
+        const d = entryDate(e);
+        return (
+          <button
+            key={compoundId}
+            type="button"
+            onClick={() => toggle(compoundId)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "10px 12px",
+              borderRadius: 6,
+              border: `1px solid ${isIncluded ? "var(--bp-accent)" : "var(--bp-border)"}`,
+              background: isIncluded ? "rgba(201, 168, 76, 0.08)" : "var(--bp-bg-elevated)",
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={isIncluded}
+              onChange={() => { /* button handler */ }}
+              style={{ cursor: "pointer", flexShrink: 0, pointerEvents: "none" }}
+            />
+            <span className="bp-mono" style={{ fontSize: 11, color: "var(--bp-ink-tertiary)", minWidth: 60 }}>
+              {d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" })}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 500, minWidth: 110 }}>
+              {horseNames[e.horse_id] ?? "Unknown"}
+            </span>
+            <span style={{ fontSize: 11, color: "var(--bp-ink-tertiary)", textTransform: "capitalize", minWidth: 90 }}>
+              {entryType(e).replace(/_/g, " ")}
+            </span>
+            <span style={{ flex: 1, fontSize: 11, color: "var(--bp-ink-tertiary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+              {e.notes ?? ""}
+            </span>
+            <span className="bp-mono" style={{ fontSize: 13, fontWeight: 500, color: "var(--bp-ink)" }}>
+              {formatCurrency(e.total_cost ?? 0)}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}

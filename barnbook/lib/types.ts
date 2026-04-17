@@ -51,8 +51,44 @@ export interface Barn {
   plan_updated_by_user_id: string | null;
   plan_updated_at: string | null;
   grace_period_ends_at: string | null;
+  // ── Business Pro: invoice branding defaults ──
+  // (logo_url is already on the Barn interface above — reused for invoices)
+  company_name: string | null;
+  company_address: string | null;
+  company_phone: string | null;
+  company_email: string | null;
+  invoice_notes_default: string | null;
+  invoice_terms_default: string | null;
+  next_invoice_seq: number;
   created_at: string;
   updated_at: string;
+}
+
+/** public.invoices — Business Pro invoice records */
+export interface Invoice {
+  id: string;
+  barn_id: string;
+  invoice_number: string;
+  billable_to_user_id: string | null;
+  billable_to_name: string | null;
+  issue_date: string;
+  due_date: string | null;
+  status: "draft" | "sent" | "paid" | "overdue" | "void" | "partial";
+  subtotal: number;
+  paid_amount: number;
+  paid_at: string | null;
+  notes: string | null;
+  terms: string | null;
+  // Snapshot of branding at send time
+  logo_url: string | null;
+  company_name: string | null;
+  company_address: string | null;
+  company_phone: string | null;
+  company_email: string | null;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string | null;
+  sent_at: string | null;
 }
 
 /** public.barn_photos */
@@ -423,6 +459,7 @@ export interface ActivityLog {
   payment_status: "unpaid" | "paid" | "partial" | "waived" | null;
   paid_at: string | null;
   paid_amount: number | null;
+  invoice_id: string | null;
   created_at: string;
 }
 
@@ -453,6 +490,7 @@ export interface HealthRecord {
   payment_status: "unpaid" | "paid" | "partial" | "waived" | null;
   paid_at: string | null;
   paid_amount: number | null;
+  invoice_id: string | null;
   created_at: string;
 }
 
