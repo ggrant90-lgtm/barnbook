@@ -114,3 +114,52 @@ export const PAYMENT_METHOD_NEEDS_REF: Record<PaymentMethod, boolean> = {
   venmo: false,
   other: false,
 };
+
+/**
+ * Client-document types for the CRM vault. Predefined + an "other" escape
+ * hatch that pairs with a freeform `custom_label` column.
+ */
+export const CLIENT_DOCUMENT_TYPES = [
+  "boarding_agreement",
+  "training_contract",
+  "waiver",
+  "proposal",
+  "w9",
+  "other",
+] as const;
+export type ClientDocumentType = (typeof CLIENT_DOCUMENT_TYPES)[number];
+
+export const CLIENT_DOCUMENT_TYPE_LABELS: Record<ClientDocumentType, string> = {
+  boarding_agreement: "Boarding Agreement",
+  training_contract: "Training Contract",
+  waiver: "Waiver / Release",
+  proposal: "Proposal",
+  w9: "W-9",
+  other: "Other",
+};
+
+/** MIME types accepted by the client-documents uploader. */
+export const ALLOWED_CLIENT_DOC_MIME = [
+  "application/pdf",
+  "application/msword", // .doc
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+] as const;
+
+export const MAX_CLIENT_DOC_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
+
+/**
+ * Unified client-key helper — groups billable entries + invoices by their
+ * client across the new client_id FK and the legacy billable_to_* columns.
+ * Prefers client_id when set, falls back to user_id, then freeform name,
+ * then "unassigned".
+ */
+export function getClientKey(e: {
+  client_id?: string | null;
+  billable_to_user_id?: string | null;
+  billable_to_name?: string | null;
+}): string {
+  if (e.client_id) return `c:${e.client_id}`;
+  if (e.billable_to_user_id) return `u:${e.billable_to_user_id}`;
+  if (e.billable_to_name) return `n:${e.billable_to_name.trim().toLowerCase()}`;
+  return "unassigned";
+}
