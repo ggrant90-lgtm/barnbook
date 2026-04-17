@@ -199,24 +199,60 @@ export function NewInvoiceClient({
     });
   };
 
-  // Step 4: Due date + notes
+  // Step 4: Due date + notes + custom line items
   const todayIso = new Date().toISOString().slice(0, 10);
   const default30 = new Date();
   default30.setDate(default30.getDate() + 30);
   const [dueDate, setDueDate] = useState(default30.toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
 
+  // Draft custom line items — stored locally until invoice is created, then
+  // inserted all at once via the create action.
+  type DraftLineItem = {
+    key: string;
+    description: string;
+    quantity: number;
+    unit_price: number;
+    horse_id: string | null;
+  };
+  const [draftLineItems, setDraftLineItems] = useState<DraftLineItem[]>([]);
+  const [showAddLineItem, setShowAddLineItem] = useState(false);
+
+  // Horses available for line item assignment — all horses in the selected barn
+  const barnHorsesForLineItems = useMemo(() => {
+    return Object.entries(horseNames)
+      .map(([id, name]) => {
+        const horseEntry = entries.find((e) => e.horse_id === id);
+        return { id, name, barn_id: horseEntry?.barn_id ?? null };
+      })
+      .filter((h) => h.barn_id === barnId || !h.barn_id)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [horseNames, entries, barnId]);
+
+  const addDraftLineItem = (li: Omit<DraftLineItem, "key">) => {
+    setDraftLineItems((prev) => [...prev, { ...li, key: `li-${Date.now()}-${Math.random()}` }]);
+  };
+  const removeDraftLineItem = (key: string) => {
+    setDraftLineItems((prev) => prev.filter((li) => li.key !== key));
+  };
+
   // Totals
   const selectedEntries = useMemo(() => {
     return [...matchingEntries, ...unassignedEntries].filter((e) => includedIds.has(`${e.source}:${e.id}`));
   }, [matchingEntries, unassignedEntries, includedIds]);
 
-  const total = useMemo(
+  const entriesTotal = useMemo(
     () => selectedEntries.reduce((s, e) => s + (e.total_cost ?? 0), 0),
     [selectedEntries],
   );
+  const lineItemsTotal = useMemo(
+    () => draftLineItems.reduce((s, li) => s + li.quantity * li.unit_price, 0),
+    [draftLineItems],
+  );
+  const total = entriesTotal + lineItemsTotal;
 
-  const canSubmit = client && barnId && includedIds.size > 0 && !pending;
+  // Allow creating with either entries OR line items (or both)
+  const canSubmit = client && barnId && (includedIds.size > 0 || draftLineItems.length > 0) && !pending;
 
   const handleCreate = () => {
     if (!canSubmit || !client) return;
@@ -235,6 +271,12 @@ export function NewInvoiceClient({
         due_date: dueDate || null,
         notes: notes.trim() || null,
         entryIds: entriesArr,
+        lineItems: draftLineItems.map((li) => ({
+          description: li.description,
+          quantity: li.quantity,
+          unit_price: li.unit_price,
+          horse_id: li.horse_id,
+        })),
       });
       if (res.error) {
         alert(`Failed: ${res.error}`);
@@ -479,6 +521,92 @@ export function NewInvoiceClient({
               </fieldset>
             )}
 
+            {/* Custom Line Items — board, training, hauling, tax, adjustments */}
+            {client && (
+              <fieldset className="bp-fieldset">
+                <legend className="bp-fieldset-legend">
+                  Custom Line Items{draftLineItems.length > 0 ? ` (${draftLineItems.length})` : ""}
+                </legend>
+                <p style={{ fontSize: 11, color: "var(--bp-ink-tertiary)", marginBottom: 10 }}>
+                  Add charges that aren&apos;t from log entries — boarding, training, hauling, etc.
+                </p>
+
+                {draftLineItems.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+                    {draftLineItems.map((li) => {
+                      const amt = li.quantity * li.unit_price;
+                      const showQty = li.quantity !== 1;
+                      return (
+                        <div
+                          key={li.key}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            padding: "8px 12px",
+                            borderRadius: 6,
+                            border: "1px solid var(--bp-border)",
+                            background: "var(--bp-bg-elevated)",
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 500 }}>{li.description}</div>
+                            {showQty && (
+                              <div style={{ fontSize: 11, color: "var(--bp-ink-tertiary)", marginTop: 2 }}>
+                                {li.quantity} × ${li.unit_price.toFixed(2)}
+                              </div>
+                            )}
+                            {li.horse_id && horseNames[li.horse_id] && (
+                              <div style={{ fontSize: 11, color: "var(--bp-ink-tertiary)", marginTop: 2 }}>
+                                For: {horseNames[li.horse_id]}
+                              </div>
+                            )}
+                          </div>
+                          <span className="bp-mono" style={{ fontSize: 13, fontWeight: 500 }}>
+                            ${amt.toFixed(2)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeDraftLineItem(li.key)}
+                            style={{
+                              fontSize: 10,
+                              padding: "2px 6px",
+                              background: "transparent",
+                              border: "none",
+                              color: "#b91c1c",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {showAddLineItem ? (
+                  <DraftLineItemForm
+                    barnHorses={barnHorsesForLineItems}
+                    onCancel={() => setShowAddLineItem(false)}
+                    onAdd={(input) => {
+                      addDraftLineItem(input);
+                      setShowAddLineItem(false);
+                    }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddLineItem(true)}
+                    className="bp-btn"
+                    style={{ fontSize: 12 }}
+                  >
+                    + Add Line Item
+                  </button>
+                )}
+              </fieldset>
+            )}
+
             {/* Details */}
             {client && (
               <fieldset className="bp-fieldset">
@@ -554,7 +682,14 @@ export function NewInvoiceClient({
             )}
             <div>
               <div style={{ fontSize: 12, color: "var(--bp-ink-tertiary)" }}>Entries</div>
-              <div style={{ fontSize: 14 }}>{includedIds.size}</div>
+              <div style={{ fontSize: 14 }}>
+                {includedIds.size}
+                {draftLineItems.length > 0 && (
+                  <span style={{ color: "var(--bp-ink-tertiary)", fontSize: 12 }}>
+                    {" + "}{draftLineItems.length} line item{draftLineItems.length !== 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
             </div>
             <div>
               <div style={{ fontSize: 12, color: "var(--bp-ink-tertiary)" }}>Total</div>
@@ -570,7 +705,11 @@ export function NewInvoiceClient({
               className="bp-btn bp-primary"
               style={{ marginTop: 8 }}
             >
-              {pending ? "Creating..." : "Create Draft Invoice"}
+              {pending
+                ? "Creating..."
+                : includedIds.size === 0 && draftLineItems.length > 0
+                  ? "Create Invoice from Line Items"
+                  : "Create Draft Invoice"}
             </button>
             <Link href="/business-pro/invoicing" className="bp-btn" style={{ textAlign: "center" }}>
               Cancel
@@ -578,28 +717,174 @@ export function NewInvoiceClient({
           </aside>
         </div>
 
-        {/* Empty state */}
-        {entries.length === 0 && (
+        {/* Helper: no log entries hint (still let the user create with line items) */}
+        {entries.length === 0 && !client && (
           <div
             style={{
               marginTop: 24,
               background: "var(--bp-bg-elevated)",
               border: "1px solid var(--bp-border)",
               borderRadius: 8,
-              padding: 24,
-              textAlign: "center",
+              padding: 16,
               color: "var(--bp-ink-tertiary)",
-              fontSize: 13,
+              fontSize: 12,
             }}
           >
-            No unpaid revenue or pass-through entries available.{" "}
-            <Link href="/business-pro/overview" style={{ color: "var(--bp-accent)" }}>
-              Back to overview
-            </Link>
+            No unpaid log entries available — no worries. Pick a client above and add custom line items (board, training, hauling, etc.) to build an invoice from scratch.
           </div>
         )}
       </div>
     </BusinessProChrome>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Inline form for adding a draft line item on the Create Invoice page
+// ──────────────────────────────────────────────────────────────────────────
+
+function DraftLineItemForm({
+  barnHorses,
+  onAdd,
+  onCancel,
+}: {
+  barnHorses: { id: string; name: string }[];
+  onAdd: (input: { description: string; quantity: number; unit_price: number; horse_id: string | null }) => void;
+  onCancel: () => void;
+}) {
+  const [description, setDescription] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [unitPrice, setUnitPrice] = useState("");
+  const [horseId, setHorseId] = useState("");
+
+  const presets = [
+    { label: "Monthly Board", desc: "Monthly Board" },
+    { label: "Training", desc: "Training Package" },
+    { label: "Lesson", desc: "Lesson" },
+    { label: "Hauling", desc: "Hauling Fee" },
+    { label: "Tax", desc: "Sales Tax" },
+  ];
+
+  const preview = (parseFloat(quantity) || 0) * (parseFloat(unitPrice) || 0);
+  const canSubmit =
+    description.trim() &&
+    Number.isFinite(parseFloat(quantity)) &&
+    Number.isFinite(parseFloat(unitPrice));
+
+  return (
+    <div
+      style={{
+        background: "var(--bp-bg)",
+        border: "1px solid var(--bp-border)",
+        borderRadius: 8,
+        padding: 14,
+        marginTop: 4,
+      }}
+    >
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+        {presets.map((p) => (
+          <button
+            key={p.label}
+            type="button"
+            onClick={() => setDescription(p.desc)}
+            className="bp-chip"
+            style={{ fontSize: 11 }}
+          >
+            + {p.label}
+          </button>
+        ))}
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "2fr 80px 120px 160px",
+          gap: 8,
+          alignItems: "end",
+        }}
+      >
+        <div>
+          <label className="bp-label">Description</label>
+          <input
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="e.g., Monthly Board"
+            className="bp-input"
+            autoFocus
+          />
+        </div>
+        <div>
+          <label className="bp-label">Qty</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            className="bp-input"
+          />
+        </div>
+        <div>
+          <label className="bp-label">Unit Price</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={unitPrice}
+            onChange={(e) => setUnitPrice(e.target.value)}
+            placeholder="0.00"
+            className="bp-input"
+          />
+        </div>
+        <div>
+          <label className="bp-label">Horse (optional)</label>
+          <select
+            value={horseId}
+            onChange={(e) => setHorseId(e.target.value)}
+            className="bp-select"
+          >
+            <option value="">No horse</option>
+            {barnHorses.map((h) => (
+              <option key={h.id} value={h.id}>{h.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginTop: 12,
+        }}
+      >
+        <span className="bp-mono" style={{ fontSize: 13, fontWeight: 500 }}>
+          {preview > 0 ? `$${preview.toFixed(2)}` : " "}
+        </span>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button type="button" onClick={onCancel} className="bp-btn" style={{ fontSize: 12 }}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!canSubmit}
+            onClick={() => {
+              onAdd({
+                description: description.trim(),
+                quantity: parseFloat(quantity),
+                unit_price: parseFloat(unitPrice),
+                horse_id: horseId || null,
+              });
+            }}
+            className="bp-btn bp-primary"
+            style={{ fontSize: 12 }}
+          >
+            Add Line Item
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

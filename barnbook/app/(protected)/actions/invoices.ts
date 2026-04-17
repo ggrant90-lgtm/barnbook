@@ -86,6 +86,12 @@ export async function createInvoiceAction(input: {
   notes?: string | null;
   terms?: string | null;
   entryIds: { id: string; source: Source }[];
+  lineItems?: {
+    description: string;
+    quantity: number;
+    unit_price: number;
+    horse_id: string | null;
+  }[];
 }): Promise<{ ok?: true; invoiceId?: string; error?: string }> {
   const auth = await requireBusinessProOwner(input.barnId);
   if ("error" in auth) return { error: auth.error };
@@ -135,6 +141,24 @@ export async function createInvoiceAction(input: {
   }
   if (healthIds.length > 0) {
     await db.from("health_records").update({ invoice_id: invoiceId }).in("id", healthIds);
+  }
+
+  // Insert initial custom line items (if provided)
+  if (input.lineItems && input.lineItems.length > 0) {
+    const rows = input.lineItems
+      .filter((li) => li.description.trim() && Number.isFinite(li.quantity) && Number.isFinite(li.unit_price))
+      .map((li, i) => ({
+        invoice_id: invoiceId,
+        description: li.description.trim(),
+        quantity: li.quantity,
+        unit_price: li.unit_price,
+        amount: li.quantity * li.unit_price,
+        horse_id: li.horse_id ?? null,
+        sort_order: i,
+      }));
+    if (rows.length > 0) {
+      await db.from("invoice_line_items").insert(rows);
+    }
   }
 
   await recomputeSubtotal(db, invoiceId);
