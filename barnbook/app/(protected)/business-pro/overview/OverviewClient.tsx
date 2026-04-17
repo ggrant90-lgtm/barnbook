@@ -203,19 +203,16 @@ export function OverviewClient({
     const netThis = revThis - expThis;
     const netLast = revLast - expLast;
 
-    // Outstanding = loose entries outstanding + invoice outstanding
+    // Outstanding = loose entries outstanding + invoice outstanding.
+    // Exclude invoiced entries — they're counted via their invoice below.
+    const isLooseUnpaid = (e: FinancialEntry) =>
+      !e.invoice_id &&
+      (e.cost_type === "revenue" || e.cost_type === "pass_through") &&
+      (e.payment_status === "unpaid" || e.payment_status === "partial");
     const looseOutstanding = entries
-      .filter(
-        (e) =>
-          (e.cost_type === "revenue" || e.cost_type === "pass_through") &&
-          (e.payment_status === "unpaid" || e.payment_status === "partial"),
-      )
+      .filter(isLooseUnpaid)
       .reduce((s, e) => s + ((e.total_cost ?? 0) - (e.paid_amount ?? 0)), 0);
-    const looseCount = entries.filter(
-      (e) =>
-        (e.cost_type === "revenue" || e.cost_type === "pass_through") &&
-        (e.payment_status === "unpaid" || e.payment_status === "partial"),
-    ).length;
+    const looseCount = entries.filter(isLooseUnpaid).length;
     const invoiceOutstanding = invoices.reduce(
       (s, inv) => s + (inv.subtotal ?? 0) - (inv.paid_amount ?? 0),
       0,
@@ -239,8 +236,11 @@ export function OverviewClient({
 
   // ── Accounts Receivable, grouped by client (invoices + loose entries) ──
   const receivables = useMemo(() => {
+    // Loose = not yet bundled onto an invoice. Invoiced entries are counted
+    // via their invoice in the group below.
     const unpaid = entries.filter(
       (e) =>
+        !e.invoice_id &&
         (e.cost_type === "revenue" || e.cost_type === "pass_through") &&
         (e.payment_status === "unpaid" || e.payment_status === "partial"),
     );
@@ -378,13 +378,19 @@ export function OverviewClient({
         .filter((e) => e.cost_type === "expense")
         .reduce((s, e) => s + (e.total_cost ?? 0), 0);
       const net = revenue - expenses;
-      const outstanding = barnEntries
+      // Loose outstanding (not yet invoiced) + invoice outstanding for this barn
+      const looseOutstanding = barnEntries
         .filter(
           (e) =>
+            !e.invoice_id &&
             (e.cost_type === "revenue" || e.cost_type === "pass_through") &&
             (e.payment_status === "unpaid" || e.payment_status === "partial"),
         )
         .reduce((s, e) => s + ((e.total_cost ?? 0) - (e.paid_amount ?? 0)), 0);
+      const barnInvoiceOutstanding = invoices
+        .filter((inv) => inv.barn_id === b.id)
+        .reduce((s, inv) => s + (inv.subtotal ?? 0) - (inv.paid_amount ?? 0), 0);
+      const outstanding = looseOutstanding + barnInvoiceOutstanding;
 
       return {
         id: b.id,
@@ -396,7 +402,7 @@ export function OverviewClient({
         outstanding,
       };
     });
-  }, [barns, entries, firstOfMonth, firstOfNextMonth, horseCountByBarn]);
+  }, [barns, entries, invoices, lineItems, firstOfMonth, firstOfNextMonth, horseCountByBarn]);
 
   const handleMarkPaid = (entryId: string, source: "activity" | "health") => {
     startTransition(async () => {
