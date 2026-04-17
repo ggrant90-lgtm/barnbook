@@ -6,6 +6,8 @@ import { createBrowserClient } from "@supabase/ssr";
 import { uploadLogMedia } from "@/lib/log-media";
 import { PerformedBySelect } from "./PerformedBySelect";
 import { CostInput } from "./CostInput";
+import { FinancialsSection } from "./business-pro/FinancialsSection";
+import type { CostType, PaymentStatus } from "@/lib/business-pro-constants";
 
 interface MediaFile {
   file: File;
@@ -41,6 +43,13 @@ export function LogFormWrapper({
   initialPerformedAt,
   initialTotalCost,
   initialLineItems,
+  hasBusinessPro,
+  initialCostType,
+  initialBillableToUserId,
+  initialBillableToName,
+  initialPaymentStatus,
+  initialPaidAmount,
+  initialPaidAt,
   children,
 }: {
   horseId: string;
@@ -66,6 +75,13 @@ export function LogFormWrapper({
   initialPerformedAt?: string;
   initialTotalCost?: number | null;
   initialLineItems?: { description: string; amount: number }[];
+  hasBusinessPro?: boolean;
+  initialCostType?: CostType | null;
+  initialBillableToUserId?: string | null;
+  initialBillableToName?: string | null;
+  initialPaymentStatus?: PaymentStatus | null;
+  initialPaidAmount?: number | null;
+  initialPaidAt?: string | null;
   children: React.ReactNode;
 }) {
   const isEditing = !!editId && !!updateLogAction;
@@ -220,6 +236,23 @@ export function LogFormWrapper({
           initialTotal={initialTotalCost}
           initialLineItems={initialLineItems}
         />
+
+        {/* Business Pro: Financials section */}
+        {hasBusinessPro && (
+          <FinancialsSection
+            logType={logType}
+            totalCost={initialTotalCost ?? 0}
+            barnMembers={barnMembers}
+            initial={{
+              costType: initialCostType,
+              billableToUserId: initialBillableToUserId,
+              billableToName: initialBillableToName,
+              paymentStatus: initialPaymentStatus,
+              paidAmount: initialPaidAmount,
+              paidAt: initialPaidAt,
+            }}
+          />
+        )}
       </div>
 
       {/* Media upload section */}

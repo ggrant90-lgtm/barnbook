@@ -27,6 +27,45 @@ function extractCrmFields(formData: FormData) {
   return { performed_by_user_id, performed_by_name, performed_at, total_cost };
 }
 
+/**
+ * Business Pro — extract financial fields from FormData.
+ * All fields are nullable. If cost_type is null, all other fields are nulled too.
+ * If cost_type is 'expense', billable/payment fields are nulled (billing only applies to rev/pass-through).
+ */
+function extractFinancialFields(formData: FormData, total_cost: number | null) {
+  const cost_type = String(formData.get("cost_type") ?? "").trim() || null;
+  const isBillable = cost_type === "revenue" || cost_type === "pass_through";
+
+  const billable_to_user_id = isBillable
+    ? String(formData.get("billable_to_user_id") ?? "").trim() || null
+    : null;
+  const billable_to_name = isBillable
+    ? String(formData.get("billable_to_name") ?? "").trim() || null
+    : null;
+  const payment_status = isBillable
+    ? String(formData.get("payment_status") ?? "").trim() || null
+    : null;
+
+  // paid_amount / paid_at only meaningful when paid or partial
+  const needsPayment = payment_status === "paid" || payment_status === "partial";
+  const paidAmountRaw = String(formData.get("paid_amount") ?? "").trim();
+  let paid_amount: number | null = needsPayment && paidAmountRaw ? parseFloat(paidAmountRaw) : null;
+  // Auto-fill: if "paid" and no amount, use total_cost
+  if (payment_status === "paid" && paid_amount == null && total_cost != null) {
+    paid_amount = total_cost;
+  }
+
+  const paidAtRaw = String(formData.get("paid_at") ?? "").trim();
+  let paid_at: string | null = needsPayment && paidAtRaw
+    ? new Date(paidAtRaw).toISOString()
+    : null;
+  if (payment_status === "paid" && !paid_at) {
+    paid_at = new Date().toISOString();
+  }
+
+  return { cost_type, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at };
+}
+
 /** Extract line items from FormData (line_item_desc_0, line_item_amt_0, etc.) */
 function extractLineItems(formData: FormData): { description: string; amount: number }[] {
   const items: { description: string; amount: number }[] = [];
@@ -267,6 +306,7 @@ async function insertActivity(
       performed_by_name: crm.performed_by_name,
       performed_at: crm.performed_at,
       total_cost: crm.total_cost,
+      ...extractFinancialFields(formData, crm.total_cost),
     })
     .select("id")
     .single();
@@ -355,6 +395,7 @@ async function insertHealth(
       performed_by_name: crm.performed_by_name,
       performed_at: crm.performed_at,
       total_cost: crm.total_cost,
+      ...extractFinancialFields(formData, crm.total_cost),
     })
     .select("id")
     .single();

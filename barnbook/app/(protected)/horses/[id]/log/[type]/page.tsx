@@ -85,6 +85,14 @@ export default async function HorseLogPage({
     role: roleByUser.get(id) ?? "member",
   }));
 
+  // Check if current user has Business Pro for financial fields section
+  const { data: currentProfile } = await supabase
+    .from("profiles")
+    .select("has_business_pro")
+    .eq("id", user.id)
+    .maybeSingle();
+  const hasBusinessPro = currentProfile?.has_business_pro === true;
+
   // Fetch saved performers (sorted by most used)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: savedPerformersRaw } = await (supabase as any)
@@ -186,6 +194,13 @@ export default async function HorseLogPage({
         initialPerformedAt={existing?.performed_at ? (existing.performed_at as string).slice(0, 16) : undefined}
         initialTotalCost={existing?.total_cost as number | null ?? null}
         initialLineItems={existingLineItems}
+        hasBusinessPro={hasBusinessPro}
+        initialCostType={(existing?.cost_type as "revenue" | "expense" | "pass_through" | null | undefined) ?? null}
+        initialBillableToUserId={(existing?.billable_to_user_id as string | null | undefined) ?? null}
+        initialBillableToName={(existing?.billable_to_name as string | null | undefined) ?? null}
+        initialPaymentStatus={(existing?.payment_status as "unpaid" | "paid" | "partial" | "waived" | null | undefined) ?? null}
+        initialPaidAmount={(existing?.paid_amount as number | null | undefined) ?? null}
+        initialPaidAt={(existing?.paid_at as string | null | undefined) ?? null}
       >
         {(logType === "exercise" ||
           logType === "feed" ||

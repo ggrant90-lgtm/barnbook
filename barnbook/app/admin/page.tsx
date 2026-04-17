@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase-admin";
 import { PlanBadge } from "@/components/PlanBadge";
 import Link from "next/link";
+import { UsersTable } from "./UsersTable";
 
 export default async function AdminPage() {
   let adminClient;
@@ -69,12 +70,15 @@ export default async function AdminPage() {
     );
   }
 
-  // Get owner emails
+  // Get owner emails + all users for the Users table
   const ownerIds = [...new Set((barns ?? []).map((b) => b.owner_id).filter(Boolean))];
   let ownerEmails: Record<string, string> = {};
-  if (ownerIds.length > 0) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let allAuthUsers: any[] = [];
+  if (ownerIds.length > 0 || true) {
     const { data: users } = await adminClient.auth.admin.listUsers();
-    ownerEmails = (users?.users ?? []).reduce(
+    allAuthUsers = users?.users ?? [];
+    ownerEmails = allAuthUsers.reduce(
       (acc, u) => {
         if (u.email) acc[u.id] = u.email;
         return acc;
@@ -83,15 +87,33 @@ export default async function AdminPage() {
     );
   }
 
+  // Fetch all profiles for the Users table (feature toggles)
+  const { data: allProfiles } = await adminClient
+    .from("profiles")
+    .select("id, full_name, has_breeders_pro, has_business_pro");
+
+  const userRows = (allProfiles ?? []).map((p) => ({
+    id: p.id,
+    email: ownerEmails[p.id] ?? "—",
+    full_name: p.full_name,
+    has_breeders_pro: !!p.has_breeders_pro,
+    has_business_pro: !!p.has_business_pro,
+  }));
+
+  const businessProCount = userRows.filter((u) => u.has_business_pro).length;
+  const breedersProCount = userRows.filter((u) => u.has_breeders_pro).length;
+
   return (
     <div className="space-y-8">
       {/* Metrics */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-7">
         {[
           { label: "Total Barns", value: totalBarns },
           { label: "Total Horses", value: totalHorses },
           { label: "Paid Barns", value: paidBarns },
           { label: "Comped Barns", value: compedBarns },
+          { label: "Breeders Pro", value: breedersProCount },
+          { label: "Business Pro", value: businessProCount },
           {
             label: "Pending Interest",
             value: pendingInterest,
@@ -196,6 +218,9 @@ export default async function AdminPage() {
           </table>
         </div>
       </div>
+
+      {/* Users table with Breeders Pro / Business Pro toggles */}
+      <UsersTable users={userRows} />
     </div>
   );
 }

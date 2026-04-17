@@ -29,10 +29,11 @@ const baseTabItems = [
   { id: "overview", label: "Overview" },
   { id: "logs", label: "Logs" },
   { id: "breeding", label: "Breeding" },
+  { id: "financials", label: "Financials" },
   { id: "access", label: "Access" },
 ] as const;
 
-type TabId = "overview" | "logs" | "breeding" | "access";
+type TabId = "overview" | "logs" | "breeding" | "financials" | "access";
 
 const ALL_LOG_TYPES = [
   { value: "exercise", label: "Exercise" },
@@ -74,6 +75,7 @@ export function HorseProfileClient({
   breedingHorseNames,
   foalOriginData,
   hasBreedersPro,
+  hasBusinessPro,
 }: {
   horse: Horse;
   canEdit: boolean;
@@ -103,6 +105,7 @@ export function HorseProfileClient({
   breedingHorseNames?: Record<string, string>;
   foalOriginData?: FoalOriginData | null;
   hasBreedersPro?: boolean;
+  hasBusinessPro?: boolean;
 }) {
   const router = useRouter();
   const { show } = useToast();
@@ -125,9 +128,12 @@ export function HorseProfileClient({
   const [deletingHorse, setDeletingHorse] = useState(false);
 
   // Only show breeding tab for Breeders Pro subscribers
-  const tabItems = hasBreedersPro
-    ? baseTabItems
-    : baseTabItems.filter((t) => t.id !== "breeding");
+  // Gate tabs by subscription: breeding → BP, financials → BusPro
+  const tabItems = baseTabItems.filter((t) => {
+    if (t.id === "breeding") return !!hasBreedersPro;
+    if (t.id === "financials") return !!hasBusinessPro;
+    return true;
+  });
 
   const tabParam = searchParams.get("tab");
   const tab: TabId = ((): TabId => {
@@ -135,6 +141,7 @@ export function HorseProfileClient({
     // Remap old tabs to "logs"
     if (raw === "activity" || raw === "health") return "logs";
     if (raw === "breeding" && hasBreedersPro) return "breeding";
+    if (raw === "financials" && hasBusinessPro) return "financials";
     if (raw === "overview" || raw === "logs" || raw === "access") return raw as TabId;
     return "overview";
   })();
@@ -1043,6 +1050,113 @@ export function HorseProfileClient({
                 </Link>
               </div>
             )}
+          </div>
+        ) : null}
+
+        {tab === "financials" && hasBusinessPro ? (
+          <div className="space-y-6">
+            {(() => {
+              // Compute per-horse financials from activities + health records
+              const now = new Date();
+              const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+              const firstOfNext = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+              const allFinancial = (activities ?? []).filter((a) => (a as unknown as { cost_type?: string | null }).cost_type);
+
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const isInMonth = (e: any) => {
+                const d = new Date(e.performed_at || e.created_at);
+                return d >= firstOfMonth && d < firstOfNext;
+              };
+
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const sumBy = (arr: any[], types: string[]) =>
+                arr.filter((e) => types.includes(e.cost_type)).reduce((s, e) => s + (e.total_cost ?? 0), 0);
+
+              const thisMonth = allFinancial.filter(isInMonth);
+              const revenue = sumBy(thisMonth, ["revenue", "pass_through"]);
+              const expenses = sumBy(thisMonth, ["expense", "pass_through"]);
+              const net = sumBy(thisMonth, ["revenue"]) - sumBy(thisMonth, ["expense"]);
+
+              const outstanding = allFinancial
+                .filter((e) => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const x = e as any;
+                  return (x.cost_type === "revenue" || x.cost_type === "pass_through") &&
+                    (x.payment_status === "unpaid" || x.payment_status === "partial");
+                })
+                .reduce((s, e) => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const x = e as any;
+                  return s + ((x.total_cost ?? 0) - (x.paid_amount ?? 0));
+                }, 0);
+
+              // Top expense categories (this month, expense + pass_through)
+              const expensesByType: Record<string, number> = {};
+              for (const e of thisMonth) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const x = e as any;
+                if (x.cost_type === "expense" || x.cost_type === "pass_through") {
+                  const t = x.activity_type ?? "other";
+                  expensesByType[t] = (expensesByType[t] ?? 0) + (x.total_cost ?? 0);
+                }
+              }
+              const topExpenses = Object.entries(expensesByType)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+
+              const fmt = (n: number) =>
+                n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+
+              return (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="rounded-xl border border-barn-dark/10 bg-white p-4">
+                      <div className="text-xs uppercase tracking-wide text-barn-dark/50">Revenue (Month)</div>
+                      <div className="mt-1 font-serif text-xl text-[#2a4031]">{fmt(revenue)}</div>
+                    </div>
+                    <div className="rounded-xl border border-barn-dark/10 bg-white p-4">
+                      <div className="text-xs uppercase tracking-wide text-barn-dark/50">Expenses (Month)</div>
+                      <div className="mt-1 font-serif text-xl text-[#8b4a2b]">{fmt(expenses)}</div>
+                    </div>
+                    <div className="rounded-xl border border-barn-dark/10 bg-white p-4">
+                      <div className="text-xs uppercase tracking-wide text-barn-dark/50">Net (Month)</div>
+                      <div className={`mt-1 font-serif text-xl ${net >= 0 ? "text-[#2a4031]" : "text-[#b8421f]"}`}>
+                        {fmt(net)}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-barn-dark/10 bg-white p-4">
+                      <div className="text-xs uppercase tracking-wide text-barn-dark/50">Outstanding</div>
+                      <div className="mt-1 font-serif text-xl text-[#c9a84c]">{fmt(outstanding)}</div>
+                    </div>
+                  </div>
+
+                  {topExpenses.length > 0 && (
+                    <div className="rounded-xl border border-barn-dark/10 bg-white p-5">
+                      <h3 className="font-serif text-base font-semibold text-barn-dark mb-3">
+                        Top Expense Categories This Month
+                      </h3>
+                      <ul className="space-y-2">
+                        {topExpenses.map(([type, amt]) => (
+                          <li key={type} className="flex justify-between text-sm">
+                            <span className="text-barn-dark capitalize">{type.replace(/_/g, " ")}</span>
+                            <span className="font-mono text-[#8b4a2b]">{fmt(amt as number)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="text-center">
+                    <Link
+                      href="/business-pro/overview"
+                      className="inline-flex items-center gap-2 rounded-xl border border-brass-gold bg-brass-gold/10 px-4 py-2.5 text-sm font-medium text-barn-dark hover:bg-brass-gold/20 transition-all"
+                    >
+                      View Full Financial Dashboard in Business Pro →
+                    </Link>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         ) : null}
 

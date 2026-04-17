@@ -18,6 +18,9 @@ export interface Profile {
   avatar_url: string | null;
   is_platform_admin: boolean;
   has_breeders_pro: boolean;
+  has_business_pro: boolean;
+  business_pro_enabled_at: string | null;
+  business_pro_enabled_by: string | null;
   updated_at: string;
 }
 
@@ -413,6 +416,13 @@ export interface ActivityLog {
   performed_by_name: string | null;
   performed_at: string | null;
   total_cost: number | null;
+  // ── Business Pro financial fields (nullable) ──
+  cost_type: "expense" | "revenue" | "pass_through" | null;
+  billable_to_user_id: string | null;
+  billable_to_name: string | null;
+  payment_status: "unpaid" | "paid" | "partial" | "waived" | null;
+  paid_at: string | null;
+  paid_amount: number | null;
   created_at: string;
 }
 
@@ -436,6 +446,13 @@ export interface HealthRecord {
   performed_by_name: string | null;
   performed_at: string | null;
   total_cost: number | null;
+  // ── Business Pro financial fields (nullable) ──
+  cost_type: "expense" | "revenue" | "pass_through" | null;
+  billable_to_user_id: string | null;
+  billable_to_name: string | null;
+  payment_status: "unpaid" | "paid" | "partial" | "waived" | null;
+  paid_at: string | null;
+  paid_amount: number | null;
   created_at: string;
 }
 

@@ -60,6 +60,19 @@ export function IconReports({ className }: { className?: string }) {
   );
 }
 
+export function IconLedger({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 3v18h18" />
+      <path d="M7 14l4-4 4 4 5-5" />
+      <circle cx="7" cy="14" r="1" fill="currentColor" />
+      <circle cx="11" cy="10" r="1" fill="currentColor" />
+      <circle cx="15" cy="14" r="1" fill="currentColor" />
+      <circle cx="20" cy="9" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function IconUser({ className }: { className?: string }) {
   return (
     <svg className={className} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

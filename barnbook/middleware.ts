@@ -28,6 +28,7 @@ function isProtectedPath(pathname: string): boolean {
     "/settings",
     "/requests",
     "/breeders-pro",
+    "/business-pro",
     "/embryo-bank",
   ];
   return prefixes.some(
