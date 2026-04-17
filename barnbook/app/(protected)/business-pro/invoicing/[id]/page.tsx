@@ -28,8 +28,8 @@ export default async function InvoiceDetailPage({
     .maybeSingle();
   if (!barn || barn.owner_id !== user.id) redirect("/business-pro/invoicing");
 
-  // Fetch linked entries
-  const [{ data: acts }, { data: healths }] = await Promise.all([
+  // Fetch linked entries + custom line items
+  const [{ data: acts }, { data: healths }, { data: lineItems }] = await Promise.all([
     supabase
       .from("activity_log")
       .select("id, horse_id, activity_type, notes, performed_at, created_at, total_cost, payment_status, paid_amount, paid_at")
@@ -38,6 +38,12 @@ export default async function InvoiceDetailPage({
       .from("health_records")
       .select("id, horse_id, record_type, notes, performed_at, created_at, total_cost, payment_status, paid_amount, paid_at")
       .eq("invoice_id", id),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("invoice_line_items")
+      .select("id, description, quantity, unit_price, amount, horse_id, sort_order, created_at")
+      .eq("invoice_id", id)
+      .order("sort_order", { ascending: true }),
   ]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,8 +59,13 @@ export default async function InvoiceDetailPage({
     new Date(b.performed_at || b.created_at).getTime(),
   );
 
-  // Horse names
-  const horseIds = [...new Set(entries.map((e) => e.horse_id))];
+  // Horse names (include horses referenced by line items)
+  const horseIds = [...new Set([
+    ...entries.map((e) => e.horse_id),
+    ...((lineItems ?? []) as { horse_id: string | null }[])
+      .map((l) => l.horse_id)
+      .filter((h): h is string => !!h),
+  ])];
   const horseNames: Record<string, string> = {};
   if (horseIds.length > 0) {
     const { data: horses } = await supabase
@@ -172,6 +183,16 @@ export default async function InvoiceDetailPage({
     clientName = p?.full_name?.trim() || clientName;
   }
 
+  // Fetch all horses in this barn for the line-item horse picker
+  const { data: allBarnHorses } = await supabase
+    .from("horses")
+    .select("id, name")
+    .eq("barn_id", invoice.barn_id)
+    .eq("archived", false)
+    .order("name", { ascending: true });
+  const barnHorseList = (allBarnHorses ?? []) as { id: string; name: string }[];
+  for (const h of barnHorseList) if (!horseNames[h.id]) horseNames[h.id] = h.name;
+
   return (
     <InvoiceDetailClient
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -183,6 +204,9 @@ export default async function InvoiceDetailPage({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       addableEntries={addable as any[]}
       horseNames={horseNames}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      lineItems={(lineItems ?? []) as any[]}
+      barnHorses={barnHorseList}
     />
   );
 }

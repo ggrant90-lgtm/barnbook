@@ -13,6 +13,9 @@ import {
   markInvoicePaidAction,
   voidInvoiceAction,
   deleteInvoiceAction,
+  addInvoiceLineItemAction,
+  updateInvoiceLineItemAction,
+  removeInvoiceLineItemAction,
 } from "@/app/(protected)/actions/invoices";
 
 type Source = "activity" | "health";
@@ -55,6 +58,16 @@ interface Entry {
   paid_amount?: number | null;
 }
 
+interface LineItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  amount: number;
+  horse_id: string | null;
+  sort_order: number;
+}
+
 const STATUS_COLORS: Record<Status, { bg: string; color: string }> = {
   draft:   { bg: "#f3f4f6", color: "#6b7280" },
   sent:    { bg: "#dbeafe", color: "#1e40af" },
@@ -86,6 +99,8 @@ export function InvoiceDetailClient({
   entries: initialEntries,
   addableEntries: initialAddable,
   horseNames,
+  lineItems: initialLineItems,
+  barnHorses,
 }: {
   invoice: Invoice;
   barnName: string;
@@ -93,12 +108,16 @@ export function InvoiceDetailClient({
   entries: Entry[];
   addableEntries: Entry[];
   horseNames: Record<string, string>;
+  lineItems: LineItem[];
+  barnHorses: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [entries, setEntries] = useState(initialEntries);
   const [addable, setAddable] = useState(initialAddable);
+  const [lineItems, setLineItems] = useState(initialLineItems);
   const [showAddPanel, setShowAddPanel] = useState(false);
+  const [showAddLineItem, setShowAddLineItem] = useState(false);
   const [editingDetails, setEditingDetails] = useState(false);
   const [notes, setNotes] = useState(invoice.notes ?? "");
   const [dueDate, setDueDate] = useState(invoice.due_date ?? "");
@@ -112,7 +131,9 @@ export function InvoiceDetailClient({
 
   const isLocked = invoice.status === "paid" || invoice.status === "void";
   const isDraft = invoice.status === "draft";
-  const subtotal = entries.reduce((s, e) => s + (e.total_cost ?? 0), 0);
+  const entriesSubtotal = entries.reduce((s, e) => s + (e.total_cost ?? 0), 0);
+  const lineItemsSubtotal = lineItems.reduce((s, l) => s + (l.amount ?? 0), 0);
+  const subtotal = entriesSubtotal + lineItemsSubtotal;
 
   const status: Status = (() => {
     if ((invoice.status === "sent" || invoice.status === "partial") && invoice.due_date) {
@@ -138,6 +159,60 @@ export function InvoiceDetailClient({
       if (res.error) { alert(res.error); return; }
       setAddable((prev) => prev.filter((e) => !(e.id === entry.id && e.source === entry.source)));
       setEntries((prev) => [...prev, entry].sort((a, b) => entryDate(a).getTime() - entryDate(b).getTime()));
+    });
+  };
+
+  const handleAddLineItem = (input: {
+    description: string;
+    quantity: number;
+    unit_price: number;
+    horse_id: string | null;
+  }) => {
+    startTransition(async () => {
+      const res = await addInvoiceLineItemAction(invoice.id, input);
+      if (res.error) { alert(res.error); return; }
+      if (res.lineItemId) {
+        const amt = input.quantity * input.unit_price;
+        const newItem: LineItem = {
+          id: res.lineItemId,
+          description: input.description,
+          quantity: input.quantity,
+          unit_price: input.unit_price,
+          amount: amt,
+          horse_id: input.horse_id,
+          sort_order: lineItems.length,
+        };
+        setLineItems((prev) => [...prev, newItem]);
+      }
+    });
+  };
+
+  const handleUpdateLineItem = (id: string, patch: Partial<LineItem>) => {
+    startTransition(async () => {
+      const res = await updateInvoiceLineItemAction(id, {
+        description: patch.description,
+        quantity: patch.quantity,
+        unit_price: patch.unit_price,
+        horse_id: patch.horse_id,
+      });
+      if (res.error) { alert(res.error); return; }
+      setLineItems((prev) =>
+        prev.map((l) => {
+          if (l.id !== id) return l;
+          const next = { ...l, ...patch };
+          next.amount = next.quantity * next.unit_price;
+          return next;
+        }),
+      );
+    });
+  };
+
+  const handleRemoveLineItem = (id: string) => {
+    if (!confirm("Remove this line item?")) return;
+    startTransition(async () => {
+      const res = await removeInvoiceLineItemAction(id);
+      if (res.error) { alert(res.error); return; }
+      setLineItems((prev) => prev.filter((l) => l.id !== id));
     });
   };
 
@@ -371,13 +446,26 @@ export function InvoiceDetailClient({
                   </tr>
                 );
               })}
-              {entries.length === 0 && (
+              {entries.length === 0 && lineItems.length === 0 && (
                 <tr>
                   <td colSpan={isLocked ? 4 : 5} style={{ padding: "24px 8px", textAlign: "center", color: "var(--bp-ink-tertiary)", fontSize: 13 }}>
-                    No entries. Add some to get started.
+                    No line items yet. Add entries or custom line items to get started.
                   </td>
                 </tr>
               )}
+
+              {/* Custom line items (non-log-entry charges) */}
+              {lineItems.map((li) => (
+                <LineItemRow
+                  key={li.id}
+                  item={li}
+                  barnHorses={barnHorses}
+                  horseNames={horseNames}
+                  isLocked={isLocked}
+                  onUpdate={(patch) => handleUpdateLineItem(li.id, patch)}
+                  onRemove={() => handleRemoveLineItem(li.id)}
+                />
+              ))}
             </tbody>
             <tfoot>
               <tr>
@@ -409,6 +497,33 @@ export function InvoiceDetailClient({
               </tr>
             </tfoot>
           </table>
+
+          {/* Add custom line item button (draft/sent/partial only) */}
+          {!isLocked && (
+            <div className="bp-no-print" style={{ marginTop: 10, display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => setShowAddLineItem(!showAddLineItem)}
+                className="bp-btn"
+                style={{ fontSize: 12 }}
+              >
+                {showAddLineItem ? "Cancel" : "+ Add Custom Line Item"}
+              </button>
+            </div>
+          )}
+
+          {!isLocked && showAddLineItem && (
+            <div className="bp-no-print" style={{ marginTop: 10 }}>
+              <AddLineItemForm
+                barnHorses={barnHorses}
+                onCancel={() => setShowAddLineItem(false)}
+                onAdd={(input) => {
+                  handleAddLineItem(input);
+                  setShowAddLineItem(false);
+                }}
+              />
+            </div>
+          )}
         </div>
 
         {/* Add Panel (draft only) */}
@@ -535,6 +650,278 @@ export function InvoiceDetailClient({
         }
       `}</style>
     </BusinessProChrome>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Custom line item row (edit-in-place)
+// ──────────────────────────────────────────────────────────────────────────
+
+function LineItemRow({
+  item,
+  barnHorses,
+  horseNames,
+  isLocked,
+  onUpdate,
+  onRemove,
+}: {
+  item: LineItem;
+  barnHorses: { id: string; name: string }[];
+  horseNames: Record<string, string>;
+  isLocked: boolean;
+  onUpdate: (patch: Partial<LineItem>) => void;
+  onRemove: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [description, setDescription] = useState(item.description);
+  const [quantity, setQuantity] = useState(String(item.quantity));
+  const [unitPrice, setUnitPrice] = useState(String(item.unit_price));
+  const [horseId, setHorseId] = useState(item.horse_id ?? "");
+
+  const save = () => {
+    const qNum = parseFloat(quantity);
+    const uNum = parseFloat(unitPrice);
+    if (!description.trim() || !Number.isFinite(qNum) || !Number.isFinite(uNum)) {
+      alert("Description, quantity, and unit price required.");
+      return;
+    }
+    onUpdate({
+      description: description.trim(),
+      quantity: qNum,
+      unit_price: uNum,
+      horse_id: horseId || null,
+    });
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <tr className="bp-no-print" style={{ borderBottom: "1px solid var(--bp-border)", background: "var(--bp-bg)" }}>
+        <td style={invTd} colSpan={isLocked ? 4 : 5}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 100px 140px auto", gap: 6, alignItems: "center" }}>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Description"
+              className="bp-input"
+              style={{ fontSize: 12 }}
+            />
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              placeholder="Qty"
+              className="bp-input"
+              style={{ fontSize: 12 }}
+            />
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={unitPrice}
+              onChange={(e) => setUnitPrice(e.target.value)}
+              placeholder="Unit price"
+              className="bp-input"
+              style={{ fontSize: 12 }}
+            />
+            <select
+              value={horseId}
+              onChange={(e) => setHorseId(e.target.value)}
+              className="bp-select"
+              style={{ fontSize: 12 }}
+            >
+              <option value="">No horse</option>
+              {barnHorses.map((h) => (
+                <option key={h.id} value={h.id}>{h.name}</option>
+              ))}
+            </select>
+            <div style={{ display: "flex", gap: 4 }}>
+              <button type="button" onClick={save} className="bp-btn bp-primary" style={{ fontSize: 11, padding: "4px 8px" }}>
+                Save
+              </button>
+              <button type="button" onClick={() => setEditing(false)} className="bp-btn" style={{ fontSize: 11, padding: "4px 8px" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  const qty = Number(item.quantity);
+  const unit = Number(item.unit_price);
+  const showQtyBreakdown = qty !== 1;
+  const horseName = item.horse_id ? horseNames[item.horse_id] ?? null : null;
+
+  return (
+    <tr style={{ borderBottom: "1px solid var(--bp-border)" }}>
+      <td style={invTd}>—</td>
+      <td style={invTd}>{horseName ?? "—"}</td>
+      <td style={invTd}>
+        <div>{item.description}</div>
+        {showQtyBreakdown && (
+          <div style={{ fontSize: 11, color: "var(--bp-ink-tertiary)", marginTop: 2 }}>
+            {qty} × {unit.toLocaleString(undefined, { style: "currency", currency: "USD" })}
+          </div>
+        )}
+      </td>
+      <td style={{ ...invTd, textAlign: "right" }}>
+        <span className="bp-mono">{(item.amount ?? 0).toLocaleString(undefined, { style: "currency", currency: "USD" })}</span>
+      </td>
+      {!isLocked && (
+        <td style={{ ...invTd, textAlign: "right" }} className="bp-no-print">
+          <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              style={{ fontSize: 10, padding: "2px 6px", background: "transparent", border: "none", color: "var(--bp-ink-tertiary)", cursor: "pointer" }}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={onRemove}
+              style={{ fontSize: 10, padding: "2px 6px", background: "transparent", border: "none", color: "#b91c1c", cursor: "pointer" }}
+            >
+              Remove
+            </button>
+          </div>
+        </td>
+      )}
+    </tr>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Add line item form (inline under the table)
+// ──────────────────────────────────────────────────────────────────────────
+
+function AddLineItemForm({
+  barnHorses,
+  onAdd,
+  onCancel,
+}: {
+  barnHorses: { id: string; name: string }[];
+  onAdd: (input: { description: string; quantity: number; unit_price: number; horse_id: string | null }) => void;
+  onCancel: () => void;
+}) {
+  const [description, setDescription] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [unitPrice, setUnitPrice] = useState("");
+  const [horseId, setHorseId] = useState("");
+
+  const presets = [
+    { label: "Monthly Board", desc: "Monthly Board", qty: "1", price: "" },
+    { label: "Training", desc: "Training Package", qty: "1", price: "" },
+    { label: "Lesson", desc: "Lesson", qty: "1", price: "" },
+    { label: "Trailer Fee", desc: "Trailer Fee", qty: "1", price: "" },
+  ];
+
+  const preview = (parseFloat(quantity) || 0) * (parseFloat(unitPrice) || 0);
+  const canSubmit = description.trim() && Number.isFinite(parseFloat(quantity)) && Number.isFinite(parseFloat(unitPrice));
+
+  return (
+    <div style={{ background: "var(--bp-bg)", border: "1px solid var(--bp-border)", borderRadius: 8, padding: 14 }}>
+      <div style={{ fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--bp-ink-tertiary)", marginBottom: 8 }}>
+        Add Custom Line Item
+      </div>
+
+      {/* Quick presets */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+        {presets.map((p) => (
+          <button
+            key={p.label}
+            type="button"
+            onClick={() => { setDescription(p.desc); setQuantity(p.qty); }}
+            className="bp-chip"
+            style={{ fontSize: 11 }}
+          >
+            + {p.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 120px 160px", gap: 8, alignItems: "end" }}>
+        <div>
+          <label className="bp-label">Description</label>
+          <input
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="e.g., Monthly Board"
+            className="bp-input"
+            autoFocus
+          />
+        </div>
+        <div>
+          <label className="bp-label">Qty</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            className="bp-input"
+          />
+        </div>
+        <div>
+          <label className="bp-label">Unit Price</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={unitPrice}
+            onChange={(e) => setUnitPrice(e.target.value)}
+            placeholder="0.00"
+            className="bp-input"
+          />
+        </div>
+        <div>
+          <label className="bp-label">Horse (optional)</label>
+          <select
+            value={horseId}
+            onChange={(e) => setHorseId(e.target.value)}
+            className="bp-select"
+          >
+            <option value="">No horse</option>
+            {barnHorses.map((h) => (
+              <option key={h.id} value={h.id}>{h.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
+        <span className="bp-mono" style={{ fontSize: 14, fontWeight: 500 }}>
+          Amount: {preview.toLocaleString(undefined, { style: "currency", currency: "USD" })}
+        </span>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button type="button" onClick={onCancel} className="bp-btn" style={{ fontSize: 12 }}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!canSubmit}
+            onClick={() => {
+              onAdd({
+                description: description.trim(),
+                quantity: parseFloat(quantity),
+                unit_price: parseFloat(unitPrice),
+                horse_id: horseId || null,
+              });
+            }}
+            className="bp-btn bp-primary"
+            style={{ fontSize: 12 }}
+          >
+            Add to Invoice
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

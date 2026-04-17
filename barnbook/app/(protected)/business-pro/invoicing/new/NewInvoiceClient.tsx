@@ -107,18 +107,23 @@ export function NewInvoiceClient({
   // Step 3: Pick entries — filtered by client + barn
   const [includedIds, setIncludedIds] = useState<Set<string>>(new Set());
 
+  // When an owner is picked, track which of their horses are "active"
+  // (the user can uncheck individual horses to exclude all their entries)
+  const [activeHorseIds, setActiveHorseIds] = useState<Set<string>>(new Set());
+
   const matchingEntries = useMemo(() => {
     if (!client) return [];
     return entries.filter((e) => {
       if (e.barn_id !== barnId) return false;
       if (client.kind === "user") return e.billable_to_user_id === client.id;
       if (client.kind === "owner") {
-        // Owner: all entries for horses the owner owns (regardless of billable_to)
-        return client.horseIds.includes(e.horse_id);
+        // Owner: entries for horses the owner owns, filtered to active horse set
+        if (!client.horseIds.includes(e.horse_id)) return false;
+        return activeHorseIds.has(e.horse_id);
       }
       return (e.billable_to_name ?? "").trim().toLowerCase() === client.name.trim().toLowerCase();
     }).sort((a, b) => entryDate(a).getTime() - entryDate(b).getTime());
-  }, [entries, barnId, client]);
+  }, [entries, barnId, client, activeHorseIds]);
 
   // Also show unassigned entries so user can bundle them in if they're really
   // for this client (common case: log entry was missing billable_to but the
@@ -138,6 +143,13 @@ export function NewInvoiceClient({
   const onPickClient = (c: ClientChoice | null) => {
     setClient(c);
     if (c) {
+      // Initialize active horses for owner mode (all checked by default)
+      if (c.kind === "owner") {
+        setActiveHorseIds(new Set(c.horseIds));
+      } else {
+        setActiveHorseIds(new Set());
+      }
+
       const ids = new Set<string>();
       for (const e of entries) {
         if (e.barn_id !== barnId) continue;
@@ -152,7 +164,30 @@ export function NewInvoiceClient({
       setIncludedIds(ids);
     } else {
       setIncludedIds(new Set());
+      setActiveHorseIds(new Set());
     }
+  };
+
+  // Toggle a horse on/off — adds/removes all its entries from included
+  const toggleHorse = (horseId: string) => {
+    setActiveHorseIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(horseId)) next.delete(horseId);
+      else next.add(horseId);
+      return next;
+    });
+    // Also toggle the entries for that horse
+    setIncludedIds((prev) => {
+      const next = new Set(prev);
+      const isActivating = !activeHorseIds.has(horseId);
+      for (const e of entries) {
+        if (e.horse_id !== horseId) continue;
+        const compoundId = `${e.source}:${e.id}`;
+        if (isActivating) next.add(compoundId);
+        else next.delete(compoundId);
+      }
+      return next;
+    });
   };
 
   const toggle = (compoundId: string) => {
@@ -324,6 +359,80 @@ export function NewInvoiceClient({
                 </button>
               </div>
             </fieldset>
+
+            {/* Horses (owner mode only) */}
+            {client?.kind === "owner" && client.horseIds.length > 0 && (
+              <fieldset className="bp-fieldset">
+                <legend className="bp-fieldset-legend">
+                  Horses ({activeHorseIds.size} of {client.horseIds.length} included)
+                </legend>
+                <p style={{ fontSize: 11, color: "var(--bp-ink-tertiary)", marginBottom: 8 }}>
+                  Uncheck a horse to exclude all its entries from this invoice.
+                </p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {client.horseIds.map((hid) => {
+                    const isActive = activeHorseIds.has(hid);
+                    return (
+                      <button
+                        key={hid}
+                        type="button"
+                        onClick={() => toggleHorse(hid)}
+                        className={`bp-chip ${isActive ? "bp-active" : ""}`}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isActive}
+                          onChange={() => {}}
+                          style={{ pointerEvents: "none" }}
+                        />
+                        {horseNames[hid] ?? "Unknown"}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveHorseIds(new Set(client.horseIds));
+                      setIncludedIds((prev) => {
+                        const next = new Set(prev);
+                        for (const e of entries) {
+                          if (client.horseIds.includes(e.horse_id) && e.barn_id === barnId) {
+                            next.add(`${e.source}:${e.id}`);
+                          }
+                        }
+                        return next;
+                      });
+                    }}
+                    className="bp-btn"
+                    style={{ fontSize: 11 }}
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveHorseIds(new Set());
+                      setIncludedIds((prev) => {
+                        const next = new Set(prev);
+                        for (const e of entries) {
+                          if (client.horseIds.includes(e.horse_id)) {
+                            next.delete(`${e.source}:${e.id}`);
+                          }
+                        }
+                        return next;
+                      });
+                    }}
+                    className="bp-btn"
+                    style={{ fontSize: 11 }}
+                  >
+                    Clear all
+                  </button>
+                </div>
+              </fieldset>
+            )}
 
             {/* Entries */}
             {client && (

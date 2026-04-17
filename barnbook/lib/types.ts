@@ -64,6 +64,19 @@ export interface Barn {
   updated_at: string;
 }
 
+/** public.invoice_line_items — custom invoice line items (non-log-entry charges) */
+export interface InvoiceLineItem {
+  id: string;
+  invoice_id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  amount: number;
+  horse_id: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
 /** public.invoices — Business Pro invoice records */
 export interface Invoice {
   id: string;

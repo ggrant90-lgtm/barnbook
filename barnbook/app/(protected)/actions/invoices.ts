@@ -54,19 +54,21 @@ async function nextInvoiceNumber(
   return `INV-${year}-${String(seq).padStart(4, "0")}`;
 }
 
-/** Recompute subtotal from linked entries. */
+/** Recompute subtotal from linked entries + custom line items. */
 async function recomputeSubtotal(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   invoiceId: string,
 ): Promise<number> {
-  const [{ data: act }, { data: health }] = await Promise.all([
+  const [{ data: act }, { data: health }, { data: lines }] = await Promise.all([
     supabase.from("activity_log").select("total_cost").eq("invoice_id", invoiceId),
     supabase.from("health_records").select("total_cost").eq("invoice_id", invoiceId),
+    supabase.from("invoice_line_items").select("amount").eq("invoice_id", invoiceId),
   ]);
   const sum =
     ((act ?? []) as { total_cost: number | null }[]).reduce((s, e) => s + (e.total_cost ?? 0), 0) +
-    ((health ?? []) as { total_cost: number | null }[]).reduce((s, e) => s + (e.total_cost ?? 0), 0);
+    ((health ?? []) as { total_cost: number | null }[]).reduce((s, e) => s + (e.total_cost ?? 0), 0) +
+    ((lines ?? []) as { amount: number | null }[]).reduce((s, l) => s + (l.amount ?? 0), 0);
 
   await supabase.from("invoices").update({ subtotal: sum, updated_at: new Date().toISOString() }).eq("id", invoiceId);
   return sum;
@@ -388,6 +390,142 @@ export async function deleteInvoiceAction(invoiceId: string): Promise<{ ok?: tru
 // ──────────────────────────────────────────────────────────────────────────
 // Barn branding settings
 // ──────────────────────────────────────────────────────────────────────────
+
+// ──────────────────────────────────────────────────────────────────────────
+// Custom line items (non-log-entry charges — board, adjustments, etc.)
+// ──────────────────────────────────────────────────────────────────────────
+
+async function getInvoiceBarn(invoiceId: string): Promise<string | null> {
+  const supabase = await createServerComponentClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
+    .from("invoices")
+    .select("barn_id")
+    .eq("id", invoiceId)
+    .maybeSingle();
+  return (data?.barn_id as string | undefined) ?? null;
+}
+
+export async function addInvoiceLineItemAction(
+  invoiceId: string,
+  input: {
+    description: string;
+    quantity?: number;
+    unit_price: number;
+    horse_id?: string | null;
+  },
+): Promise<{ ok?: true; lineItemId?: string; error?: string }> {
+  const barnId = await getInvoiceBarn(invoiceId);
+  if (!barnId) return { error: "Invoice not found" };
+  const auth = await requireBusinessProOwner(barnId);
+  if ("error" in auth) return { error: auth.error };
+  const { supabase } = auth;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+
+  const quantity = input.quantity != null ? Number(input.quantity) : 1;
+  const unit_price = Number(input.unit_price);
+  const amount = quantity * unit_price;
+
+  if (!input.description.trim()) return { error: "Description is required" };
+  if (!Number.isFinite(amount)) return { error: "Invalid amount" };
+
+  // Next sort_order for this invoice
+  const { data: existing } = await db
+    .from("invoice_line_items")
+    .select("sort_order")
+    .eq("invoice_id", invoiceId)
+    .order("sort_order", { ascending: false })
+    .limit(1);
+  const nextSort = existing && existing.length > 0 ? (existing[0].sort_order ?? 0) + 1 : 0;
+
+  const { data, error } = await db
+    .from("invoice_line_items")
+    .insert({
+      invoice_id: invoiceId,
+      description: input.description.trim(),
+      quantity,
+      unit_price,
+      amount,
+      horse_id: input.horse_id ?? null,
+      sort_order: nextSort,
+    })
+    .select("id")
+    .single();
+  if (error) return { error: error.message };
+
+  await recomputeSubtotal(db, invoiceId);
+  revalidatePath(`/business-pro/invoicing/${invoiceId}`);
+  return { ok: true, lineItemId: data.id as string };
+}
+
+export async function updateInvoiceLineItemAction(
+  lineItemId: string,
+  patch: {
+    description?: string;
+    quantity?: number;
+    unit_price?: number;
+    horse_id?: string | null;
+  },
+): Promise<{ ok?: true; error?: string }> {
+  const supabase = await createServerComponentClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+
+  const { data: existing } = await db
+    .from("invoice_line_items")
+    .select("invoice_id, quantity, unit_price")
+    .eq("id", lineItemId)
+    .maybeSingle();
+  if (!existing) return { error: "Line item not found" };
+
+  const auth = await requireBusinessProOwner((await getInvoiceBarn(existing.invoice_id)) ?? "");
+  if ("error" in auth) return { error: auth.error };
+
+  const update: Record<string, unknown> = {};
+  if (patch.description !== undefined) update.description = patch.description.trim();
+  if (patch.horse_id !== undefined) update.horse_id = patch.horse_id;
+
+  const quantity = patch.quantity !== undefined ? Number(patch.quantity) : Number(existing.quantity);
+  const unit_price = patch.unit_price !== undefined ? Number(patch.unit_price) : Number(existing.unit_price);
+  if (patch.quantity !== undefined) update.quantity = quantity;
+  if (patch.unit_price !== undefined) update.unit_price = unit_price;
+  if (patch.quantity !== undefined || patch.unit_price !== undefined) {
+    update.amount = quantity * unit_price;
+  }
+
+  const { error } = await db.from("invoice_line_items").update(update).eq("id", lineItemId);
+  if (error) return { error: error.message };
+
+  await recomputeSubtotal(db, existing.invoice_id);
+  revalidatePath(`/business-pro/invoicing/${existing.invoice_id}`);
+  return { ok: true };
+}
+
+export async function removeInvoiceLineItemAction(
+  lineItemId: string,
+): Promise<{ ok?: true; error?: string }> {
+  const supabase = await createServerComponentClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+
+  const { data: existing } = await db
+    .from("invoice_line_items")
+    .select("invoice_id")
+    .eq("id", lineItemId)
+    .maybeSingle();
+  if (!existing) return { error: "Line item not found" };
+
+  const auth = await requireBusinessProOwner((await getInvoiceBarn(existing.invoice_id)) ?? "");
+  if ("error" in auth) return { error: auth.error };
+
+  const { error } = await db.from("invoice_line_items").delete().eq("id", lineItemId);
+  if (error) return { error: error.message };
+
+  await recomputeSubtotal(db, existing.invoice_id);
+  revalidatePath(`/business-pro/invoicing/${existing.invoice_id}`);
+  return { ok: true };
+}
 
 export async function updateBarnInvoiceSettingsAction(
   barnId: string,
