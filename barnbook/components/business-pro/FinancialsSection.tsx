@@ -19,10 +19,18 @@ interface BarnMember {
   role: string;
 }
 
+interface BarnClient {
+  id: string;
+  display_name: string;
+  user_id: string | null;
+  name_key: string;
+}
+
 interface Initial {
   costType?: CostType | null;
   billableToUserId?: string | null;
   billableToName?: string | null;
+  clientId?: string | null;
   paymentStatus?: PaymentStatus | null;
   paidAmount?: number | null;
   paidAt?: string | null;
@@ -32,6 +40,7 @@ interface Props {
   logType: string;
   totalCost: number; // for auto-filling paid_amount on "paid"
   barnMembers: BarnMember[];
+  clients?: BarnClient[];
   horseOwnerName?: string | null; // from horses.owner_name
   initial?: Initial;
 }
@@ -51,6 +60,7 @@ export function FinancialsSection({
   logType,
   totalCost,
   barnMembers,
+  clients = [],
   horseOwnerName,
   initial,
 }: Props) {
@@ -60,13 +70,19 @@ export function FinancialsSection({
     initial?.costType ?? defaultType,
   );
 
-  // Billable To — three modes:
+  // Billable To — four modes:
+  //   "client" — pick from the barn's Clients directory (preferred, sets client_id)
   //   "owner"  — horse's owner_name (auto-filled, one-click)
   //   "member" — pick a barn member (registered user)
   //   "other"  — free-text name
   const hasHorseOwner = !!horseOwnerName?.trim();
+  const hasClients = clients.length > 0;
 
-  const initBillableMode: "owner" | "member" | "other" = (() => {
+  const initBillableMode: "client" | "owner" | "member" | "other" = (() => {
+    // If the existing entry is already linked to a client, restore that mode.
+    if (initial?.clientId && clients.some((c) => c.id === initial.clientId)) {
+      return "client";
+    }
     // If the existing entry was billed to the horse owner, restore that mode
     if (
       initial?.billableToName &&
@@ -75,13 +91,17 @@ export function FinancialsSection({
     ) return "owner";
     if (initial?.billableToUserId) return "member";
     if (initial?.billableToName) return "other";
-    // New entry: default to owner if horse has one, else member
+    // New entry: default to client if any exist, else owner, else member
+    if (hasClients) return "client";
     return hasHorseOwner ? "owner" : "member";
   })();
 
-  const [billableMode, setBillableMode] = useState<"owner" | "member" | "other">(initBillableMode);
+  const [billableMode, setBillableMode] = useState<"client" | "owner" | "member" | "other">(initBillableMode);
   const [billableUserId, setBillableUserId] = useState(initial?.billableToUserId ?? "");
   const [billableName, setBillableName] = useState(initial?.billableToName ?? "");
+  const [selectedClientId, setSelectedClientId] = useState(initial?.clientId ?? "");
+
+  const selectedClient = clients.find((c) => c.id === selectedClientId) ?? null;
 
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>(
     initial?.paymentStatus ?? "unpaid",
@@ -143,6 +163,19 @@ export function FinancialsSection({
             Billable To
           </label>
           <div className="flex flex-wrap gap-2 mb-2">
+            {hasClients && (
+              <button
+                type="button"
+                onClick={() => setBillableMode("client")}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                  billableMode === "client"
+                    ? "bg-brass-gold text-barn-dark"
+                    : "bg-white text-barn-dark/60 border border-barn-dark/15"
+                }`}
+              >
+                👤 Client
+              </button>
+            )}
             {hasHorseOwner && (
               <button
                 type="button"
@@ -184,7 +217,24 @@ export function FinancialsSection({
             </button>
           </div>
 
-          {billableMode === "owner" && hasHorseOwner ? (
+          {billableMode === "client" ? (
+            <select
+              value={selectedClientId}
+              onChange={(e) => {
+                setSelectedClientId(e.target.value);
+                setBillableUserId("");
+                setBillableName("");
+              }}
+              className="w-full rounded-xl border border-barn-dark/15 bg-white px-4 py-2.5 text-sm text-barn-dark"
+            >
+              <option value="">Select a client...</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.display_name}
+                </option>
+              ))}
+            </select>
+          ) : billableMode === "owner" && hasHorseOwner ? (
             <div className="rounded-xl border border-brass-gold/40 bg-brass-gold/10 px-4 py-2.5 text-sm text-barn-dark">
               <div className="flex items-center gap-2">
                 <span className="font-medium">{horseOwnerName}</span>
@@ -279,6 +329,24 @@ export function FinancialsSection({
 
       {/* Hidden inputs for form submission */}
       {costType && <input type="hidden" name="cost_type" value={costType} />}
+      {showBillable && billableMode === "client" && selectedClient && (
+        <>
+          <input type="hidden" name="client_id" value={selectedClient.id} />
+          {/* Snapshot billable_to_* from the client so the row is self-describing */}
+          {selectedClient.user_id && (
+            <input
+              type="hidden"
+              name="billable_to_user_id"
+              value={selectedClient.user_id}
+            />
+          )}
+          <input
+            type="hidden"
+            name="billable_to_name"
+            value={selectedClient.display_name}
+          />
+        </>
+      )}
       {showBillable && billableMode === "member" && billableUserId && (
         <input type="hidden" name="billable_to_user_id" value={billableUserId} />
       )}

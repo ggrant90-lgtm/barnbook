@@ -48,9 +48,11 @@ export function LogFormWrapper({
   initialCostType,
   initialBillableToUserId,
   initialBillableToName,
+  initialClientId,
   initialPaymentStatus,
   initialPaidAmount,
   initialPaidAt,
+  barnClients,
   children,
 }: {
   horseId: string;
@@ -81,9 +83,16 @@ export function LogFormWrapper({
   initialCostType?: CostType | null;
   initialBillableToUserId?: string | null;
   initialBillableToName?: string | null;
+  initialClientId?: string | null;
   initialPaymentStatus?: PaymentStatus | null;
   initialPaidAmount?: number | null;
   initialPaidAt?: string | null;
+  barnClients?: {
+    id: string;
+    display_name: string;
+    user_id: string | null;
+    name_key: string;
+  }[];
   children: React.ReactNode;
 }) {
   const isEditing = !!editId && !!updateLogAction;
@@ -246,10 +255,12 @@ export function LogFormWrapper({
             totalCost={initialTotalCost ?? 0}
             barnMembers={barnMembers}
             horseOwnerName={horseOwnerName ?? null}
+            clients={barnClients ?? []}
             initial={{
               costType: initialCostType,
               billableToUserId: initialBillableToUserId,
               billableToName: initialBillableToName,
+              clientId: initialClientId,
               paymentStatus: initialPaymentStatus,
               paidAmount: initialPaidAmount,
               paidAt: initialPaidAt,

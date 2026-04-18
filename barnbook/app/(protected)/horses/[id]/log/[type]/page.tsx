@@ -93,6 +93,26 @@ export default async function HorseLogPage({
     .maybeSingle();
   const hasBusinessPro = currentProfile?.has_business_pro === true;
 
+  // Business Pro: fetch the barn's clients so the log form can offer a
+  // "Select client" picker mode. Empty list for non-BP users.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: barnClientsRaw } = hasBusinessPro
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ? await (supabase as any)
+        .from("barn_clients")
+        .select("id, display_name, user_id, name_key")
+        .eq("barn_id", horse.barn_id)
+        .eq("archived", false)
+        .order("display_name", { ascending: true })
+        .limit(2000)
+    : { data: [] };
+  const barnClients = (barnClientsRaw ?? []) as {
+    id: string;
+    display_name: string;
+    user_id: string | null;
+    name_key: string;
+  }[];
+
   // Fetch saved performers (sorted by most used)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: savedPerformersRaw } = await (supabase as any)
@@ -199,9 +219,11 @@ export default async function HorseLogPage({
         initialCostType={(existing?.cost_type as "revenue" | "expense" | "pass_through" | null | undefined) ?? null}
         initialBillableToUserId={(existing?.billable_to_user_id as string | null | undefined) ?? null}
         initialBillableToName={(existing?.billable_to_name as string | null | undefined) ?? null}
+        initialClientId={(existing?.client_id as string | null | undefined) ?? null}
         initialPaymentStatus={(existing?.payment_status as "unpaid" | "paid" | "partial" | "waived" | null | undefined) ?? null}
         initialPaidAmount={(existing?.paid_amount as number | null | undefined) ?? null}
         initialPaidAt={(existing?.paid_at as string | null | undefined) ?? null}
+        barnClients={barnClients}
       >
         {(logType === "exercise" ||
           logType === "feed" ||

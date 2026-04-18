@@ -25,6 +25,9 @@ function extractFinancialFields(formData: FormData, total_cost: number | null) {
   const cost_type = String(formData.get("cost_type") ?? "").trim() || null;
   const isBillable = cost_type === "revenue" || cost_type === "pass_through";
 
+  const client_id = isBillable
+    ? String(formData.get("client_id") ?? "").trim() || null
+    : null;
   const billable_to_user_id = isBillable
     ? String(formData.get("billable_to_user_id") ?? "").trim() || null
     : null;
@@ -50,7 +53,7 @@ function extractFinancialFields(formData: FormData, total_cost: number | null) {
     paid_at = new Date().toISOString();
   }
 
-  return { cost_type, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at };
+  return { cost_type, client_id, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at };
 }
 
 function extractLineItems(formData: FormData): { description: string; amount: number }[] {
