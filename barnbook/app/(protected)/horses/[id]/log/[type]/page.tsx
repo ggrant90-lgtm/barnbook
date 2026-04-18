@@ -55,6 +55,20 @@ export default async function HorseLogPage({
     redirect(`/horses/${horseId}?error=no_permission`);
   }
 
+  // Permission-level check: does the user's key permit creating THIS log type?
+  // Uses the SQL helper so client-side bypasses (direct URL navigation,
+  // bookmarked forms) are rejected on the server even if the UI would have
+  // hidden the option.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: canLog } = await (supabase as any).rpc("user_can_log_entry", {
+    p_user_id: user.id,
+    p_horse_id: horseId,
+    p_log_type: logType,
+  });
+  if (canLog !== true) {
+    redirect(`/horses/${horseId}?error=not_permitted`);
+  }
+
   // Fetch barn members for "Performed by" dropdown
   const { data: barnMembers } = await supabase
     .from("barn_members")

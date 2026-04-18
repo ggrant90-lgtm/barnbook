@@ -72,6 +72,9 @@ export default async function ProtectedLayout({
 
   const hasBarn = allBarns.length > 0;
   const barnName = activeBarn?.name ?? null;
+  // Only users who own at least one barn can generate/manage keys — the
+  // nav item gets hidden from barn-key and stall-key holders.
+  const isBarnOwner = (ownedBarns ?? []).length > 0;
 
   return (
     <ProtectedChrome
@@ -80,6 +83,7 @@ export default async function ProtectedLayout({
       avatarUrl={profile?.avatar_url ?? null}
       barnName={barnName}
       hasBarn={hasBarn}
+      isBarnOwner={isBarnOwner}
       allBarns={allBarns.map((b) => ({ id: b.id, name: b.name, barn_type: b.barn_type }))}
       activeBarnId={activeBarn?.id ?? null}
     >

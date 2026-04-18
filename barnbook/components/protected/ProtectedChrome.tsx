@@ -18,6 +18,7 @@ export function ProtectedChrome({
   avatarUrl,
   barnName,
   hasBarn,
+  isBarnOwner,
   allBarns,
   activeBarnId,
 }: {
@@ -27,6 +28,7 @@ export function ProtectedChrome({
   avatarUrl: string | null;
   barnName: string | null;
   hasBarn: boolean;
+  isBarnOwner?: boolean;
   allBarns?: BarnSummary[];
   activeBarnId?: string | null;
 }) {
@@ -34,7 +36,12 @@ export function ProtectedChrome({
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const navItems = hasBarn ? fullNav : reducedNav;
+  const baseNav = hasBarn ? fullNav : reducedNav;
+  // /keys is owner-only (generating + managing keys). Hide from barn-key
+  // and stall-key holders so the menu doesn't suggest things they can't do.
+  const navItems = isBarnOwner
+    ? baseNav
+    : baseNav.filter((n) => n.href !== "/keys");
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";

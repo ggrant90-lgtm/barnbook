@@ -86,6 +86,9 @@ export function HorseProfileClient({
   hasBusinessPro,
   hasDocumentScanner,
   horseDocuments,
+  canEditProfile,
+  permissionLevel,
+  allowedLogTypes,
 }: {
   horse: Horse;
   canEdit: boolean;
@@ -134,6 +137,14 @@ export function HorseProfileClient({
     expiration_date: string | null;
     created_at: string;
   }>;
+  canEditProfile?: boolean;
+  permissionLevel?:
+    | "view_only"
+    | "log_all"
+    | "full_contributor"
+    | "custom"
+    | null;
+  allowedLogTypes?: string[] | null;
 }) {
   const router = useRouter();
   const { show } = useToast();
@@ -317,13 +328,26 @@ export function HorseProfileClient({
     return counts;
   }, [allLogs]);
 
-  const sortedLogTypes = useMemo(
-    () =>
-      [...ALL_LOG_TYPES].sort(
-        (a, b) => (logTypeCounts[b.value] ?? 0) - (logTypeCounts[a.value] ?? 0),
-      ),
-    [logTypeCounts],
-  );
+  // Filter log types by the user's permission level. Custom permissions
+  // restrict to a specific set of types; view_only yields an empty list so
+  // the "New Log" dropdown has nothing to show. Owner + log_all +
+  // full_contributor see everything.
+  const sortedLogTypes = useMemo(() => {
+    let types = [...ALL_LOG_TYPES];
+    if (permissionLevel === "custom") {
+      const allowed = new Set(allowedLogTypes ?? []);
+      types = types.filter((t) => allowed.has(t.value));
+    } else if (permissionLevel === "view_only") {
+      types = [];
+    }
+    return types.sort(
+      (a, b) => (logTypeCounts[b.value] ?? 0) - (logTypeCounts[a.value] ?? 0),
+    );
+  }, [logTypeCounts, permissionLevel, allowedLogTypes]);
+
+  // Can the user create any log entry at all?
+  const canCreateAnyLog =
+    permissionLevel !== "view_only" && sortedLogTypes.length > 0;
 
   const filteredLogs = useMemo(
     () =>
@@ -415,9 +439,10 @@ export function HorseProfileClient({
           <p className="text-sm text-barn-dark/55">{horse.breed ?? "Horse"}</p>
         </div>
         <div className="flex items-center gap-2">
-          {canEdit && !editing ? (
+          {!editing && (canCreateAnyLog || canEditProfile) ? (
             <div className="flex items-center gap-2">
-              {/* New Log button */}
+              {/* New Log button — hidden for view_only, filtered for custom */}
+              {canCreateAnyLog && (
               <div className="relative">
                 <button
                   type="button"
@@ -453,7 +478,9 @@ export function HorseProfileClient({
                   </>
                 )}
               </div>
+              )}
 
+              {canEditProfile && (
               <button
                 type="button"
                 onClick={() => setEditing(true)}
@@ -464,6 +491,7 @@ export function HorseProfileClient({
                 </svg>
                 Edit Horse
               </button>
+              )}
               {(() => {
                 // Show Breeders Pro link if horse has breeding data
                 const hasBPData =
@@ -781,8 +809,8 @@ export function HorseProfileClient({
 
         {tab === "logs" ? (
           <div className="space-y-4">
-            {/* Add Log button + dropdown */}
-            {canEdit ? (
+            {/* Add Log button + dropdown — hidden when permission doesn't allow any logging */}
+            {canCreateAnyLog ? (
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium text-barn-dark">
                   {allLogs.length} {allLogs.length === 1 ? "entry" : "entries"}

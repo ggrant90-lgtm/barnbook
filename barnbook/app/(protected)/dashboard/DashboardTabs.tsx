@@ -7,6 +7,12 @@ import { PlanBadge } from "@/components/PlanBadge";
 import { TodayWidget } from "@/components/TodayWidget";
 import type { CalendarEvent } from "@/app/(protected)/actions/calendar";
 import type { ActivityLog, Barn, Horse } from "@/lib/types";
+import {
+  PERMISSION_LEVEL_COLORS,
+  PERMISSION_LEVEL_EMOJI,
+  PERMISSION_LEVEL_LABELS,
+  normalizePermissionLevel,
+} from "@/lib/key-permissions";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -28,6 +34,7 @@ export function DashboardTabs({
   todayEvents,
   upcomingEvents,
   expiringDocuments,
+  stallHorses,
 }: {
   ownedBarns: Barn[];
   accessBarns: (Barn & { userRole: string })[];
@@ -48,6 +55,15 @@ export function DashboardTabs({
     title: string | null;
     expiration_date: string;
     expired: boolean;
+  }>;
+  stallHorses?: Array<{
+    id: string;
+    name: string;
+    breed: string | null;
+    photo_url: string | null;
+    barn_id: string;
+    barn_name: string;
+    permission_level: string | null;
   }>;
 }) {
   const [tab, setTab] = useState<"my" | "access">("my");
@@ -271,7 +287,71 @@ export function DashboardTabs({
             </p>
           </div>
 
-          {accessBarns.length === 0 ? (
+          {/* Stall Key grants — specific horses, grouped by barn */}
+          {(stallHorses?.length ?? 0) > 0 && (
+            <div className="mt-6">
+              <div
+                className="mb-2 text-xs font-medium uppercase tracking-wide text-barn-dark/55"
+              >
+                Your Horses
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {(stallHorses ?? []).map((h) => {
+                  const level = normalizePermissionLevel(h.permission_level);
+                  return (
+                    <Link
+                      key={h.id}
+                      href={`/horses/${h.id}`}
+                      className="group rounded-2xl border border-barn-dark/10 bg-white p-4 shadow-sm transition hover:border-brass-gold"
+                    >
+                      <div className="flex items-center gap-3">
+                        {h.photo_url ? (
+                          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={h.photo_url}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-parchment text-barn-dark">
+                            <span className="font-serif text-lg">
+                              {h.name.charAt(0)}
+                            </span>
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium text-barn-dark">
+                            {h.name}
+                          </div>
+                          <div className="truncate text-xs text-barn-dark/60">
+                            at {h.barn_name}
+                          </div>
+                        </div>
+                      </div>
+                      {level && (
+                        <div className="mt-3 flex items-center gap-1.5">
+                          <span
+                            className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
+                            style={{
+                              background: PERMISSION_LEVEL_COLORS[level].bg,
+                              color: PERMISSION_LEVEL_COLORS[level].fg,
+                            }}
+                          >
+                            <span>{PERMISSION_LEVEL_EMOJI[level]}</span>
+                            {PERMISSION_LEVEL_LABELS[level]}
+                          </span>
+                        </div>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {accessBarns.length === 0 && (stallHorses?.length ?? 0) === 0 ? (
             <div className="mt-8 rounded-2xl border border-barn-dark/10 bg-white p-8 text-center shadow-sm">
               <svg className="mx-auto h-12 w-12 text-barn-dark/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />

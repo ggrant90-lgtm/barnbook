@@ -1,4 +1,5 @@
-import { canUserAccessHorse, canUserEditHorse } from "@/lib/horse-access";
+import { canUserAccessHorse, canUserEditHorse, canUserEditHorseProfile } from "@/lib/horse-access";
+import { normalizePermissionLevel, type PermissionLevel } from "@/lib/key-permissions";
 import { canUserUseDocumentScanner } from "@/lib/document-scanner/access";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import type { ActivityLog, Embryo, Flush, Foaling, HealthRecord, Horse, HorseStay, LogMedia, LogEntryLineItem, Pregnancy } from "@/lib/types";
@@ -46,6 +47,57 @@ export default async function HorseProfilePage({
 
   const horse = horseRaw as Horse;
   const canEdit = await canUserEditHorse(supabase, user.id, horse.barn_id);
+  // Horse PROFILE edits (name/breed/photo/etc.) are owner-only — a hard rule
+  // that supersedes key permissions.
+  const canEditProfile = await canUserEditHorseProfile(
+    supabase,
+    user.id,
+    horse.barn_id,
+  );
+
+  // Resolve the user's permission context for this horse: read permission_level
+  // and allowed_log_types from whichever grant applies (barn_members for barn
+  // keys, user_horse_access for stall keys). Owner gets "log_all" by default.
+  let permissionLevel: PermissionLevel | null = null;
+  let allowedLogTypes: string[] | null = null;
+  if (canEditProfile) {
+    permissionLevel = "log_all";
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [{ data: bmRow }, { data: uhaRow }] = await Promise.all([
+      (supabase as any)
+        .from("barn_members")
+        .select("permission_level, allowed_log_types")
+        .eq("barn_id", horse.barn_id)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("user_horse_access")
+        .select("permission_level, allowed_log_types")
+        .eq("horse_id", id)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+    ]);
+    // Pick the more permissive of the two grants (lower priority = more perm).
+    const order: Record<string, number> = {
+      full_contributor: 1,
+      log_all: 2,
+      custom: 3,
+      view_only: 4,
+    };
+    const bmLevel = normalizePermissionLevel(bmRow?.permission_level ?? null);
+    const uhaLevel = normalizePermissionLevel(uhaRow?.permission_level ?? null);
+    const bmPr = bmLevel ? order[bmLevel] ?? 99 : 99;
+    const uhaPr = uhaLevel ? order[uhaLevel] ?? 99 : 99;
+    if (bmPr <= uhaPr && bmLevel) {
+      permissionLevel = bmLevel;
+      allowedLogTypes = (bmRow?.allowed_log_types as string[] | null) ?? null;
+    } else if (uhaLevel) {
+      permissionLevel = uhaLevel;
+      allowedLogTypes = (uhaRow?.allowed_log_types as string[] | null) ?? null;
+    }
+  }
 
   // Check Breeders Pro / Business Pro subscriptions for gated tabs
   const { data: profileRow } = await supabase
@@ -528,6 +580,9 @@ export default async function HorseProfilePage({
         hasBusinessPro={hasBusinessPro}
         hasDocumentScanner={hasDocumentScanner}
         horseDocuments={horseDocuments}
+        canEditProfile={canEditProfile}
+        permissionLevel={permissionLevel}
+        allowedLogTypes={allowedLogTypes}
       />
     </Suspense>
   );

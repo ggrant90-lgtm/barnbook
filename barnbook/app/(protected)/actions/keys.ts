@@ -52,8 +52,48 @@ export async function generateAccessKeyAction(
   }
 
   const label = String(formData.get("label") ?? "").trim() || null;
-  const permRaw = String(formData.get("permission_level") ?? "viewer").toLowerCase();
-  const permission_level = permRaw === "editor" ? "editor" : "viewer";
+
+  // New four-level permission system. Accept legacy `viewer`/`editor` from
+  // any stale clients and map forward.
+  const permRaw = String(formData.get("permission_level") ?? "log_all")
+    .toLowerCase()
+    .trim();
+  const NEW_LEVELS = new Set([
+    "view_only",
+    "log_all",
+    "full_contributor",
+    "custom",
+  ]);
+  let permission_level: string;
+  if (NEW_LEVELS.has(permRaw)) {
+    permission_level = permRaw;
+  } else if (permRaw === "editor") {
+    permission_level = "log_all";
+  } else {
+    permission_level = "view_only";
+  }
+
+  // allowed_log_types[] — only meaningful for `custom`.
+  const allowedRaw = formData.getAll("allowed_log_types[]") as string[];
+  const VALID_LOG_TYPES = new Set([
+    "exercise",
+    "shoeing",
+    "worming",
+    "vet_visit",
+    "feed",
+    "medication",
+    "note",
+    "breed_data",
+  ]);
+  const allowed_log_types =
+    permission_level === "custom"
+      ? allowedRaw
+          .map((s) => s.trim())
+          .filter((s) => VALID_LOG_TYPES.has(s))
+      : null;
+  if (permission_level === "custom" && (allowed_log_types ?? []).length === 0) {
+    return { error: "Pick at least one log type for custom permissions." };
+  }
 
   const maxUsesRaw = String(formData.get("max_uses") ?? "").trim();
   const max_uses =
@@ -68,7 +108,8 @@ export async function generateAccessKeyAction(
   for (let attempt = 0; attempt < 8 && !inserted; attempt++) {
     plainKey = generateKeyCode(prefix);
     const token_hash = sha256Hex(plainKey);
-    const { error } = await supabase.from("access_keys").insert({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).from("access_keys").insert({
       barn_id: barnId,
       key_type,
       horse_id,
@@ -76,6 +117,7 @@ export async function generateAccessKeyAction(
       key_code: plainKey,
       token_hash,
       permission_level,
+      allowed_log_types,
       max_uses: max_uses && max_uses > 0 ? max_uses : null,
       times_used: 0,
       is_active: true,

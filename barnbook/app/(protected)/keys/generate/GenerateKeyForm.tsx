@@ -6,6 +6,14 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { getJoinUrl } from "@/lib/site-url";
+import { LOG_TYPES, logTypeLabel } from "@/lib/horse-form-constants";
+import {
+  PERMISSION_LEVELS,
+  PERMISSION_LEVEL_LABELS,
+  PERMISSION_LEVEL_DESCRIPTIONS,
+  PERMISSION_LEVEL_EMOJI,
+  type PermissionLevel,
+} from "@/lib/key-permissions";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -24,6 +32,9 @@ export function GenerateKeyForm({
   const router = useRouter();
   const [keyKind, setKeyKind] = useState<"barn" | "stall">(initialType);
   const [horseId, setHorseId] = useState(initialHorseId ?? horses[0]?.id ?? "");
+  const [permissionLevel, setPermissionLevel] =
+    useState<PermissionLevel>("log_all");
+  const [allowedLogTypes, setAllowedLogTypes] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [revealed, setRevealed] = useState<string | null>(null);
@@ -33,10 +44,21 @@ export function GenerateKeyForm({
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+
+    // Client-side validation: custom requires at least one allowed type.
+    if (permissionLevel === "custom" && allowedLogTypes.length === 0) {
+      setError("Pick at least one log type for custom permissions.");
+      return;
+    }
+
     setPending(true);
     const fd = new FormData(e.currentTarget);
     fd.set("key_kind", keyKind);
     if (keyKind === "stall") fd.set("horse_id", horseId);
+    fd.set("permission_level", permissionLevel);
+    if (permissionLevel === "custom") {
+      for (const t of allowedLogTypes) fd.append("allowed_log_types[]", t);
+    }
     const res = await generateAccessKeyAction(null, fd);
     setPending(false);
     if (res?.error) {
@@ -45,6 +67,12 @@ export function GenerateKeyForm({
     }
     if (res?.plainKey) setRevealed(res.plainKey);
     router.refresh();
+  }
+
+  function toggleLogType(t: string) {
+    setAllowedLogTypes((prev) =>
+      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
+    );
   }
 
   async function shareKey(code: string) {
@@ -168,10 +196,80 @@ export function GenerateKeyForm({
 
         <Input id="label" name="label" label="Label" placeholder="e.g. Farrier access" />
 
-        <Select label="Permission level" id="permission_level" name="permission_level" defaultValue="viewer">
-          <option value="viewer">Viewer</option>
-          <option value="editor">Editor</option>
-        </Select>
+        <div>
+          <span className="mb-2 block text-sm font-medium text-barn-dark/80">
+            Permission level
+          </span>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {PERMISSION_LEVELS.map((level) => {
+              const active = permissionLevel === level;
+              return (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() => setPermissionLevel(level)}
+                  className="rounded-xl border p-3 text-left transition"
+                  style={{
+                    borderColor: active
+                      ? "var(--brass-gold, #c9a84c)"
+                      : "rgba(42, 64, 49, 0.15)",
+                    background: active
+                      ? "rgba(201, 168, 76, 0.08)"
+                      : "white",
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">
+                      {PERMISSION_LEVEL_EMOJI[level]}
+                    </span>
+                    <span className="text-sm font-semibold text-barn-dark">
+                      {PERMISSION_LEVEL_LABELS[level]}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs leading-snug text-barn-dark/65">
+                    {PERMISSION_LEVEL_DESCRIPTIONS[level]}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {permissionLevel === "custom" ? (
+          <div
+            className="rounded-xl border p-3"
+            style={{
+              borderColor: "rgba(42, 64, 49, 0.15)",
+              background: "#fafaf3",
+            }}
+          >
+            <span className="mb-2 block text-sm font-medium text-barn-dark/80">
+              Allowed log types
+            </span>
+            <div className="grid grid-cols-2 gap-1.5">
+              {LOG_TYPES.map((t) => {
+                const checked = allowedLogTypes.includes(t);
+                return (
+                  <label
+                    key={t}
+                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm text-barn-dark hover:bg-barn-dark/5"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleLogType(t)}
+                      className="h-4 w-4"
+                    />
+                    {logTypeLabel(t)}
+                  </label>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-xs text-barn-dark/55">
+              Unchecked types will be hidden from this person&apos;s log entry form.
+            </p>
+          </div>
+        ) : null}
 
         <Input
           id="max_uses"

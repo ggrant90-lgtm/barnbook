@@ -195,7 +195,7 @@ export default async function DashboardPage() {
     todayEvents = await getTodayAndUpcoming(primaryBarn.id);
   }
 
-  // Fetch horses for each access barn
+  // Fetch horses for each access barn (full barn access via Barn Key)
   const accessBarnHorses: Record<string, Pick<Horse, "id" | "name" | "breed" | "photo_url">[]> = {};
   if (accessBarnIds.length > 0) {
     const { data: allAccessHorses } = await supabase
@@ -208,6 +208,68 @@ export default async function DashboardPage() {
       const bid = (h as { barn_id: string }).barn_id;
       if (!accessBarnHorses[bid]) accessBarnHorses[bid] = [];
       accessBarnHorses[bid].push(h);
+    }
+  }
+
+  // Stall-key grants — each row is "this user has access to this specific
+  // horse." Unlike barn-key access, we do NOT pull the whole barn's horse
+  // list. We show only the specific horse(s) the user holds stall keys to.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: stallAccessRows } = await (supabase as any)
+    .from("user_horse_access")
+    .select("horse_id, permission_level, allowed_log_types")
+    .eq("user_id", user.id);
+  const stallRows = (stallAccessRows ?? []) as Array<{
+    horse_id: string;
+    permission_level: string | null;
+    allowed_log_types: string[] | null;
+  }>;
+  const stallHorseIds = stallRows.map((r) => r.horse_id);
+  type StallHorse = {
+    id: string;
+    name: string;
+    breed: string | null;
+    photo_url: string | null;
+    barn_id: string;
+    barn_name: string;
+    permission_level: string | null;
+  };
+  const stallHorses: StallHorse[] = [];
+  if (stallHorseIds.length > 0) {
+    const { data: stallHorseRows } = await supabase
+      .from("horses")
+      .select("id, name, breed, photo_url, barn_id")
+      .in("id", stallHorseIds)
+      .eq("archived", false)
+      .order("name", { ascending: true });
+    const stallBarnIds = [
+      ...new Set((stallHorseRows ?? []).map((h) => h.barn_id)),
+    ];
+    const barnNameMap: Record<string, string> = {};
+    if (stallBarnIds.length > 0) {
+      const { data: stallBarns } = await supabase
+        .from("barns")
+        .select("id, name")
+        .in("id", stallBarnIds);
+      for (const b of (stallBarns ?? []) as { id: string; name: string }[]) {
+        barnNameMap[b.id] = b.name;
+      }
+    }
+    const permMap = new Map(
+      stallRows.map((r) => [r.horse_id, r.permission_level]),
+    );
+    for (const h of (stallHorseRows ?? []) as {
+      id: string;
+      name: string;
+      breed: string | null;
+      photo_url: string | null;
+      barn_id: string;
+    }[]) {
+      stallHorses.push({
+        ...h,
+        barn_name: barnNameMap[h.barn_id] ?? "Barn",
+        permission_level: permMap.get(h.id) ?? null,
+      });
     }
   }
 
@@ -271,6 +333,7 @@ export default async function DashboardPage() {
         ...d,
         horse_name: horseNameMap[d.horse_id] ?? "Unknown horse",
       }))}
+      stallHorses={stallHorses}
     />
   );
 }
