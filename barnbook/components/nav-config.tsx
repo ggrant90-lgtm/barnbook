@@ -37,7 +37,7 @@ export const fullNav: NavItem[] = [
   { href: "/breeders-pro", label: "Breeders Pro", icon: <IconEmbryo className="h-5 w-5" /> },
   { href: "/business-pro", label: "Business Pro", icon: <IconLedger className="h-5 w-5" /> },
   { href: "/reports", label: "Reports", icon: <IconReports className="h-5 w-5" /> },
-  { href: "/identify", label: "Identify", icon: <IconCamera className="h-5 w-5" /> },
+  { href: "/identify", label: "Scan", icon: <IconCamera className="h-5 w-5" /> },
   { href: "/learn", label: "Learn", icon: <IconPlay className="h-5 w-5" /> },
 ];
 

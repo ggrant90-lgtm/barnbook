@@ -1,23 +1,30 @@
-"use client";
+import { redirect } from "next/navigation";
+import { createServerComponentClient } from "@/lib/supabase-server";
+import { getActiveBarnContext } from "@/lib/barn-session";
+import {
+  canUserUseDocumentScanner,
+  userHasAnyScannerAccess,
+} from "@/lib/document-scanner/access";
+import { IdentifyLanding } from "./IdentifyLanding";
 
-import dynamic from "next/dynamic";
+export default async function IdentifyPage() {
+  const supabase = await createServerComponentClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/auth/signin");
 
-const QRScanner = dynamic(
-  () => import("@/components/QRScanner").then((m) => m.QRScanner),
-  { ssr: false },
-);
+  const ctx = await getActiveBarnContext(supabase, user.id);
+  const activeBarnId = ctx?.barn.id ?? null;
 
-export default function IdentifyPage() {
+  const hasDocumentScanner = activeBarnId
+    ? await canUserUseDocumentScanner(supabase, user.id, activeBarnId)
+    : await userHasAnyScannerAccess(supabase, user.id);
+
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-      <h1 className="font-serif text-3xl font-semibold text-barn-dark">
-        Identify
-      </h1>
-      <p className="mt-2 mb-6 text-barn-dark/70">
-        Scan a horse&apos;s BarnBook QR code to pull up their profile instantly.
-      </p>
-
-      <QRScanner />
-    </div>
+    <IdentifyLanding
+      hasDocumentScanner={hasDocumentScanner}
+      activeBarnId={activeBarnId}
+    />
   );
 }

@@ -19,6 +19,7 @@ import { useToast } from "@/components/ui/Toast";
 import { HORSE_BREEDS, HORSE_SEX_OPTIONS, BREEDING_ROLES, BREEDING_ROLE_LABELS } from "@/lib/horse-form-constants";
 import { uploadHorseProfilePhoto } from "@/lib/horse-photo";
 import { LogSummaryBar } from "@/components/LogSummaryBar";
+import { DocumentsTab } from "./DocumentsTab";
 import type { ActivityLog, Flush, HealthRecord, Horse, HorseStay, LogMedia, LogEntryLineItem, Pregnancy } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
@@ -28,12 +29,19 @@ import { useCallback, useMemo, useRef, useState } from "react";
 const baseTabItems = [
   { id: "overview", label: "Overview" },
   { id: "logs", label: "Logs" },
+  { id: "documents", label: "Documents" },
   { id: "breeding", label: "Breeding" },
   { id: "financials", label: "Financials" },
   { id: "access", label: "Access" },
 ] as const;
 
-type TabId = "overview" | "logs" | "breeding" | "financials" | "access";
+type TabId =
+  | "overview"
+  | "logs"
+  | "documents"
+  | "breeding"
+  | "financials"
+  | "access";
 
 const ALL_LOG_TYPES = [
   { value: "exercise", label: "Exercise" },
@@ -76,6 +84,8 @@ export function HorseProfileClient({
   foalOriginData,
   hasBreedersPro,
   hasBusinessPro,
+  hasDocumentScanner,
+  horseDocuments,
 }: {
   horse: Horse;
   canEdit: boolean;
@@ -106,6 +116,24 @@ export function HorseProfileClient({
   foalOriginData?: FoalOriginData | null;
   hasBreedersPro?: boolean;
   hasBusinessPro?: boolean;
+  hasDocumentScanner?: boolean;
+  horseDocuments?: Array<{
+    id: string;
+    document_type:
+      | "coggins"
+      | "registration"
+      | "health_certificate"
+      | "vet_record"
+      | "other";
+    title: string | null;
+    file_name: string;
+    file_size_bytes: number;
+    mime_type: string;
+    scan_confidence: "high" | "medium" | "low" | null;
+    document_date: string | null;
+    expiration_date: string | null;
+    created_at: string;
+  }>;
 }) {
   const router = useRouter();
   const { show } = useToast();
@@ -132,6 +160,7 @@ export function HorseProfileClient({
   const tabItems = baseTabItems.filter((t) => {
     if (t.id === "breeding") return !!hasBreedersPro;
     if (t.id === "financials") return !!hasBusinessPro;
+    if (t.id === "documents") return !!hasDocumentScanner;
     return true;
   });
 
@@ -142,6 +171,7 @@ export function HorseProfileClient({
     if (raw === "activity" || raw === "health") return "logs";
     if (raw === "breeding" && hasBreedersPro) return "breeding";
     if (raw === "financials" && hasBusinessPro) return "financials";
+    if (raw === "documents" && hasDocumentScanner) return "documents";
     if (raw === "overview" || raw === "logs" || raw === "access") return raw as TabId;
     return "overview";
   })();
@@ -844,6 +874,14 @@ export function HorseProfileClient({
           </div>
         ) : null}
 
+        {tab === "documents" && hasDocumentScanner ? (
+          <DocumentsTab
+            horseId={horse.id}
+            barnId={horse.barn_id}
+            canEdit={canEdit}
+            documents={horseDocuments ?? []}
+          />
+        ) : null}
 
         {tab === "breeding" && hasBreedersPro ? (
           <div className="space-y-6">

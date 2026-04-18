@@ -1,4 +1,5 @@
 import { canUserAccessHorse, canUserEditHorse } from "@/lib/horse-access";
+import { canUserUseDocumentScanner } from "@/lib/document-scanner/access";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import type { ActivityLog, Embryo, Flush, Foaling, HealthRecord, Horse, HorseStay, LogMedia, LogEntryLineItem, Pregnancy } from "@/lib/types";
 import { headers } from "next/headers";
@@ -54,6 +55,45 @@ export default async function HorseProfilePage({
     .maybeSingle();
   const hasBreedersPro = profileRow?.has_breeders_pro === true;
   const hasBusinessPro = profileRow?.has_business_pro === true;
+
+  // Document Scanner access — profile flag OR paid/comped barn.
+  const hasDocumentScanner = await canUserUseDocumentScanner(
+    supabase,
+    user.id,
+    horse.barn_id,
+  );
+
+  // Fetch horse documents (only if the user has scanner access — otherwise
+  // the tab isn't shown and the data is never rendered).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: horseDocsRaw } = hasDocumentScanner
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ? await (supabase as any)
+        .from("horse_documents")
+        .select(
+          "id, document_type, title, file_name, file_size_bytes, mime_type, scan_confidence, document_date, expiration_date, created_at",
+        )
+        .eq("horse_id", id)
+        .order("created_at", { ascending: false })
+        .limit(500)
+    : { data: [] };
+  const horseDocuments = (horseDocsRaw ?? []) as Array<{
+    id: string;
+    document_type:
+      | "coggins"
+      | "registration"
+      | "health_certificate"
+      | "vet_record"
+      | "other";
+    title: string | null;
+    file_name: string;
+    file_size_bytes: number;
+    mime_type: string;
+    scan_confidence: "high" | "medium" | "low" | null;
+    document_date: string | null;
+    expiration_date: string | null;
+    created_at: string;
+  }>;
 
   const [{ data: activities }, { data: healthRows }, { data: shoeingRows }, { data: wormingRows }] =
     await Promise.all([
@@ -486,6 +526,8 @@ export default async function HorseProfilePage({
         foalOriginData={foalOriginData}
         hasBreedersPro={hasBreedersPro}
         hasBusinessPro={hasBusinessPro}
+        hasDocumentScanner={hasDocumentScanner}
+        horseDocuments={horseDocuments}
       />
     </Suspense>
   );
