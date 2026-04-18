@@ -58,11 +58,32 @@ export default async function BusinessProLayout({
           QuickBooks-style dashboard, accounts receivable aging, trend charts,
           and per-barn breakdowns.
         </p>
+        <a
+          href="https://calendly.com/ggrant90/30min"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "12px 20px",
+            borderRadius: 12,
+            background: "#c9a84c",
+            color: "#2a4031",
+            fontSize: 14,
+            fontWeight: 600,
+            textDecoration: "none",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+            marginBottom: 16,
+          }}
+        >
+          📅 Schedule a 30-min walkthrough
+        </a>
         <p style={{
-          fontSize: 14,
-          color: "#374151",
+          fontSize: 13,
+          color: "#6b7280",
         }}>
-          For more information, please contact us at{" "}
+          Or email{" "}
           <a
             href="mailto:admin@barnbook.us"
             style={{ color: "#c9a84c", textDecoration: "underline" }}
