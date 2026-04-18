@@ -211,6 +211,49 @@ export default async function DashboardPage() {
     }
   }
 
+  // Expiring-soon documents across the user's accessible barns.
+  const allAccessibleBarnIds = [
+    ...(ownedBarns ?? []).map((b) => b.id),
+    ...accessBarns.map((b) => b.id),
+  ];
+  const in30Iso = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const todayIso = new Date().toISOString().slice(0, 10);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: expiringRaw } = allAccessibleBarnIds.length > 0
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ? await (supabase as any)
+        .from("horse_documents")
+        .select("id, horse_id, barn_id, document_type, title, expiration_date")
+        .in("barn_id", allAccessibleBarnIds)
+        .not("expiration_date", "is", null)
+        .lte("expiration_date", in30Iso)
+        .order("expiration_date", { ascending: true })
+        .limit(10)
+    : { data: [] };
+  const expiringDocs = ((expiringRaw ?? []) as Array<{
+    id: string;
+    horse_id: string;
+    barn_id: string;
+    document_type: string;
+    title: string | null;
+    expiration_date: string;
+  }>).map((d) => ({ ...d, expired: d.expiration_date < todayIso }));
+
+  // Lookup horse names for display.
+  const expiringHorseIds = [...new Set(expiringDocs.map((d) => d.horse_id))];
+  const horseNameMap: Record<string, string> = {};
+  if (expiringHorseIds.length > 0) {
+    const { data: hrs } = await supabase
+      .from("horses")
+      .select("id, name")
+      .in("id", expiringHorseIds);
+    for (const h of (hrs ?? []) as { id: string; name: string }[]) {
+      horseNameMap[h.id] = h.name;
+    }
+  }
+
   return (
     <DashboardTabs
       ownedBarns={(ownedBarns ?? []) as Barn[]}
@@ -224,6 +267,10 @@ export default async function DashboardPage() {
       recentActivity={recentActivity}
       todayEvents={todayEvents.today}
       upcomingEvents={todayEvents.upcoming}
+      expiringDocuments={expiringDocs.map((d) => ({
+        ...d,
+        horse_name: horseNameMap[d.horse_id] ?? "Unknown horse",
+      }))}
     />
   );
 }

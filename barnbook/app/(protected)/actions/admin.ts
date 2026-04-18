@@ -6,12 +6,15 @@ import { createServerComponentClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
 
 /**
- * Toggle a feature flag (has_breeders_pro or has_business_pro) on a user's profile.
- * Admin only. Logs to admin_audit_log.
+ * Toggle a feature flag (has_breeders_pro, has_business_pro, has_document_scanner)
+ * on a user's profile. Admin only. Logs to admin_audit_log.
  */
 export async function toggleUserFeatureAction(
   userId: string,
-  feature: "has_breeders_pro" | "has_business_pro",
+  feature:
+    | "has_breeders_pro"
+    | "has_business_pro"
+    | "has_document_scanner",
   value: boolean,
 ): Promise<{ ok?: true; error?: string }> {
   const admin = await isUserAdmin();

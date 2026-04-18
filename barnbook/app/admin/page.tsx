@@ -88,25 +88,43 @@ export default async function AdminPage() {
   }
 
   // Fetch all profiles for the Users table (feature toggles)
-  const { data: allProfiles } = await adminClient
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: allProfiles } = await (adminClient as any)
     .from("profiles")
-    .select("id, full_name, has_breeders_pro, has_business_pro");
+    .select(
+      "id, full_name, has_breeders_pro, has_business_pro, has_document_scanner",
+    );
 
-  const userRows = (allProfiles ?? []).map((p) => ({
-    id: p.id,
-    email: ownerEmails[p.id] ?? "—",
-    full_name: p.full_name,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userRows = ((allProfiles ?? []) as any[]).map((p) => ({
+    id: p.id as string,
+    email: ownerEmails[p.id as string] ?? "—",
+    full_name: p.full_name as string | null,
     has_breeders_pro: !!p.has_breeders_pro,
     has_business_pro: !!p.has_business_pro,
+    has_document_scanner: !!p.has_document_scanner,
   }));
 
   const businessProCount = userRows.filter((u) => u.has_business_pro).length;
   const breedersProCount = userRows.filter((u) => u.has_breeders_pro).length;
 
+  // Document scans this month — from api_call_log.
+  const monthStartIso = new Date(
+    new Date().getFullYear(),
+    new Date().getMonth(),
+    1,
+  ).toISOString();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { count: docScansMonth } = await (adminClient as any)
+    .from("api_call_log")
+    .select("id", { count: "exact", head: true })
+    .eq("endpoint", "documents/extract")
+    .gte("called_at", monthStartIso);
+
   return (
     <div className="space-y-8">
       {/* Metrics */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-7">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8">
         {[
           { label: "Total Barns", value: totalBarns },
           { label: "Total Horses", value: totalHorses },
@@ -114,6 +132,7 @@ export default async function AdminPage() {
           { label: "Comped Barns", value: compedBarns },
           { label: "Breeders Pro", value: breedersProCount },
           { label: "Business Pro", value: businessProCount },
+          { label: "Scans This Month", value: docScansMonth ?? 0 },
           {
             label: "Pending Interest",
             value: pendingInterest,

@@ -9,6 +9,7 @@ interface UserRow {
   full_name: string | null;
   has_breeders_pro: boolean;
   has_business_pro: boolean;
+  has_document_scanner: boolean;
 }
 
 export function UsersTable({ users }: { users: UserRow[] }) {
@@ -31,7 +32,10 @@ export function UsersTable({ users }: { users: UserRow[] }) {
 
   const toggle = (
     user: UserRow,
-    feature: "has_breeders_pro" | "has_business_pro",
+    feature:
+      | "has_breeders_pro"
+      | "has_business_pro"
+      | "has_document_scanner",
   ) => {
     const nextVal = !user[feature];
     // Optimistic
@@ -70,6 +74,9 @@ export function UsersTable({ users }: { users: UserRow[] }) {
               <th className="px-6 py-3 font-medium text-barn-dark/60 text-center">
                 Business Pro
               </th>
+              <th className="px-6 py-3 font-medium text-barn-dark/60 text-center">
+                Scanner
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -105,6 +112,20 @@ export function UsersTable({ users }: { users: UserRow[] }) {
                     }`}
                   >
                     {u.has_business_pro ? "Enabled" : "Disabled"}
+                  </button>
+                </td>
+                <td className="px-6 py-3 text-center">
+                  <button
+                    type="button"
+                    onClick={() => toggle(u, "has_document_scanner")}
+                    disabled={pending}
+                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition ${
+                      u.has_document_scanner
+                        ? "bg-brass-gold text-barn-dark"
+                        : "bg-barn-dark/5 text-barn-dark/50"
+                    }`}
+                  >
+                    {u.has_document_scanner ? "Enabled" : "Disabled"}
                   </button>
                 </td>
               </tr>

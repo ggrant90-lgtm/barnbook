@@ -27,6 +27,7 @@ export function DashboardTabs({
   recentActivity,
   todayEvents,
   upcomingEvents,
+  expiringDocuments,
 }: {
   ownedBarns: Barn[];
   accessBarns: (Barn & { userRole: string })[];
@@ -39,11 +40,53 @@ export function DashboardTabs({
   recentActivity: { log: ActivityLog; horseName: string }[];
   todayEvents?: CalendarEvent[];
   upcomingEvents?: CalendarEvent[];
+  expiringDocuments?: Array<{
+    id: string;
+    horse_id: string;
+    horse_name: string;
+    document_type: string;
+    title: string | null;
+    expiration_date: string;
+    expired: boolean;
+  }>;
 }) {
   const [tab, setTab] = useState<"my" | "access">("my");
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      {(expiringDocuments?.length ?? 0) > 0 && (
+        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <div className="text-xs font-medium uppercase tracking-wide text-amber-900/70 mb-2">
+            Needs Attention — Documents Expiring
+          </div>
+          <ul className="space-y-1">
+            {(expiringDocuments ?? []).slice(0, 5).map((d) => (
+              <li key={d.id} className="text-sm text-amber-900">
+                <a
+                  href={`/horses/${d.horse_id}?tab=documents`}
+                  className="hover:underline"
+                >
+                  <strong>{d.horse_name}</strong> —{" "}
+                  {d.title ?? labelForDocType(d.document_type)}
+                  {d.expired ? (
+                    <span className="ml-2 rounded bg-red-100 text-red-800 text-[10px] font-mono uppercase px-1.5 py-0.5">
+                      Expired
+                    </span>
+                  ) : (
+                    <span className="ml-2 text-amber-800/80">
+                      expires{" "}
+                      {new Date(d.expiration_date).toLocaleDateString(
+                        undefined,
+                        { month: "short", day: "numeric" },
+                      )}
+                    </span>
+                  )}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {/* ─── Tab bar ─── */}
       <div className="flex items-center gap-1 rounded-xl bg-barn-dark/5 p-1">
         <button
@@ -336,4 +379,19 @@ export function DashboardTabs({
       ) : null}
     </div>
   );
+}
+
+function labelForDocType(t: string): string {
+  switch (t) {
+    case "coggins":
+      return "Coggins test";
+    case "registration":
+      return "Registration papers";
+    case "health_certificate":
+      return "Health certificate";
+    case "vet_record":
+      return "Vet record";
+    default:
+      return "Document";
+  }
 }
