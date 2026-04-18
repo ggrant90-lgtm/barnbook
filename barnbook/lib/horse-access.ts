@@ -107,3 +107,22 @@ export async function canUserEditHorse(
   const role = await getBarnRoleForUser(supabase, userId, barnId);
   return isEditorPlusRole(role);
 }
+
+/**
+ * Horse PROFILE edits (name, breed, color, photo, core identity fields) are
+ * owner-only — no exceptions, no matter what role or key permission level.
+ * Use this instead of canUserEditHorse for any mutation that changes the
+ * horse itself (vs. log entries attached to it).
+ */
+export async function canUserEditHorseProfile(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  barnId: string,
+): Promise<boolean> {
+  const { data: barn } = await supabase
+    .from("barns")
+    .select("owner_id")
+    .eq("id", barnId)
+    .maybeSingle();
+  return (barn as { owner_id?: string } | null)?.owner_id === userId;
+}
