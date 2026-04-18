@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { readImageForExtraction, uploadHorseDocument } from "@/lib/horse-documents";
+import {
+  readImageForExtraction,
+  uploadHorseDocument,
+  uploadPendingHorseDocument,
+} from "@/lib/horse-documents";
 import {
   applyExtractionToHorseAction,
   createHorseDocumentAction,
@@ -26,6 +30,17 @@ export interface ScanResult {
   horseId?: string;
   docId?: string;
   prefill?: ExtractedHorseData;
+  /**
+   * Only set on `kind === "prefill"`. The scanned file has already been
+   * uploaded to Storage under a pending path; the caller should write a
+   * horse_documents row pointing at it once the new horse is created.
+   */
+  uploadedDoc?: {
+    file_path: string;
+    file_name: string;
+    file_size_bytes: number;
+    mime_type: string;
+  };
 }
 
 export function ScanModal({
@@ -237,13 +252,32 @@ export function ScanModal({
     [barnId, file, onComplete, router],
   );
 
-  const handleCreateNewHorse = useCallback(() => {
-    // No horse creation here — the extraction is returned to the caller
-    // so it can pre-fill the /horses/new form.
+  const handleCreateNewHorse = useCallback(async () => {
+    // Upload the scanned file to a pending Storage path so the new-horse
+    // flow can attach it to the freshly-created horse on save. We upload
+    // here (rather than waiting until the horse exists) because React
+    // state + File handles don't survive the page navigation that
+    // follows.
     if (!extracted) return;
-    onComplete?.({ kind: "prefill", prefill: extracted });
+    if (!file) {
+      onComplete?.({ kind: "prefill", prefill: extracted });
+      onClose();
+      return;
+    }
+    setStage("saving");
+    const up = await uploadPendingHorseDocument(barnId, file);
+    if ("error" in up) {
+      setError(up.error);
+      setStage("error");
+      return;
+    }
+    onComplete?.({
+      kind: "prefill",
+      prefill: extracted,
+      uploadedDoc: up,
+    });
     onClose();
-  }, [extracted, onComplete, onClose]);
+  }, [extracted, file, barnId, onComplete, onClose]);
 
   if (!open) return null;
 

@@ -156,4 +156,48 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
+/**
+ * Upload a horse document BEFORE the horse exists (during the scan →
+ * "create new horse" flow). File is parked under `{barn_id}/_pending/`
+ * and the resulting file_path is passed forward to the new-horse form.
+ * Once the horse is created, a horse_documents row just references this
+ * existing path — no Storage move needed. The `barn_id` first-segment
+ * rule still satisfies our Storage RLS policies.
+ */
+export async function uploadPendingHorseDocument(
+  barnId: string,
+  file: File,
+): Promise<UploadedHorseDoc | { error: string }> {
+  if (!isAllowedHorseDoc(file)) {
+    return { error: "Only JPEG, PNG, HEIC, or PDF files are accepted." };
+  }
+  if (file.size > MAX_HORSE_DOC_SIZE_BYTES) {
+    return {
+      error: `File is too large. Maximum size is ${
+        MAX_HORSE_DOC_SIZE_BYTES / (1024 * 1024)
+      } MB.`,
+    };
+  }
+
+  const safeName = sanitizeFileName(file.name) || "document";
+  const uniq =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const path = `${barnId}/_pending/${uniq}-${safeName}`;
+
+  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
+    upsert: false,
+    contentType: file.type,
+  });
+  if (error) return { error: error.message };
+
+  return {
+    file_path: path,
+    file_name: file.name,
+    file_size_bytes: file.size,
+    mime_type: file.type,
+  };
+}
+
 export const HORSE_DOCUMENTS_BUCKET = BUCKET;

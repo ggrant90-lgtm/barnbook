@@ -5,7 +5,6 @@ import { updateHorsePhotoUrlAction } from "@/app/(protected)/actions/horse";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { HORSE_BREEDS, HORSE_SEX_OPTIONS } from "@/lib/horse-form-constants";
 import { uploadHorseProfilePhoto } from "@/lib/horse-photo";
-import { uploadHorseDocument } from "@/lib/horse-documents";
 import { createHorseDocumentAction } from "@/app/(protected)/actions/horse-documents";
 import { ScanEntryButton } from "@/components/document-scanner/ScanEntryButton";
 import type { ExtractedHorseData } from "@/lib/document-extraction-prompt";
@@ -18,14 +17,15 @@ const inputClass =
 
 interface PrefillData {
   extraction: ExtractedHorseData;
-  /** Already-uploaded storage file from the scan flow. Reused post-create
-   *  to write the horse_documents row against the brand-new horse. */
+  /** Pre-uploaded storage file (path points into the `horse-documents`
+   *  bucket under `{barn_id}/_pending/...`). After the new horse is
+   *  created, we write a horse_documents row pointing at this path —
+   *  no Storage move needed. */
   uploadedDoc?: {
     file_path: string;
     file_name: string;
     file_size_bytes: number;
     mime_type: string;
-    originalFile: File;
   };
 }
 
@@ -57,13 +57,21 @@ export function NewHorseShell({
 
   // Pick up a sessionStorage handoff from /identify → /horses/new when the
   // user scanned a document from the Scan page and there was no match.
+  // The handoff carries both the extraction AND the pre-uploaded file
+  // metadata (from the pending Storage path).
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem("barnbook:scan-prefill");
       if (raw) {
-        const data = JSON.parse(raw) as ExtractedHorseData;
-        applyExtraction(data);
-        setPrefill({ extraction: data, uploadedDoc: undefined });
+        const data = JSON.parse(raw) as {
+          extraction: ExtractedHorseData;
+          uploadedDoc?: PrefillData["uploadedDoc"];
+        };
+        applyExtraction(data.extraction);
+        setPrefill({
+          extraction: data.extraction,
+          uploadedDoc: data.uploadedDoc,
+        });
         sessionStorage.removeItem("barnbook:scan-prefill");
       }
     } catch {
@@ -141,35 +149,33 @@ export function NewHorseShell({
     }
 
     // If the form was pre-filled from a scanned document, attach that
-    // document to the new horse's profile.
-    if (prefill && activeBarnId) {
+    // document to the new horse's profile. The file was already uploaded
+    // to a pending Storage path by the ScanModal — here we just write
+    // the horse_documents row pointing at it.
+    if (prefill?.uploadedDoc) {
       try {
-        // The scan image was captured locally but not yet uploaded — do it now
-        // that we have a horseId for the path.
-        const docFile = prefill.uploadedDoc?.originalFile;
-        if (docFile) {
-          const up = await uploadHorseDocument(activeBarnId, horseId, docFile);
-          if (!("error" in up)) {
-            await createHorseDocumentAction({
-              horseId,
-              document_type:
-                prefill.extraction.document_type === "unknown"
-                  ? "other"
-                  : prefill.extraction.document_type,
-              title: prefill.extraction.horse_name ?? null,
-              file_path: up.file_path,
-              file_name: up.file_name,
-              file_size_bytes: up.file_size_bytes,
-              mime_type: up.mime_type,
-              extracted_data: prefill.extraction,
-              scan_confidence: prefill.extraction.overall_confidence,
-              document_date:
-                prefill.extraction.document_date ??
-                prefill.extraction.test_date,
-              expiration_date: prefill.extraction.expiration_date,
-            });
-          }
-        }
+        const ex = prefill.extraction;
+        await createHorseDocumentAction({
+          horseId,
+          document_type:
+            ex.document_type === "unknown" ? "other" : ex.document_type,
+          title:
+            ex.document_type === "coggins"
+              ? `Coggins — ${ex.test_date ?? "no date"}`
+              : ex.document_type === "registration"
+                ? `Registration — ${ex.registry ?? "papers"}`
+                : ex.document_type === "health_certificate"
+                  ? "Health Certificate"
+                  : ex.horse_name ?? null,
+          file_path: prefill.uploadedDoc.file_path,
+          file_name: prefill.uploadedDoc.file_name,
+          file_size_bytes: prefill.uploadedDoc.file_size_bytes,
+          mime_type: prefill.uploadedDoc.mime_type,
+          extracted_data: ex,
+          scan_confidence: ex.overall_confidence,
+          document_date: ex.document_date ?? ex.test_date,
+          expiration_date: ex.expiration_date,
+        });
       } catch {
         // Non-fatal — horse is created, user can add the doc manually.
       }
@@ -216,7 +222,7 @@ export function NewHorseShell({
                 applyExtraction(r.prefill);
                 setPrefill({
                   extraction: r.prefill,
-                  uploadedDoc: undefined,
+                  uploadedDoc: r.uploadedDoc,
                 });
               }
             }}

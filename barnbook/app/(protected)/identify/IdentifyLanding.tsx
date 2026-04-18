@@ -29,12 +29,16 @@ export function IdentifyLanding({
     if (r.kind === "attached" && r.horseId) {
       router.push(`/horses/${r.horseId}?tab=documents`);
     } else if (r.kind === "prefill" && r.prefill) {
-      // Route to /horses/new and let the shell prefill. (We pass a small
-      // session-storage hand-off so the destination page can pick it up.)
+      // Route to /horses/new and let the shell prefill. The pre-uploaded
+      // file metadata rides along so NewHorseShell can attach the doc
+      // to the freshly-created horse.
       try {
         sessionStorage.setItem(
           "barnbook:scan-prefill",
-          JSON.stringify(r.prefill),
+          JSON.stringify({
+            extraction: r.prefill,
+            uploadedDoc: r.uploadedDoc,
+          }),
         );
       } catch {
         /* sessionStorage unavailable — user fills manually */
