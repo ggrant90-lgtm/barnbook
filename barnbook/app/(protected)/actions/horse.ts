@@ -131,11 +131,16 @@ export async function updateHorseAction(
 
   const owner_name = String(formData.get("owner_name") ?? "").trim() || null;
 
+  const rawNamePref = String(formData.get("primary_name_pref") ?? "").trim();
+  const primary_name_pref: "papered" | "barn" =
+    rawNamePref === "barn" ? "barn" : "papered";
+
   const { error } = await supabase
     .from("horses")
     .update({
       name,
       barn_name: String(formData.get("barn_name") ?? "").trim() || null,
+      primary_name_pref,
       breed: String(formData.get("breed") ?? "").trim() || null,
       sex: String(formData.get("sex") ?? "").trim() || null,
       color: String(formData.get("color") ?? "").trim() || null,

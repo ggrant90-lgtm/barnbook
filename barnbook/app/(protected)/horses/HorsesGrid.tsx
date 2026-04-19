@@ -34,7 +34,10 @@ export function HorsesGrid({
   const filtered = useMemo(() => {
     const ql = q.trim().toLowerCase();
     return horses.filter((h) => {
-      if (ql && !h.name.toLowerCase().includes(ql)) return false;
+      if (ql) {
+        const hay = `${h.name} ${h.barn_name ?? ""}`.toLowerCase();
+        if (!hay.includes(ql)) return false;
+      }
       if (breedFilter && (h.breed ?? "") !== breedFilter) return false;
       if (sexFilter && (h.sex ?? "") !== sexFilter) return false;
       return true;

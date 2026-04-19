@@ -102,7 +102,10 @@ export default async function DashboardPage() {
     : activeBarnId && activeBarnId !== "__all__"
       ? allUserBarns.find((b) => b.id === activeBarnId) ?? (ownedBarns ?? [])[0] ?? null
       : (ownedBarns ?? [])[0] ?? null;
-  let horses: Pick<Horse, "id" | "name" | "photo_url" | "breed" | "sex" | "color" | "updated_at">[] = [];
+  let horses: Pick<
+    Horse,
+    "id" | "name" | "barn_name" | "primary_name_pref" | "photo_url" | "breed" | "sex" | "color" | "updated_at"
+  >[] = [];
   let horseCount = 0;
   let activeKeys = 0;
   let pendingRequests = 0;
@@ -114,7 +117,7 @@ export default async function DashboardPage() {
     const [horsesRes, keysRes] = await Promise.all([
       supabase
         .from("horses")
-        .select("id, name, photo_url, breed, sex, color, updated_at")
+        .select("id, name, barn_name, primary_name_pref, photo_url, breed, sex, color, updated_at")
         .in("barn_id", allBarnIds)
         .eq("archived", false)
         .order("name", { ascending: true })
@@ -150,7 +153,7 @@ export default async function DashboardPage() {
     const [horsesRes, keysRes, pendingRes, horseIdsForActivity] = await Promise.all([
       supabase
         .from("horses")
-        .select("id, name, photo_url, breed, sex, color, updated_at")
+        .select("id, name, barn_name, primary_name_pref, photo_url, breed, sex, color, updated_at")
         .eq("barn_id", barnId)
         .order("name", { ascending: true })
         .limit(24),
@@ -196,11 +199,14 @@ export default async function DashboardPage() {
   }
 
   // Fetch horses for each access barn (full barn access via Barn Key)
-  const accessBarnHorses: Record<string, Pick<Horse, "id" | "name" | "breed" | "photo_url">[]> = {};
+  const accessBarnHorses: Record<
+    string,
+    Pick<Horse, "id" | "name" | "barn_name" | "primary_name_pref" | "breed" | "photo_url">[]
+  > = {};
   if (accessBarnIds.length > 0) {
     const { data: allAccessHorses } = await supabase
       .from("horses")
-      .select("id, name, breed, photo_url, barn_id")
+      .select("id, name, barn_name, primary_name_pref, breed, photo_url, barn_id")
       .in("barn_id", accessBarnIds)
       .order("name", { ascending: true });
 
@@ -231,6 +237,7 @@ export default async function DashboardPage() {
     breed: string | null;
     photo_url: string | null;
     barn_id: string;
+    /** barns.name — the owning barn's name (shown as "at {barn_name}" in the stall-key card) */
     barn_name: string;
     permission_level: string | null;
   };
@@ -238,7 +245,7 @@ export default async function DashboardPage() {
   if (stallHorseIds.length > 0) {
     const { data: stallHorseRows } = await supabase
       .from("horses")
-      .select("id, name, breed, photo_url, barn_id")
+      .select("id, name, barn_name, primary_name_pref, breed, photo_url, barn_id")
       .in("id", stallHorseIds)
       .eq("archived", false)
       .order("name", { ascending: true });

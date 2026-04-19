@@ -38,9 +38,15 @@ export function DashboardTabs({
 }: {
   ownedBarns: Barn[];
   accessBarns: (Barn & { userRole: string })[];
-  accessBarnHorses: Record<string, Pick<Horse, "id" | "name" | "breed" | "photo_url">[]>;
+  accessBarnHorses: Record<
+    string,
+    Pick<Horse, "id" | "name" | "barn_name" | "primary_name_pref" | "breed" | "photo_url">[]
+  >;
   primaryBarn: Barn | null;
-  horses: Pick<Horse, "id" | "name" | "photo_url" | "breed" | "sex" | "color" | "updated_at">[];
+  horses: Pick<
+    Horse,
+    "id" | "name" | "barn_name" | "primary_name_pref" | "photo_url" | "breed" | "sex" | "color" | "updated_at"
+  >[];
   horseCount: number;
   activeKeys: number;
   pendingRequests: number;

@@ -17,6 +17,7 @@ import { Select } from "@/components/ui/Select";
 import { Tabs } from "@/components/ui/Tabs";
 import { useToast } from "@/components/ui/Toast";
 import { HORSE_BREEDS, HORSE_SEX_OPTIONS, BREEDING_ROLES, BREEDING_ROLE_LABELS } from "@/lib/horse-form-constants";
+import { getHorseDisplayName, getHorseSecondaryName } from "@/lib/horse-name";
 import { uploadHorseProfilePhoto } from "@/lib/horse-photo";
 import { LogSummaryBar } from "@/components/LogSummaryBar";
 import { DocumentsTab } from "./DocumentsTab";
@@ -435,7 +436,14 @@ export function HorseProfileClient({
 
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-semibold text-barn-dark">{horse.name}</h1>
+          <h1 className="font-serif text-3xl font-semibold text-barn-dark">
+            {getHorseDisplayName(horse)}
+          </h1>
+          {getHorseSecondaryName(horse) && (
+            <p className="text-sm text-barn-dark/60 italic">
+              {getHorseSecondaryName(horse)}
+            </p>
+          )}
           <p className="text-sm text-barn-dark/55">{horse.breed ?? "Horse"}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -610,6 +618,39 @@ export function HorseProfileClient({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Input label="Name" name="name" defaultValue={horse.name} disabled={fieldsDisabled} required />
                   <Input label="Barn name" name="barn_name" defaultValue={horse.barn_name ?? ""} disabled={fieldsDisabled} />
+                  <fieldset
+                    className="sm:col-span-2 rounded-xl border border-barn-dark/10 bg-parchment/40 px-3 py-2.5"
+                    disabled={fieldsDisabled}
+                  >
+                    <legend className="px-1 text-xs font-medium text-barn-dark/70">
+                      Primary display name
+                    </legend>
+                    <div className="mt-1 flex flex-wrap gap-x-5 gap-y-2">
+                      <label className="inline-flex items-center gap-2 text-sm text-barn-dark">
+                        <input
+                          type="radio"
+                          name="primary_name_pref"
+                          value="papered"
+                          defaultChecked={(horse.primary_name_pref ?? "papered") !== "barn"}
+                          className="h-4 w-4 accent-brass-gold"
+                        />
+                        Use papered name
+                      </label>
+                      <label className="inline-flex items-center gap-2 text-sm text-barn-dark">
+                        <input
+                          type="radio"
+                          name="primary_name_pref"
+                          value="barn"
+                          defaultChecked={horse.primary_name_pref === "barn"}
+                          className="h-4 w-4 accent-brass-gold"
+                        />
+                        Use barn name
+                      </label>
+                    </div>
+                    <p className="mt-1 text-xs text-barn-dark/55">
+                      Shown as the main label on this horse&apos;s profile and on horse cards.
+                    </p>
+                  </fieldset>
                   <Select label="Breed" name="breed" defaultValue={horse.breed ?? ""} disabled={fieldsDisabled}>
                     <option value="">—</option>
                     {HORSE_BREEDS.map((b) => (

@@ -190,6 +190,10 @@ export interface Horse {
   created_by: string | null;
   name: string;
   barn_name: string | null;
+  /** Which name is the primary display name across the app.
+   *  'papered' = horses.name (registered/papered name, default).
+   *  'barn'    = horses.barn_name (nickname). */
+  primary_name_pref: "papered" | "barn";
   breed: string | null;
   sex: string | null;
   color: string | null;
