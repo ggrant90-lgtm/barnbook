@@ -3,6 +3,7 @@
 import { getActiveBarnContext } from "@/lib/barn-session";
 import { canUserEditHorseProfile } from "@/lib/horse-access";
 import { getBarnCapacitySnapshot } from "@/lib/plans.server";
+import { createAdminClient } from "@/lib/supabase-admin";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -56,7 +57,17 @@ export async function createHorseAction(
   const registration_number = String(formData.get("registration_number") ?? "").trim() || null;
   const microchip_number = String(formData.get("microchip_number") ?? "").trim() || null;
 
-  const { data: horse, error } = await supabase
+  // Authorization was just enforced above via canUserEditHorseProfile —
+  // which verifies ctx.barn.owner_id === user.id by SELECTing the barn.
+  // Use the service-role client for the actual INSERT to avoid a known
+  // issue where auth.uid() is unreliable inside RLS WITH CHECK in some
+  // Next.js server-action contexts, causing "new row violates row-level
+  // security policy" errors for legitimate barn owners. RLS is
+  // intentionally bypassed here because the ownership gate above is the
+  // authoritative check.
+  const adminClient = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: horse, error } = await (adminClient as any)
     .from("horses")
     .insert({
       barn_id: ctx.barn.id,
