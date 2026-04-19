@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import { getActiveBarnContext } from "@/lib/barn-session";
+import { getHorseDisplayName } from "@/lib/horse-name";
 import { OverviewClient } from "./OverviewClient";
 import type { Pregnancy } from "@/lib/types";
 
@@ -83,7 +84,7 @@ export default async function OverviewPage() {
     // Mares in heat
     supabase
       .from("horses")
-      .select("id, name")
+      .select("id, name, barn_name, primary_name_pref")
       .eq("barn_id", barnId)
       .eq("archived", false)
       .eq("reproductive_status", "in_cycle"),
@@ -115,10 +116,10 @@ export default async function OverviewPage() {
   if (horseIds.size > 0) {
     const { data: horses } = await supabase
       .from("horses")
-      .select("id, name")
+      .select("id, name, barn_name, primary_name_pref")
       .in("id", [...horseIds]);
     for (const h of horses ?? []) {
-      horseNames[h.id] = h.name;
+      horseNames[h.id] = getHorseDisplayName(h);
     }
   }
 
@@ -139,7 +140,12 @@ export default async function OverviewPage() {
         foalsThisSeason: foalingsThisYear?.length ?? 0,
       }}
       pregnancies={(pregnancies ?? []) as Pregnancy[]}
-      maresInHeat={(maresInHeat ?? []) as { id: string; name: string }[]}
+      maresInHeat={((maresInHeat ?? []) as Array<{
+        id: string;
+        name: string;
+        barn_name: string | null;
+        primary_name_pref: "papered" | "barn";
+      }>).map((m) => ({ id: m.id, name: getHorseDisplayName(m) }))}
       recentBreedLogs={filteredBreedLogs as any[]}
       horseNames={horseNames}
     />

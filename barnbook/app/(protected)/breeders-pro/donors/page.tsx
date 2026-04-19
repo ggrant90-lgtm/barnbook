@@ -25,7 +25,7 @@ export default async function DonorsListPage() {
   const { data: donorHorsesRaw } = await supabase
     .from("horses")
     .select(
-      "id, name, registration_number, breed, color, breeding_role, reproductive_status, lifetime_embryo_count, lifetime_live_foal_count, archived",
+      "id, name, barn_name, primary_name_pref, registration_number, breed, color, breeding_role, reproductive_status, lifetime_embryo_count, lifetime_live_foal_count, archived",
     )
     .eq("barn_id", barnId)
     .in("breeding_role", ["donor", "multiple"])
@@ -35,6 +35,8 @@ export default async function DonorsListPage() {
     Horse,
     | "id"
     | "name"
+    | "barn_name"
+    | "primary_name_pref"
     | "registration_number"
     | "breed"
     | "color"

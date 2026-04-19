@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerComponentClient } from "@/lib/supabase-server";
+import { getHorseDisplayName } from "@/lib/horse-name";
 import { revalidatePath } from "next/cache";
 
 export interface CalendarEvent {
@@ -56,7 +57,7 @@ export async function getCalendarEvents(
   // Get horses in this barn
   let horseQuery = supabase
     .from("horses")
-    .select("id, name")
+    .select("id, name, barn_name, primary_name_pref")
     .eq("barn_id", filters.barnId)
     .eq("archived", false);
 
@@ -68,7 +69,7 @@ export async function getCalendarEvents(
   if (!horses || horses.length === 0) return { events: [] };
 
   const horseIds = horses.map((h) => h.id);
-  const horseNameMap = new Map(horses.map((h) => [h.id, h.name]));
+  const horseNameMap = new Map(horses.map((h) => [h.id, getHorseDisplayName(h)]));
 
   const now = new Date().toISOString();
   const events: CalendarEvent[] = [];

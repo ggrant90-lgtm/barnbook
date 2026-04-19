@@ -11,6 +11,7 @@ import type {
   Location,
   Pregnancy,
 } from "@/lib/types";
+import { getHorseDisplayName, getHorseSecondaryName } from "@/lib/horse-name";
 import { BreedersProChrome } from "@/components/breeders-pro/BreedersProChrome";
 import { HorseLifecycleActions } from "@/components/breeders-pro/HorseLifecycleActions";
 
@@ -124,10 +125,12 @@ export function SurrogateProfileClient({
     return { total, foaled, lost, successRate, liveFoals };
   }, [pregnancies, foalings]);
 
+  const displayName = getHorseDisplayName(horse);
+  const secondaryName = getHorseSecondaryName(horse);
   const breadcrumb = [
     { label: "Breeders Pro", href: "/breeders-pro" },
     { label: "Surrogate" },
-    { label: horse.name },
+    { label: displayName },
   ];
 
   const roleTag =
@@ -141,7 +144,12 @@ export function SurrogateProfileClient({
           <div className="bp-profile-identity">
             <div className="bp-profile-meta">
               <div className="bp-role-tag">{roleTag}</div>
-              <h1 className="bp-profile-name">{horse.name}</h1>
+              <h1 className="bp-profile-name">{displayName}</h1>
+              {secondaryName && (
+                <div className="bp-profile-alias text-sm italic text-barn-dark/60">
+                  {secondaryName}
+                </div>
+              )}
               <div className="bp-profile-attributes">
                 {horse.registration_number && (
                   <div className="bp-attr">

@@ -8,6 +8,7 @@ import {
   type LogType,
 } from "@/lib/horse-form-constants";
 import { createServerComponentClient } from "@/lib/supabase-server";
+import { getHorseDisplayName } from "@/lib/horse-name";
 import { BreedDataForm } from "@/components/BreedDataForm";
 import { LogFormWrapper } from "@/components/LogFormWrapper";
 import Link from "next/link";
@@ -44,7 +45,7 @@ export default async function HorseLogPage({
 
   const { data: horse } = await supabase
     .from("horses")
-    .select("id, name, barn_id, owner_name")
+    .select("id, name, barn_name, primary_name_pref, barn_id, owner_name")
     .eq("id", horseId)
     .single();
 
@@ -207,7 +208,7 @@ export default async function HorseLogPage({
         href={`/horses/${horseId}?tab=${tab}`}
         className="text-sm text-barn-dark/70 hover:text-brass-gold"
       >
-        ← {horse.name}
+        ← {getHorseDisplayName(horse)}
       </Link>
       <h1 className="mt-6 font-serif text-2xl font-semibold text-barn-dark">
         {isEditing ? "Edit" : "Log"}: {logTypeLabel(logType)}

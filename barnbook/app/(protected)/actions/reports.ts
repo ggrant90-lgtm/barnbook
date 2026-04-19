@@ -2,6 +2,7 @@
 
 import { createServerComponentClient } from "@/lib/supabase-server";
 import { canUserAccessHorse } from "@/lib/horse-access";
+import { getHorseDisplayName } from "@/lib/horse-name";
 import type { ActivityLog, HealthRecord } from "@/lib/types";
 
 export interface ReportParams {
@@ -79,12 +80,14 @@ export async function generateReportData(params: ReportParams): Promise<ReportDa
   // Get horses in this barn
   const { data: barnHorses } = await supabase
     .from("horses")
-    .select("id, name, owner_name")
+    .select("id, name, barn_name, primary_name_pref, owner_name")
     .eq("barn_id", params.barnId)
     .eq("archived", false);
 
   const allHorseIds = (barnHorses ?? []).map((h) => h.id);
-  const horseNameMap = new Map((barnHorses ?? []).map((h) => [h.id, h.name]));
+  const horseNameMap = new Map(
+    (barnHorses ?? []).map((h) => [h.id, getHorseDisplayName(h)]),
+  );
   const horseOwnerMap = new Map((barnHorses ?? []).map((h) => [h.id, (h as { owner_name?: string }).owner_name ?? null]));
 
   const targetHorseIds = params.horseIds?.length

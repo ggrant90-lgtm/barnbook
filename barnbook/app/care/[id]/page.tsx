@@ -1,5 +1,6 @@
 import { CareCard } from "@/components/CareCard";
 import { HorsePhoto } from "@/components/HorsePhoto";
+import { getHorseDisplayName, getHorseSecondaryName } from "@/lib/horse-name";
 import { createPublicSupabaseClient } from "@/lib/supabase-public";
 import type { HealthRecord } from "@/lib/types";
 import type { Metadata } from "next";
@@ -8,7 +9,7 @@ import { notFound } from "next/navigation";
 
 /** Only select publicly-safe columns + barn_id for key requests */
 const PUBLIC_HORSE_FIELDS =
-  "id, name, breed, photo_url, barn_id, feed_regimen, supplements, special_care_notes, turnout_schedule" as const;
+  "id, name, barn_name, primary_name_pref, breed, photo_url, barn_id, feed_regimen, supplements, special_care_notes, turnout_schedule" as const;
 
 export async function generateMetadata({
   params,
@@ -19,14 +20,15 @@ export async function generateMetadata({
   const supabase = createPublicSupabaseClient();
   const { data } = await supabase
     .from("horses")
-    .select("name, breed")
+    .select("name, barn_name, primary_name_pref, breed")
     .eq("id", id)
     .single();
 
   if (!data) return { title: "Horse not found — BarnBook" };
+  const displayName = getHorseDisplayName(data);
   return {
-    title: `${data.name} — Care Summary | BarnBook`,
-    description: `Care summary for ${data.name}${data.breed ? ` (${data.breed})` : ""}. Feed, supplements, shoeing & worming info.`,
+    title: `${displayName} — Care Summary | BarnBook`,
+    description: `Care summary for ${displayName}${data.breed ? ` (${data.breed})` : ""}. Feed, supplements, shoeing & worming info.`,
   };
 }
 
@@ -89,7 +91,7 @@ export default async function PublicCareCardPage({
         <div className="mb-5 flex items-center gap-4">
           <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl">
             <HorsePhoto
-              name={horse.name}
+              name={getHorseDisplayName(horse)}
               photoUrl={horse.photo_url}
               aspectClassName="aspect-square w-full"
               className="rounded-2xl"
@@ -97,8 +99,13 @@ export default async function PublicCareCardPage({
           </div>
           <div>
             <h1 className="font-serif text-2xl font-semibold text-barn-dark">
-              {horse.name}
+              {getHorseDisplayName(horse)}
             </h1>
+            {getHorseSecondaryName(horse) && (
+              <p className="text-sm italic text-barn-dark/60">
+                {getHorseSecondaryName(horse)}
+              </p>
+            )}
             {horse.breed ? (
               <p className="text-sm text-barn-dark/55">{horse.breed}</p>
             ) : null}
@@ -118,7 +125,7 @@ export default async function PublicCareCardPage({
         {/* Request Stall Key */}
         <div className="mt-5 rounded-2xl border border-barn-dark/10 bg-white p-5 shadow-sm text-center">
           <p className="text-sm text-barn-dark/60 mb-3">
-            Want ongoing access to {horse.name}&apos;s records?
+            Want ongoing access to {getHorseDisplayName(horse)}&apos;s records?
           </p>
           <Link
             href={`/join?request=stall&horse=${id}&barn=${horse.barn_id}`}

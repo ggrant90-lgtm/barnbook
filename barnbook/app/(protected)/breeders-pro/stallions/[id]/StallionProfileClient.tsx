@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { Embryo, Flush, Horse, Pregnancy } from "@/lib/types";
 import type { EmbryoLocation } from "@/lib/embryo-location";
+import { getHorseDisplayName, getHorseSecondaryName } from "@/lib/horse-name";
 import { BreedersProChrome } from "@/components/breeders-pro/BreedersProChrome";
 
 type EmbryoFilterKind =
@@ -140,10 +141,12 @@ export function StallionProfileClient({
       .slice(0, 5);
   }, [embryos, horseNames]);
 
+  const displayName = getHorseDisplayName(horse);
+  const secondaryName = getHorseSecondaryName(horse);
   const breadcrumb = [
     { label: "Breeders Pro", href: "/breeders-pro" },
     { label: "Stallion" },
-    { label: horse.name },
+    { label: displayName },
   ];
 
   const roleTag =
@@ -157,7 +160,12 @@ export function StallionProfileClient({
           <div className="bp-profile-identity">
             <div className="bp-profile-meta">
               <div className="bp-role-tag">{roleTag}</div>
-              <h1 className="bp-profile-name">{horse.name}</h1>
+              <h1 className="bp-profile-name">{displayName}</h1>
+              {secondaryName && (
+                <div className="bp-profile-alias text-sm italic text-barn-dark/60">
+                  {secondaryName}
+                </div>
+              )}
               <div className="bp-profile-attributes">
                 {horse.registration_number && (
                   <div className="bp-attr">

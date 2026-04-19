@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { Embryo, Flush, Horse } from "@/lib/types";
+import { getHorseDisplayName } from "@/lib/horse-name";
 import { BreedersProChrome } from "@/components/breeders-pro/BreedersProChrome";
 
 /* --------------------------------------------------------------------
@@ -16,6 +17,8 @@ type StallionLite = Pick<
   Horse,
   | "id"
   | "name"
+  | "barn_name"
+  | "primary_name_pref"
   | "registration_number"
   | "breed"
   | "color"
@@ -108,7 +111,7 @@ export function StallionsListClient({
       if (filter === "active" && s.archived) return false;
       if (filter === "archived" && !s.archived) return false;
       if (q) {
-        const hay = `${s.name} ${s.registration_number ?? ""} ${s.breed ?? ""}`
+        const hay = `${s.name} ${s.barn_name ?? ""} ${s.registration_number ?? ""} ${s.breed ?? ""}`
           .toLowerCase();
         if (!hay.includes(q)) return false;
       }
@@ -120,7 +123,7 @@ export function StallionsListClient({
       if (la && lb) return new Date(lb).getTime() - new Date(la).getTime();
       if (la) return -1;
       if (lb) return 1;
-      return a.name.localeCompare(b.name);
+      return getHorseDisplayName(a).localeCompare(getHorseDisplayName(b));
     });
   }, [stallions, filter, query, rollups]);
 
@@ -293,7 +296,7 @@ export function StallionsListClient({
                           className="bp-donor-cell"
                           style={{ textDecoration: "none", color: "inherit" }}
                         >
-                          <span className="bp-donor-name">{s.name}</span>
+                          <span className="bp-donor-name">{getHorseDisplayName(s)}</span>
                           {s.registration_number && (
                             <span className="bp-donor-reg">
                               {s.registration_number}

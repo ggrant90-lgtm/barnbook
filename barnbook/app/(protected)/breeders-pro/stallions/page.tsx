@@ -24,7 +24,7 @@ export default async function StallionsListPage() {
   const { data: stallionHorsesRaw } = await supabase
     .from("horses")
     .select(
-      "id, name, registration_number, breed, color, breeding_role, stallion_stud_fee, archived",
+      "id, name, barn_name, primary_name_pref, registration_number, breed, color, breeding_role, stallion_stud_fee, archived",
     )
     .eq("barn_id", barnId)
     .in("breeding_role", ["stallion", "multiple"])
@@ -34,6 +34,8 @@ export default async function StallionsListPage() {
     Horse,
     | "id"
     | "name"
+    | "barn_name"
+    | "primary_name_pref"
     | "registration_number"
     | "breed"
     | "color"

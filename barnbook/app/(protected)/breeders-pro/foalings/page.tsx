@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import { getActiveBarnContext } from "@/lib/barn-session";
+import { getHorseDisplayName } from "@/lib/horse-name";
 import { FoalingRecordsClient } from "./FoalingRecordsClient";
 
 export default async function FoalingRecordsPage() {
@@ -53,10 +54,10 @@ export default async function FoalingRecordsPage() {
   if (horseIds.size > 0) {
     const { data: horses } = await supabase
       .from("horses")
-      .select("id, name")
+      .select("id, name, barn_name, primary_name_pref")
       .in("id", [...horseIds]);
     for (const h of horses ?? []) {
-      horseNames[h.id] = h.name;
+      horseNames[h.id] = getHorseDisplayName(h);
     }
   }
 

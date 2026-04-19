@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { Flush, Horse } from "@/lib/types";
+import { getHorseDisplayName } from "@/lib/horse-name";
 import { BreedersProChrome } from "@/components/breeders-pro/BreedersProChrome";
 
 /* --------------------------------------------------------------------
@@ -16,6 +17,8 @@ type DonorLite = Pick<
   Horse,
   | "id"
   | "name"
+  | "barn_name"
+  | "primary_name_pref"
   | "registration_number"
   | "breed"
   | "color"
@@ -107,20 +110,20 @@ export function DonorsListClient({
       if (filter === "active" && d.archived) return false;
       if (filter === "archived" && !d.archived) return false;
       if (q) {
-        const hay = `${d.name} ${d.registration_number ?? ""} ${d.breed ?? ""}`
+        const hay = `${d.name} ${d.barn_name ?? ""} ${d.registration_number ?? ""} ${d.breed ?? ""}`
           .toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-    // Sort by most-recent flush date desc, then by name asc
+    // Sort by most-recent flush date desc, then by primary display name asc
     return [...filtered].sort((a, b) => {
       const la = rollups.get(a.id)?.lastFlushDate;
       const lb = rollups.get(b.id)?.lastFlushDate;
       if (la && lb) return new Date(lb).getTime() - new Date(la).getTime();
       if (la) return -1;
       if (lb) return 1;
-      return a.name.localeCompare(b.name);
+      return getHorseDisplayName(a).localeCompare(getHorseDisplayName(b));
     });
   }, [donors, filter, query, rollups]);
 
@@ -295,7 +298,7 @@ export function DonorsListClient({
                           className="bp-donor-cell"
                           style={{ textDecoration: "none", color: "inherit" }}
                         >
-                          <span className="bp-donor-name">{d.name}</span>
+                          <span className="bp-donor-name">{getHorseDisplayName(d)}</span>
                           {d.registration_number && (
                             <span className="bp-donor-reg">
                               {d.registration_number}
