@@ -3,11 +3,9 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ScanEntryButton } from "@/components/document-scanner/ScanEntryButton";
+import { DocumentViewer } from "@/components/document-scanner/DocumentViewer";
 import { ErrorDetails } from "@/components/ui/ErrorDetails";
-import {
-  deleteHorseDocumentAction,
-  getHorseDocumentSignedUrlAction,
-} from "@/app/(protected)/actions/horse-documents";
+import { deleteHorseDocumentAction } from "@/app/(protected)/actions/horse-documents";
 
 export interface HorseDocumentRow {
   id: string;
@@ -42,8 +40,7 @@ export function DocumentsTab({
   documents: HorseDocumentRow[];
 }) {
   const router = useRouter();
-  const [, startTransition] = useTransition();
-  const [busy, setBusy] = useState(false);
+  const [busy, startTransition] = useTransition();
 
   // Expiration banner: any doc expiring within 30 days?
   const expiring = useMemo(() => {
@@ -57,42 +54,16 @@ export function DocumentsTab({
     });
   }, [documents]);
 
-  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   // Two-tap confirm: first tap on Delete arms the row, second actually deletes.
   // Replaces window.confirm() which is silently blocked in some installed
   // PWA contexts on iOS.
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  // Which document (if any) is being viewed in the inline modal.
+  const [viewingDoc, setViewingDoc] = useState<HorseDocumentRow | null>(null);
 
-  const handleDownload = (id: string) => {
-    setBusy(true);
-    setDownloadError(null);
-    // Open a blank tab SYNCHRONOUSLY while we're still in the click event
-    // — mobile browsers (iOS Safari especially) only allow window.open()
-    // from inside a user-gesture handler, not from an async callback.
-    // We'll set its location once the signed URL resolves.
-    const newTab =
-      typeof window !== "undefined"
-        ? window.open("about:blank", "_blank", "noopener,noreferrer")
-        : null;
-
-    startTransition(async () => {
-      const res = await getHorseDocumentSignedUrlAction(id);
-      setBusy(false);
-      if (res.error || !res.url) {
-        // If we pre-opened a tab, close it so we don't leave a dead tab.
-        try { newTab?.close(); } catch { /* ignore */ }
-        setDownloadError(res.error ?? "Unknown error");
-        return;
-      }
-      if (newTab && !newTab.closed) {
-        newTab.location.href = res.url;
-      } else {
-        // Popup blocker killed the pre-opened tab (or PWA mode). Fall back
-        // to navigating the current tab — user can hit back to return.
-        window.location.href = res.url;
-      }
-    });
+  const handleView = (doc: HorseDocumentRow) => {
+    setViewingDoc(doc);
   };
 
   const handleDelete = (id: string) => {
@@ -161,14 +132,24 @@ export function DocumentsTab({
         </div>
       )}
 
-      {(downloadError || deleteError) && (
+      {deleteError && (
         <div className="mb-4">
           <ErrorDetails
-            title={downloadError ? "Couldn't view document" : "Couldn't delete document"}
-            message={downloadError ?? deleteError ?? "Unknown error"}
+            title="Couldn't delete document"
+            message={deleteError}
             extra={{ "Horse ID": horseId, "Barn ID": barnId }}
           />
         </div>
+      )}
+
+      {viewingDoc && (
+        <DocumentViewer
+          onClose={() => setViewingDoc(null)}
+          docId={viewingDoc.id}
+          title={viewingDoc.title || viewingDoc.file_name}
+          fileName={viewingDoc.file_name}
+          mimeType={viewingDoc.mime_type}
+        />
       )}
 
       {documents.length === 0 ? (
@@ -187,7 +168,7 @@ export function DocumentsTab({
               canEdit={canEdit}
               busy={busy}
               confirmingDelete={confirmingDelete === d.id}
-              onDownload={() => handleDownload(d.id)}
+              onView={() => handleView(d)}
               onDelete={() => handleDelete(d.id)}
             />
           ))}
@@ -202,14 +183,14 @@ function DocCard({
   canEdit,
   busy,
   confirmingDelete,
-  onDownload,
+  onView,
   onDelete,
 }: {
   doc: HorseDocumentRow;
   canEdit: boolean;
   busy: boolean;
   confirmingDelete: boolean;
-  onDownload: () => void;
+  onView: () => void;
   onDelete: () => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -268,7 +249,7 @@ function DocCard({
       </div>
       <button
         type="button"
-        onClick={onDownload}
+        onClick={onView}
         disabled={busy}
         className="rounded-lg border border-barn-dark/15 bg-white px-3 py-1.5 text-xs font-medium text-barn-dark hover:bg-parchment disabled:opacity-40"
       >
