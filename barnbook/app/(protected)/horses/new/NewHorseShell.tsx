@@ -7,6 +7,7 @@ import { HORSE_BREEDS, HORSE_SEX_OPTIONS } from "@/lib/horse-form-constants";
 import { uploadHorseProfilePhoto } from "@/lib/horse-photo";
 import { createHorseDocumentAction } from "@/app/(protected)/actions/horse-documents";
 import { ScanEntryButton } from "@/components/document-scanner/ScanEntryButton";
+import { ErrorDetails } from "@/components/ui/ErrorDetails";
 import type { ExtractedHorseData } from "@/lib/document-extraction-prompt";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -151,11 +152,13 @@ export function NewHorseShell({
     // If the form was pre-filled from a scanned document, attach that
     // document to the new horse's profile. The file was already uploaded
     // to a pending Storage path by the ScanModal — here we just write
-    // the horse_documents row pointing at it.
+    // the horse_documents row pointing at it. Non-fatal: the horse is
+    // already created, but we surface the raw error so we can tell
+    // *why* the attach failed (used to be swallowed silently).
     if (prefill?.uploadedDoc) {
       try {
         const ex = prefill.extraction;
-        await createHorseDocumentAction({
+        const docRes = await createHorseDocumentAction({
           horseId,
           document_type:
             ex.document_type === "unknown" ? "other" : ex.document_type,
@@ -176,8 +179,17 @@ export function NewHorseShell({
           document_date: ex.document_date ?? ex.test_date,
           expiration_date: ex.expiration_date,
         });
-      } catch {
-        // Non-fatal — horse is created, user can add the doc manually.
+        if (docRes?.error) {
+          setError(
+            `Horse created; could not attach scanned document: ${docRes.error}`,
+          );
+        }
+      } catch (e) {
+        setError(
+          `Horse created; could not attach scanned document: ${
+            e instanceof Error ? e.message : String(e)
+          }`,
+        );
       }
     }
 
@@ -427,12 +439,11 @@ export function NewHorseShell({
         </div>
 
         {error ? (
-          <p
-            className="rounded-lg border border-barn-red/40 bg-barn-red/10 px-3 py-2 text-sm text-barn-dark"
-            role="alert"
-          >
-            {error}
-          </p>
+          <ErrorDetails
+            title="Couldn't save"
+            message={error}
+            extra={{ Form: "new-horse", "Barn ID": activeBarnId ?? undefined }}
+          />
         ) : null}
 
         <button

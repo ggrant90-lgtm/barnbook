@@ -14,6 +14,7 @@ import {
 import type { ExtractedHorseData } from "@/lib/document-extraction-prompt";
 import type { MatchResult, MatchedHorse } from "@/lib/document-scanner/horse-matcher";
 import { ConflictResolver, type FieldDecision } from "./ConflictResolver";
+import { ErrorDetails } from "@/components/ui/ErrorDetails";
 
 type Stage =
   | "capture"
@@ -387,16 +388,18 @@ export function ScanModal({
           )}
           {stage === "error" && (
             <div className="p-6">
-              <div
-                className="rounded-lg px-4 py-3 text-sm"
-                style={{
-                  background: "#fef2f2",
-                  border: "1px solid #fecaca",
-                  color: "#991b1b",
+              <ErrorDetails
+                title="Scan failed"
+                message={error ?? "Unknown error"}
+                extra={{
+                  Stage: "scan",
+                  "File type": file?.type,
+                  "File size (bytes)": file ? String(file.size) : undefined,
+                  "Barn ID": barnId,
+                  "Horse ID": horseId,
+                  Mode: mode,
                 }}
-              >
-                {error ?? "Something went wrong."}
-              </div>
+              />
               <div className="mt-4 flex gap-2">
                 <button
                   type="button"

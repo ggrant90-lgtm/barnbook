@@ -55,12 +55,23 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const [copyHint, setCopyHint] = useState(false);
+  const onCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopyHint(true);
+      setTimeout(() => setCopyHint(false), 1500);
+    } catch {
+      /* ignore — users can long-press to copy */
+    }
+  }, [message]);
+
   return (
     <ToastContext.Provider value={{ show }}>
       {children}
       <div
         className={cn(
-          "pointer-events-none fixed bottom-24 left-1/2 z-[100] max-w-[min(100%-2rem,24rem)] -translate-x-1/2 transition md:bottom-8",
+          "pointer-events-none fixed bottom-24 left-1/2 z-[100] max-w-[min(100%-2rem,28rem)] -translate-x-1/2 transition md:bottom-8",
           open ? "opacity-100" : "opacity-0",
         )}
         aria-live="polite"
@@ -68,12 +79,29 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {open && message ? (
           <div
             className={cn(
-              "pointer-events-auto rounded-xl border px-4 py-3 text-center text-sm shadow-lg",
+              "pointer-events-auto flex items-center gap-3 rounded-xl border px-4 py-3 text-sm shadow-lg",
               variantStyles[variant],
             )}
             role="status"
           >
-            {message}
+            <span
+              className="flex-1 text-left"
+              // Selectable so a long-press can copy the full error string
+              // even when clipboard API is blocked on mobile.
+              style={{ userSelect: "text" }}
+            >
+              {message}
+            </span>
+            {variant === "error" && (
+              <button
+                type="button"
+                onClick={onCopy}
+                className="shrink-0 rounded-md border border-barn-dark/20 bg-white/70 px-2 py-1 text-xs font-medium text-barn-dark hover:bg-white"
+                aria-label="Copy error"
+              >
+                {copyHint ? "Copied" : "Copy"}
+              </button>
+            )}
           </div>
         ) : null}
       </div>
