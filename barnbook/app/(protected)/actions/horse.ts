@@ -1,7 +1,7 @@
 "use server";
 
 import { getActiveBarnContext } from "@/lib/barn-session";
-import { canUserEditHorse } from "@/lib/horse-access";
+import { canUserEditHorseProfile } from "@/lib/horse-access";
 import { getBarnCapacitySnapshot } from "@/lib/plans.server";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
@@ -26,8 +26,15 @@ export async function createHorseAction(
   const ctx = await getActiveBarnContext(supabase, user.id);
   if (!ctx) return { error: "Join or create a barn first." };
 
-  const canEdit = await canUserEditHorse(supabase, user.id, ctx.barn.id);
-  if (!canEdit) return { error: "You don’t have permission to add horses." };
+  // Creating a horse = a horse-profile-level operation, which is owner-only
+  // (same rule as editing the profile). Matches the RLS INSERT policy on
+  // horses — keeps the app error friendlier than the raw DB rejection.
+  const canCreate = await canUserEditHorseProfile(supabase, user.id, ctx.barn.id);
+  if (!canCreate) {
+    return {
+      error: "Only the barn owner can add horses. Ask them to add this one.",
+    };
+  }
 
   // Capacity check
   const snapshot = await getBarnCapacitySnapshot(supabase, ctx.barn.id);
@@ -97,8 +104,8 @@ export async function updateHorseAction(
 
   if (!horse) return { error: "Horse not found." };
 
-  const canEdit = await canUserEditHorse(supabase, user.id, horse.barn_id);
-  if (!canEdit) return { error: "You don’t have permission to edit this horse." };
+  const canEdit = await canUserEditHorseProfile(supabase, user.id, horse.barn_id);
+  if (!canEdit) return { error: "Only the barn owner can edit horse profiles." };
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Name is required." };
@@ -164,8 +171,8 @@ export async function deleteHorseAction(
 
   if (!horse) return { error: "Horse not found." };
 
-  const canEdit = await canUserEditHorse(supabase, user.id, horse.barn_id);
-  if (!canEdit) return { error: "You don't have permission to delete this horse." };
+  const canEdit = await canUserEditHorseProfile(supabase, user.id, horse.barn_id);
+  if (!canEdit) return { error: "Only the barn owner can delete horses." };
 
   if (!permanent) {
     // Soft delete — archive the horse.
@@ -280,8 +287,8 @@ export async function updateHorsePhotoUrlAction(
 
   if (!horse) return { error: "Horse not found." };
 
-  const canEdit = await canUserEditHorse(supabase, user.id, horse.barn_id);
-  if (!canEdit) return { error: "Permission denied." };
+  const canEdit = await canUserEditHorseProfile(supabase, user.id, horse.barn_id);
+  if (!canEdit) return { error: "Only the barn owner can update the horse photo." };
 
   const { error } = await supabase
     .from("horses")
