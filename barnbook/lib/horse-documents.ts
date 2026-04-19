@@ -1,4 +1,8 @@
 import { supabase } from "@/lib/supabase";
+import {
+  createHorseDocumentSignedUploadAction,
+  createPendingHorseDocumentSignedUploadAction,
+} from "@/app/(protected)/actions/horse-documents";
 
 const BUCKET = "horse-documents";
 
@@ -14,14 +18,6 @@ export const MAX_HORSE_DOC_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
 
 export const CLIENT_IMAGE_DOWNSCALE_MAX_WIDTH = 2048;
 
-function sanitizeFileName(name: string): string {
-  const trimmed = name.trim().slice(0, 120);
-  return trimmed
-    .replace(/[\\/]/g, "-")
-    .replace(/\s+/g, "_")
-    .replace(/[^a-zA-Z0-9._\-]/g, "");
-}
-
 export function isAllowedHorseDoc(file: File): boolean {
   return (ALLOWED_HORSE_DOC_MIME as readonly string[]).includes(file.type);
 }
@@ -34,16 +30,16 @@ export interface UploadedHorseDoc {
 }
 
 /**
- * Upload a horse document to the private horse-documents bucket.
+ * Upload a horse document to the private horse-documents bucket via a
+ * service-role-minted signed upload URL. Path: {barn_id}/{horse_id}/…
  *
- * Path: {barn_id}/{horse_id}/{uuid}-{safe_filename}
- *
- * Storage RLS (see migration manual step) enforces that only barn members
- * and owners can upload. Every download goes through a signed URL via the
- * `getHorseDocumentSignedUrlAction` server action.
+ * The server action does the barn-owner / scanner-access check, then mints
+ * the URL with the service role so the Storage upload itself bypasses RLS.
+ * This sidesteps the SECURITY DEFINER helper fragility that 4d18c68 worked
+ * around for horses_insert.
  */
 export async function uploadHorseDocument(
-  barnId: string,
+  _barnId: string,
   horseId: string,
   file: File,
 ): Promise<UploadedHorseDoc | { error: string }> {
@@ -58,24 +54,29 @@ export async function uploadHorseDocument(
     };
   }
 
-  const safeName = sanitizeFileName(file.name) || "document";
-  const uniq =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const path = `${barnId}/${horseId}/${uniq}-${safeName}`;
-
-  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
-    upsert: false,
-    contentType: file.type,
+  const sig = await createHorseDocumentSignedUploadAction({
+    horseId,
+    fileName: file.name || "document",
+    fileSize: file.size,
+    mimeType: file.type,
   });
+  if (sig.error || !sig.upload) {
+    return { error: sig.error ?? "Failed to get upload URL" };
+  }
+
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .uploadToSignedUrl(sig.upload.file_path, sig.upload.token, file, {
+      contentType: file.type,
+      upsert: false,
+    });
   if (error) return { error: error.message };
 
   return {
-    file_path: path,
-    file_name: file.name,
-    file_size_bytes: file.size,
-    mime_type: file.type,
+    file_path: sig.upload.file_path,
+    file_name: sig.upload.file_name,
+    file_size_bytes: sig.upload.file_size_bytes,
+    mime_type: sig.upload.mime_type,
   };
 }
 
@@ -161,8 +162,10 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
  * "create new horse" flow). File is parked under `{barn_id}/_pending/`
  * and the resulting file_path is passed forward to the new-horse form.
  * Once the horse is created, a horse_documents row just references this
- * existing path — no Storage move needed. The `barn_id` first-segment
- * rule still satisfies our Storage RLS policies.
+ * existing path — no Storage move needed.
+ *
+ * Uploads go through a signed URL minted by the server action (service
+ * role) so the upload itself doesn't hit Storage RLS.
  */
 export async function uploadPendingHorseDocument(
   barnId: string,
@@ -179,24 +182,29 @@ export async function uploadPendingHorseDocument(
     };
   }
 
-  const safeName = sanitizeFileName(file.name) || "document";
-  const uniq =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const path = `${barnId}/_pending/${uniq}-${safeName}`;
-
-  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
-    upsert: false,
-    contentType: file.type,
+  const sig = await createPendingHorseDocumentSignedUploadAction({
+    barnId,
+    fileName: file.name || "document",
+    fileSize: file.size,
+    mimeType: file.type,
   });
+  if (sig.error || !sig.upload) {
+    return { error: sig.error ?? "Failed to get upload URL" };
+  }
+
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .uploadToSignedUrl(sig.upload.file_path, sig.upload.token, file, {
+      contentType: file.type,
+      upsert: false,
+    });
   if (error) return { error: error.message };
 
   return {
-    file_path: path,
-    file_name: file.name,
-    file_size_bytes: file.size,
-    mime_type: file.type,
+    file_path: sig.upload.file_path,
+    file_name: sig.upload.file_name,
+    file_size_bytes: sig.upload.file_size_bytes,
+    mime_type: sig.upload.mime_type,
   };
 }
 

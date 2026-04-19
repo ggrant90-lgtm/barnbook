@@ -1,9 +1,11 @@
 "use server";
 
 import { createServerComponentClient } from "@/lib/supabase-server";
+import { createAdminClient } from "@/lib/supabase-admin";
 import { revalidatePath } from "next/cache";
 import { canUserEditHorse, canUserAccessHorse } from "@/lib/horse-access";
 import { canUserUseDocumentScanner } from "@/lib/document-scanner/access";
+import { ensureClientForOwnerName } from "@/lib/clients-sync";
 import { HORSE_DOCUMENTS_BUCKET } from "@/lib/horse-documents";
 import type { ExtractedHorseData } from "@/lib/document-extraction-prompt";
 
@@ -35,6 +37,171 @@ async function requireScannerEdit(horseId: string) {
   if (!canEdit) return { error: "You can't edit this horse" as const };
 
   return { supabase, userId: user.id, barnId: horse.barn_id as string };
+}
+
+/** Guard for pre-horse pending uploads: user has scanner access for this barn
+ *  and is a barn owner/member. No horseId yet. */
+async function requireScannerBarnAccess(barnId: string) {
+  const supabase = await createServerComponentClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" as const };
+
+  const scannerOk = await canUserUseDocumentScanner(supabase, user.id, barnId);
+  if (!scannerOk) return { error: "Document scanner access required" as const };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: barn } = await (supabase as any)
+    .from("barns")
+    .select("owner_id")
+    .eq("id", barnId)
+    .maybeSingle();
+  if (!barn) return { error: "Barn not found" as const };
+
+  if (barn.owner_id !== user.id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: member } = await (supabase as any)
+      .from("barn_members")
+      .select("id")
+      .eq("barn_id", barnId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!member) return { error: "You can't upload to this barn" as const };
+  }
+
+  return { supabase, userId: user.id };
+}
+
+// ──────────────────────────────────────────────────────────────
+// Signed upload URLs — bypass Storage RLS by using the service-role
+// client to mint a signed URL after the app-layer auth check passes.
+// Mirrors the 4d18c68 pattern (admin-client write after app auth) so
+// a flaky `is_barn_owner`/`is_barn_member` helper can't block legit
+// scanner uploads.
+// ──────────────────────────────────────────────────────────────
+
+const SCAN_ALLOWED_MIME = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/heic",
+  "image/heif",
+  "application/pdf",
+]);
+const SCAN_MAX_SIZE = 15 * 1024 * 1024;
+
+function sanitizeFileName(name: string): string {
+  const trimmed = name.trim().slice(0, 120);
+  return trimmed
+    .replace(/[\\/]/g, "-")
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9._\-]/g, "");
+}
+
+function newUniq(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export interface SignedUploadResult {
+  signedUrl: string;
+  token: string;
+  file_path: string;
+  file_name: string;
+  file_size_bytes: number;
+  mime_type: string;
+}
+
+/**
+ * Existing-horse scan upload. Path: {barn_id}/{horse_id}/{uuid}-{name}.
+ * The signed URL is minted with the service role so the upload itself
+ * does not go through Storage RLS.
+ */
+export async function createHorseDocumentSignedUploadAction(input: {
+  horseId: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+}): Promise<{ ok?: true; upload?: SignedUploadResult; error?: string }> {
+  if (!SCAN_ALLOWED_MIME.has(input.mimeType)) {
+    return { error: "Only JPEG, PNG, HEIC, or PDF files are accepted." };
+  }
+  if (input.fileSize > SCAN_MAX_SIZE) {
+    return { error: "File is too large. Maximum size is 15 MB." };
+  }
+
+  const auth = await requireScannerEdit(input.horseId);
+  if ("error" in auth) return { error: auth.error };
+
+  const safe = sanitizeFileName(input.fileName) || "document";
+  const path = `${auth.barnId}/${input.horseId}/${newUniq()}-${safe}`;
+
+  const admin = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (admin as any).storage
+    .from(HORSE_DOCUMENTS_BUCKET)
+    .createSignedUploadUrl(path);
+  if (error || !data?.signedUrl || !data?.token) {
+    return { error: error?.message ?? "Failed to get upload URL" };
+  }
+
+  return {
+    ok: true,
+    upload: {
+      signedUrl: data.signedUrl as string,
+      token: data.token as string,
+      file_path: path,
+      file_name: input.fileName,
+      file_size_bytes: input.fileSize,
+      mime_type: input.mimeType,
+    },
+  };
+}
+
+/**
+ * Pre-horse pending upload (for the new-horse-from-scan flow).
+ * Path: {barn_id}/_pending/{uuid}-{name}.
+ */
+export async function createPendingHorseDocumentSignedUploadAction(input: {
+  barnId: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+}): Promise<{ ok?: true; upload?: SignedUploadResult; error?: string }> {
+  if (!SCAN_ALLOWED_MIME.has(input.mimeType)) {
+    return { error: "Only JPEG, PNG, HEIC, or PDF files are accepted." };
+  }
+  if (input.fileSize > SCAN_MAX_SIZE) {
+    return { error: "File is too large. Maximum size is 15 MB." };
+  }
+
+  const auth = await requireScannerBarnAccess(input.barnId);
+  if ("error" in auth) return { error: auth.error };
+
+  const safe = sanitizeFileName(input.fileName) || "document";
+  const path = `${input.barnId}/_pending/${newUniq()}-${safe}`;
+
+  const admin = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (admin as any).storage
+    .from(HORSE_DOCUMENTS_BUCKET)
+    .createSignedUploadUrl(path);
+  if (error || !data?.signedUrl || !data?.token) {
+    return { error: error?.message ?? "Failed to get upload URL" };
+  }
+
+  return {
+    ok: true,
+    upload: {
+      signedUrl: data.signedUrl as string,
+      token: data.token as string,
+      file_path: path,
+      file_name: input.fileName,
+      file_size_bytes: input.fileSize,
+      mime_type: input.mimeType,
+    },
+  };
 }
 
 export interface NewHorseDocumentInput {
@@ -84,8 +251,12 @@ export async function createHorseDocumentAction(
     uploaded_by_user_id: auth.userId,
   };
 
+  // App-layer auth already verified this user can edit this horse. Use the
+  // service-role client for the INSERT to dodge the flaky SECURITY DEFINER
+  // helper path that 4d18c68 worked around for horses_insert.
+  const admin = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (auth.supabase as any)
+  const { data, error } = await (admin as any)
     .from("horse_documents")
     .insert(payload)
     .select("id")
@@ -130,7 +301,10 @@ export async function applyExtractionToHorseAction(input: {
 }> {
   const auth = await requireScannerEdit(input.horseId);
   if ("error" in auth) return { error: auth.error };
-  const db = auth.supabase;
+  // App-layer auth is done above — use the admin client for the subsequent
+  // writes so the SECURITY DEFINER helper path can't block them (same
+  // defense as 4d18c68 for horses_insert).
+  const db = createAdminClient();
 
   // 1. Apply horse patch (only approved keys).
   if (input.horsePatch && Object.keys(input.horsePatch).length > 0) {
@@ -159,6 +333,20 @@ export async function applyExtractionToHorseAction(input: {
         .update(clean)
         .eq("id", input.horseId);
       if (uErr) return { error: uErr.message };
+
+      // If the approved patch set an owner_name, mirror it into Business
+      // Pro Clients (no-op for non-BP barns).
+      if (typeof clean.owner_name === "string") {
+        const sync = await ensureClientForOwnerName(
+          db,
+          auth.barnId,
+          clean.owner_name,
+        );
+        if (sync.created) {
+          revalidatePath("/business-pro/clients");
+          revalidatePath("/business-pro/overview");
+        }
+      }
     }
   }
 
@@ -240,7 +428,6 @@ export async function applyExtractionToHorseAction(input: {
       .single();
     if (hrErr) {
       // Non-fatal — the document itself saved.
-      // eslint-disable-next-line no-console
       console.warn("[applyExtraction] health_records insert failed:", hrErr);
     } else if (hr) {
       healthRecordId = hr.id as string;
@@ -278,13 +465,17 @@ export async function deleteHorseDocumentAction(
   const auth = await requireScannerEdit(doc.horse_id);
   if ("error" in auth) return { error: auth.error };
 
+  // App-layer auth is done — use the admin client for the storage + DB
+  // delete so a flaky helper can't block cleanup (matches 4d18c68).
+  const admin = createAdminClient();
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (auth.supabase as any).storage
+  await (admin as any).storage
     .from(HORSE_DOCUMENTS_BUCKET)
     .remove([doc.file_path]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (auth.supabase as any)
+  const { error } = await (admin as any)
     .from("horse_documents")
     .delete()
     .eq("id", docId);
