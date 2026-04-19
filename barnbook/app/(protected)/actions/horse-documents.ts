@@ -511,8 +511,15 @@ export async function getHorseDocumentSignedUrlAction(
   );
   if (!canAccess) return { error: "No access to this horse" };
 
+  // Mint the signed URL with the service-role client so the download
+  // bypasses storage.objects RLS — mirrors the upload path above. The
+  // app-layer `canUserAccessHorse` check is the real authorization gate;
+  // the Storage policies depend on SECURITY DEFINER helpers that can
+  // fail for legitimate users in Next.js server-action contexts (see
+  // migration 20260419000003_horse_documents_rls_fix.sql).
+  const admin = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any).storage
+  const { data, error } = await (admin as any).storage
     .from(HORSE_DOCUMENTS_BUCKET)
     .createSignedUrl(doc.file_path, 900);
   if (error || !data?.signedUrl) {
