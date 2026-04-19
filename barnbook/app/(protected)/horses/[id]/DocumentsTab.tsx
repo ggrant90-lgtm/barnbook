@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ScanEntryButton } from "@/components/document-scanner/ScanEntryButton";
+import { ErrorDetails } from "@/components/ui/ErrorDetails";
 import {
   deleteHorseDocumentAction,
   getHorseDocumentSignedUrlAction,
@@ -56,26 +57,59 @@ export function DocumentsTab({
     });
   }, [documents]);
 
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Two-tap confirm: first tap on Delete arms the row, second actually deletes.
+  // Replaces window.confirm() which is silently blocked in some installed
+  // PWA contexts on iOS.
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+
   const handleDownload = (id: string) => {
     setBusy(true);
+    setDownloadError(null);
+    // Open a blank tab SYNCHRONOUSLY while we're still in the click event
+    // — mobile browsers (iOS Safari especially) only allow window.open()
+    // from inside a user-gesture handler, not from an async callback.
+    // We'll set its location once the signed URL resolves.
+    const newTab =
+      typeof window !== "undefined"
+        ? window.open("about:blank", "_blank", "noopener,noreferrer")
+        : null;
+
     startTransition(async () => {
       const res = await getHorseDocumentSignedUrlAction(id);
       setBusy(false);
       if (res.error || !res.url) {
-        alert(`Download failed: ${res.error ?? "unknown error"}`);
+        // If we pre-opened a tab, close it so we don't leave a dead tab.
+        try { newTab?.close(); } catch { /* ignore */ }
+        setDownloadError(res.error ?? "Unknown error");
         return;
       }
-      window.open(res.url, "_blank", "noopener,noreferrer");
+      if (newTab && !newTab.closed) {
+        newTab.location.href = res.url;
+      } else {
+        // Popup blocker killed the pre-opened tab (or PWA mode). Fall back
+        // to navigating the current tab — user can hit back to return.
+        window.location.href = res.url;
+      }
     });
   };
 
   const handleDelete = (id: string) => {
-    if (!confirm("Delete this document? The file will be permanently removed."))
+    if (confirmingDelete !== id) {
+      setConfirmingDelete(id);
+      // Auto-disarm after 4s so the red button doesn't stay forever.
+      setTimeout(() => {
+        setConfirmingDelete((cur) => (cur === id ? null : cur));
+      }, 4000);
       return;
+    }
+    setConfirmingDelete(null);
+    setDeleteError(null);
     startTransition(async () => {
       const res = await deleteHorseDocumentAction(id);
       if (res.error) {
-        alert(`Delete failed: ${res.error}`);
+        setDeleteError(`Delete failed: ${res.error}`);
         return;
       }
       router.refresh();
@@ -127,6 +161,16 @@ export function DocumentsTab({
         </div>
       )}
 
+      {(downloadError || deleteError) && (
+        <div className="mb-4">
+          <ErrorDetails
+            title={downloadError ? "Couldn't view document" : "Couldn't delete document"}
+            message={downloadError ?? deleteError ?? "Unknown error"}
+            extra={{ "Horse ID": horseId, "Barn ID": barnId }}
+          />
+        </div>
+      )}
+
       {documents.length === 0 ? (
         <div className="rounded-2xl border border-barn-dark/10 bg-white p-8 text-center text-sm text-barn-dark/60">
           No documents yet.
@@ -142,6 +186,7 @@ export function DocumentsTab({
               doc={d}
               canEdit={canEdit}
               busy={busy}
+              confirmingDelete={confirmingDelete === d.id}
               onDownload={() => handleDownload(d.id)}
               onDelete={() => handleDelete(d.id)}
             />
@@ -156,12 +201,14 @@ function DocCard({
   doc,
   canEdit,
   busy,
+  confirmingDelete,
   onDownload,
   onDelete,
 }: {
   doc: HorseDocumentRow;
   canEdit: boolean;
   busy: boolean;
+  confirmingDelete: boolean;
   onDownload: () => void;
   onDelete: () => void;
 }) {
@@ -232,9 +279,13 @@ function DocCard({
           type="button"
           onClick={onDelete}
           disabled={busy}
-          className="text-xs text-barn-dark/60 hover:text-[#b8421f] disabled:opacity-40"
+          className={
+            confirmingDelete
+              ? "rounded-lg bg-[#b8421f] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-40"
+              : "text-xs text-barn-dark/60 hover:text-[#b8421f] disabled:opacity-40"
+          }
         >
-          Delete
+          {confirmingDelete ? "Tap to confirm" : "Delete"}
         </button>
       )}
     </div>
