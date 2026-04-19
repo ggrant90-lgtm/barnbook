@@ -2,6 +2,7 @@
 
 import { getActiveBarnContext } from "@/lib/barn-session";
 import { canUserEditHorseProfile } from "@/lib/horse-access";
+import { ensureClientForOwnerName } from "@/lib/clients-sync";
 import { getBarnCapacitySnapshot } from "@/lib/plans.server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createServerComponentClient } from "@/lib/supabase-server";
@@ -92,8 +93,15 @@ export async function createHorseAction(
     return { error: error?.message ?? "Could not create horse." };
   }
 
+  // Auto-sync owner_name → Business Pro Clients (no-op for non-BP barns).
+  const sync = await ensureClientForOwnerName(adminClient, ctx.barn.id, owner_name);
+
   revalidatePath("/horses");
   revalidatePath("/dashboard");
+  if (sync.created) {
+    revalidatePath("/business-pro/clients");
+    revalidatePath("/business-pro/overview");
+  }
   return { horseId: horse.id };
 }
 
@@ -121,6 +129,8 @@ export async function updateHorseAction(
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Name is required." };
 
+  const owner_name = String(formData.get("owner_name") ?? "").trim() || null;
+
   const { error } = await supabase
     .from("horses")
     .update({
@@ -130,7 +140,7 @@ export async function updateHorseAction(
       sex: String(formData.get("sex") ?? "").trim() || null,
       color: String(formData.get("color") ?? "").trim() || null,
       foal_date: String(formData.get("foal_date") ?? "").trim() || null,
-      owner_name: String(formData.get("owner_name") ?? "").trim() || null,
+      owner_name,
       sire: String(formData.get("sire") ?? "").trim() || null,
       dam: String(formData.get("dam") ?? "").trim() || null,
       registration_number: String(formData.get("registration_number") ?? "").trim() || null,
@@ -146,8 +156,15 @@ export async function updateHorseAction(
 
   if (error) return { error: error.message };
 
+  // Auto-sync owner_name → Business Pro Clients (no-op for non-BP barns).
+  const sync = await ensureClientForOwnerName(supabase, horse.barn_id, owner_name);
+
   revalidatePath(`/horses/${horseId}`);
   revalidatePath("/horses");
+  if (sync.created) {
+    revalidatePath("/business-pro/clients");
+    revalidatePath("/business-pro/overview");
+  }
   return { ok: true };
 }
 
