@@ -21,6 +21,7 @@
     "@types/papaparse": "^5.5.2",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
+    "heic2any": "^0.0.4",
     "html5-qrcode": "^2.3.8",
     "next": "16.2.2",
     "papaparse": "^5.5.3",
