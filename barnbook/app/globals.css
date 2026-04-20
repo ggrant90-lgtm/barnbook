@@ -232,6 +232,7 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh; /* respect mobile browser UI (iOS Safari toolbar) */
   overflow-y: auto;
 }
 
@@ -330,6 +331,8 @@
 .bp-scope .bp-sidebar-footer {
   margin-top: auto;
   padding: 16px 24px;
+  /* Cushion the footer above the iOS home-indicator strip. */
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
   border-top: 1px solid var(--bp-border);
 }
 
@@ -372,6 +375,7 @@
   min-width: 0;
   overflow-y: auto;
   height: 100vh;
+  height: 100dvh; /* match the sidebar — exclude mobile browser chrome */
 }
 
 .bp-scope .bp-topbar {
@@ -1593,12 +1597,16 @@
     grid-template-columns: 1fr;
   }
 
-  /* Sidebar slides in from the left when opened. Off-canvas by default. */
+  /* Sidebar slides in from the left when opened. Off-canvas by default.
+   * Use height (vh + dvh fallback) instead of `bottom: 0` so the sidebar
+   * sits inside the visible viewport on iOS Safari instead of extending
+   * behind the bottom toolbar. */
   .bp-scope .bp-sidebar {
     position: fixed;
     top: 0;
     left: 0;
-    bottom: 0;
+    height: 100vh;
+    height: 100dvh;
     width: 260px;
     max-width: 85vw;
     transform: translateX(-100%);

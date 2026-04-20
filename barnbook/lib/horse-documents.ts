@@ -104,8 +104,34 @@ export async function readImageForExtraction(
     return { error: "Unsupported file type for extraction." };
   }
 
+  // HEIC / HEIF (iOS default) — decoded via libheif-wasm in the browser.
+  // Claude vision doesn't accept HEIC, and Chrome on Android / most
+  // desktop browsers can't decode it natively, so we convert to JPEG
+  // up-front and then fall through to the normal downscale path. Lazy-
+  // imported so only users who actually pick a HEIC file pay the WASM
+  // download.
+  let imageSource: Blob = file;
+  if (file.type === "image/heic" || file.type === "image/heif") {
+    try {
+      const { default: heic2any } = await import("heic2any");
+      const converted = await heic2any({
+        blob: file,
+        toType: "image/jpeg",
+        quality: 0.9,
+      });
+      imageSource = Array.isArray(converted) ? converted[0] : converted;
+    } catch (e) {
+      return {
+        error:
+          e instanceof Error && e.message
+            ? `Couldn't read HEIC image: ${e.message}`
+            : "Couldn't read HEIC image. Save it as JPEG or PNG and try again.",
+      };
+    }
+  }
+
   try {
-    const bitmap = await createImageBitmap(file);
+    const bitmap = await createImageBitmap(imageSource);
     const ratio = bitmap.width > CLIENT_IMAGE_DOWNSCALE_MAX_WIDTH
       ? CLIENT_IMAGE_DOWNSCALE_MAX_WIDTH / bitmap.width
       : 1;
@@ -132,16 +158,27 @@ export async function readImageForExtraction(
       mime_type: "image/jpeg",
     };
   } catch (e) {
-    // Fall back to raw file bytes if createImageBitmap fails (e.g., HEIC on
-    // some browsers). Claude vision can still handle the original.
-    try {
-      const buf = await file.arrayBuffer();
-      return { base64: arrayBufferToBase64(buf), mime_type: file.type };
-    } catch {
-      return {
-        error: e instanceof Error ? e.message : "Image processing failed.",
-      };
+    // createImageBitmap failed on a format we thought was decodeable.
+    // Fall back to raw bytes only for formats Claude vision can handle;
+    // otherwise surface the underlying error.
+    const VISION_SAFE = new Set([
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+    ]);
+    const sourceType = imageSource.type || "image/jpeg";
+    if (VISION_SAFE.has(sourceType)) {
+      try {
+        const buf = await imageSource.arrayBuffer();
+        return { base64: arrayBufferToBase64(buf), mime_type: sourceType };
+      } catch {
+        /* fall through to generic error */
+      }
     }
+    return {
+      error: e instanceof Error ? e.message : "Image processing failed.",
+    };
   }
 }
 
