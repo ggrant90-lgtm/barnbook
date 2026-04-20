@@ -17,16 +17,9 @@ export function CapacityBar({
   horseCount: number;
   compact?: boolean;
 }) {
-  const pct = Math.min(capacityPercent({ stall_capacity: stallCapacity }, horseCount), 100);
-  const state = capacityColorState({ stall_capacity: stallCapacity }, horseCount);
+  const pct = Math.min(capacityPercent(horseCount, stallCapacity), 100);
+  const state = capacityColorState(horseCount, stallCapacity);
   const colors = colorMap[state];
-
-  // Don't show capacity bar if unlimited (999)
-  if (stallCapacity >= 999) {
-    return compact ? (
-      <span className="text-xs text-barn-dark/40">{horseCount} horses</span>
-    ) : null;
-  }
 
   if (compact) {
     return (

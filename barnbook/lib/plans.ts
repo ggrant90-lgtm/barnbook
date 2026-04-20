@@ -1,51 +1,55 @@
 /**
  * Plan utility functions — pure, work in both server and client.
- * Free barns get 5 stalls. Paid barns get 10 stalls for $25/mo.
+ *
+ * Capacity model: every barn starts with some number of base_stalls (free
+ * tier = 5). Owners can add 10-stall blocks via barn_stall_blocks. The
+ * *effective* capacity is base_stalls + SUM(active blocks.block_size).
+ *
+ * The helpers below take `effectiveCapacity` explicitly so they're pure
+ * and can be called from anywhere without a second DB round-trip. The
+ * server helper that produces that number lives in `lib/plans.server.ts`
+ * (see getBarnCapacitySnapshot).
  */
 
-// Staging: unlimited stalls for testing
-export const DEFAULT_FREE_STALL_CAPACITY = 999;
-export const PAID_STALL_CAPACITY = 999;
-export const PAID_PRICE_CENTS = 2500;
-export const PAID_PRICE_LABEL = "$25/mo";
+/** Free-tier barns start with this many stalls. */
+export const FREE_BASE_STALLS = 5;
+
+/** Every paid expansion adds stalls in blocks of this size. */
+export const STALL_BLOCK_SIZE = 10;
+
+/** Post-early-access block price ($25.00 / month). */
+export const STALL_BLOCK_PRICE_CENTS = 2500;
+export const STALL_BLOCK_PRICE_LABEL = "$25/mo";
+
 export const PLAN_TIERS = ["free", "paid", "comped"] as const;
 export type PlanTier = (typeof PLAN_TIERS)[number];
 
-export const STALL_BLOCK_SIZES = [
-  { size: 10, label: "10 Stalls", priceCents: 2500, priceLabel: "$25/mo" },
-] as const;
-
 export const GRACE_PERIOD_DAYS = 30;
-
-interface BarnCapacity {
-  stall_capacity: number;
-  plan_tier: string;
-  grace_period_ends_at: string | null;
-}
 
 /** Does this barn have capacity for one more horse? */
 export function canAddHorseToBarn(
-  barn: BarnCapacity,
+  barn: { grace_period_ends_at: string | null },
   currentHorseCount: number,
+  effectiveCapacity: number,
 ): boolean {
   if (isInGracePeriod(barn)) return false;
-  return currentHorseCount < barn.stall_capacity;
+  return currentHorseCount < effectiveCapacity;
 }
 
 /** How many stalls remain? */
 export function stallsRemaining(
-  barn: { stall_capacity: number },
   currentHorseCount: number,
+  effectiveCapacity: number,
 ): number {
-  return Math.max(0, barn.stall_capacity - currentHorseCount);
+  return Math.max(0, effectiveCapacity - currentHorseCount);
 }
 
 /** Is this barn over capacity? */
 export function isBarnOverCapacity(
-  barn: { stall_capacity: number },
   currentHorseCount: number,
+  effectiveCapacity: number,
 ): boolean {
-  return currentHorseCount > barn.stall_capacity;
+  return currentHorseCount > effectiveCapacity;
 }
 
 /** Is this barn currently in a grace period? */
@@ -74,19 +78,19 @@ export function isFreeTier(barn: { plan_tier: string }): boolean {
 
 /** Capacity percentage (0-100+) */
 export function capacityPercent(
-  barn: { stall_capacity: number },
   currentHorseCount: number,
+  effectiveCapacity: number,
 ): number {
-  if (barn.stall_capacity === 0) return 100;
-  return Math.round((currentHorseCount / barn.stall_capacity) * 100);
+  if (effectiveCapacity <= 0) return 100;
+  return Math.round((currentHorseCount / effectiveCapacity) * 100);
 }
 
 /** Capacity color state */
 export function capacityColorState(
-  barn: { stall_capacity: number },
   currentHorseCount: number,
+  effectiveCapacity: number,
 ): "normal" | "warning" | "critical" {
-  const pct = capacityPercent(barn, currentHorseCount);
+  const pct = capacityPercent(currentHorseCount, effectiveCapacity);
   if (pct >= 100) return "critical";
   if (pct >= 80) return "warning";
   return "normal";

@@ -16,17 +16,28 @@ import {
   uploadBarnGalleryPhoto,
   uploadBarnLogo,
 } from "@/lib/barn-media";
+import { StallPurchaseFlow } from "@/components/stalls/StallPurchaseFlow";
 import type { Barn, BarnPhoto } from "@/lib/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
+interface CapacitySummary {
+  baseStalls: number;
+  blockCount: number;
+  blockCapacity: number;
+  effectiveCapacity: number;
+  horseCount: number;
+}
+
 export function BarnEditClient({
   barn,
   photos: initialPhotos,
+  capacity,
 }: {
   barn: Barn;
   photos: BarnPhoto[];
+  capacity: CapacitySummary | null;
 }) {
   const router = useRouter();
   const { show } = useToast();
@@ -34,6 +45,16 @@ export function BarnEditClient({
   const [saving, setSaving] = useState(false);
   const [photos, setPhotos] = useState(initialPhotos);
   const [uploading, setUploading] = useState<"logo" | "banner" | "gallery" | null>(null);
+  const [showStallFlow, setShowStallFlow] = useState(false);
+
+  const capacityBarnOption = capacity
+    ? [{
+        id: barn.id,
+        name: barn.name,
+        horseCount: capacity.horseCount,
+        effectiveCapacity: capacity.effectiveCapacity,
+      }]
+    : [];
 
   async function handleSave() {
     if (!formRef.current) return;
@@ -142,6 +163,63 @@ export function BarnEditClient({
           </p>
         </div>
       </div>
+
+      {/* ─── Stalls ─── */}
+      {capacity && (
+        <section className="mt-8">
+          <h2 className="font-serif text-lg text-barn-dark">Stalls</h2>
+          <div className="mt-3 rounded-2xl border border-barn-dark/10 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <div className="text-3xl font-serif font-semibold text-barn-dark">
+                  {capacity.horseCount}
+                  <span className="text-barn-dark/45"> / {capacity.effectiveCapacity}</span>
+                </div>
+                <div className="mt-1 text-sm text-barn-dark/60">
+                  {capacity.baseStalls} base
+                  {capacity.blockCount > 0 ? (
+                    <>
+                      {" "}+ {capacity.blockCount} block{capacity.blockCount === 1 ? "" : "s"} ({capacity.blockCapacity} stalls)
+                    </>
+                  ) : null}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowStallFlow(true)}
+                className="min-h-[44px] rounded-xl bg-brass-gold px-4 py-2.5 text-sm font-medium text-barn-dark shadow hover:brightness-110"
+              >
+                Add more stalls
+              </button>
+            </div>
+            <div
+              className="mt-4 h-2 w-full overflow-hidden rounded-full"
+              style={{ background: "rgba(42,64,49,0.08)" }}
+            >
+              <div
+                className="h-full transition-all"
+                style={{
+                  width: `${Math.min(
+                    100,
+                    capacity.effectiveCapacity
+                      ? Math.round((capacity.horseCount / capacity.effectiveCapacity) * 100)
+                      : 0,
+                  )}%`,
+                  background: "#a3b88f",
+                }}
+              />
+            </div>
+          </div>
+          <StallPurchaseFlow
+            open={showStallFlow}
+            onClose={() => setShowStallFlow(false)}
+            userBarns={capacityBarnOption}
+            defaultBarnId={barn.id}
+            defaultMode="expand"
+            onSuccess={() => router.refresh()}
+          />
+        </section>
+      )}
 
       {/* ─── Banner & Logo uploads ─── */}
       <section className="mt-8 space-y-4">

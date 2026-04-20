@@ -2,7 +2,7 @@
 
 import { createHorseAction } from "@/app/(protected)/actions/horse";
 import { updateHorsePhotoUrlAction } from "@/app/(protected)/actions/horse";
-import { UpgradeModal } from "@/components/UpgradeModal";
+import { StallPurchaseFlow, type StallFlowBarnOption } from "@/components/stalls/StallPurchaseFlow";
 import { HORSE_BREEDS, HORSE_SEX_OPTIONS } from "@/lib/horse-form-constants";
 import { uploadHorseProfilePhoto } from "@/lib/horse-photo";
 import { createHorseDocumentAction } from "@/app/(protected)/actions/horse-documents";
@@ -33,9 +33,11 @@ interface PrefillData {
 export function NewHorseShell({
   hasDocumentScanner,
   activeBarnId,
+  userBarns,
 }: {
   hasDocumentScanner: boolean;
   activeBarnId: string | null;
+  userBarns: StallFlowBarnOption[];
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -200,14 +202,20 @@ export function NewHorseShell({
 
   return (
     <div className="mx-auto max-w-xl px-4 py-10 sm:px-6">
-      {showUpgrade && (
-        <UpgradeModal
-          barnName="Your barn"
-          barnId=""
-          currentCapacity={5}
-          onClose={() => setShowUpgrade(false)}
-        />
-      )}
+      <StallPurchaseFlow
+        open={showUpgrade}
+        onClose={() => setShowUpgrade(false)}
+        userBarns={userBarns}
+        defaultBarnId={activeBarnId ?? undefined}
+        defaultMode="expand"
+        launchedFromCapacity
+        onSuccess={() => {
+          // Barn capacity increased — refresh so another submit will
+          // succeed. User still needs to click "Create horse" again.
+          router.refresh();
+        }}
+      />
+
       <Link
         href="/horses"
         className="text-sm text-barn-dark/70 hover:text-brass-gold"

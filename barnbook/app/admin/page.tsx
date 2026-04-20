@@ -48,7 +48,7 @@ export default async function AdminPage() {
   // Fetch all barns with owner info
   const { data: barns } = await adminClient
     .from("barns")
-    .select("id, name, owner_id, plan_tier, stall_capacity, grace_period_ends_at, created_at")
+    .select("id, name, owner_id, plan_tier, base_stalls, grace_period_ends_at, created_at")
     .order("created_at", { ascending: false });
 
   // Get horse counts per barn
@@ -180,7 +180,7 @@ export default async function AdminPage() {
                   Plan
                 </th>
                 <th className="px-6 py-3 font-medium text-barn-dark/60">
-                  Capacity
+                  Base stalls
                 </th>
                 <th className="px-6 py-3 font-medium text-barn-dark/60">
                   Created
@@ -190,7 +190,7 @@ export default async function AdminPage() {
             <tbody>
               {(barns ?? []).map((barn) => {
                 const hc = horseCounts[barn.id] ?? 0;
-                const isOver = hc > barn.stall_capacity;
+                const isOver = hc > barn.base_stalls;
                 const inGrace =
                   barn.grace_period_ends_at &&
                   new Date(barn.grace_period_ends_at) > new Date();
@@ -219,7 +219,7 @@ export default async function AdminPage() {
                             : "text-barn-dark/70"
                         }
                       >
-                        {hc}/{barn.stall_capacity >= 999 ? "∞" : barn.stall_capacity}
+                        {hc}/{barn.base_stalls}+blocks
                       </span>
                       {inGrace && (
                         <span className="ml-2 text-xs text-red-500">

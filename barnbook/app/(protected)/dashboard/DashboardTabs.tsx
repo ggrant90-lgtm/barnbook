@@ -5,6 +5,10 @@ import { HorseCard } from "@/components/HorseCard";
 import { HorsePhoto } from "@/components/HorsePhoto";
 import { PlanBadge } from "@/components/PlanBadge";
 import { TodayWidget } from "@/components/TodayWidget";
+import {
+  StallPurchaseFlow,
+  type StallFlowBarnOption,
+} from "@/components/stalls/StallPurchaseFlow";
 import type { CalendarEvent } from "@/app/(protected)/actions/calendar";
 import type { ActivityLog, Barn, Horse } from "@/lib/types";
 import {
@@ -26,6 +30,8 @@ export function DashboardTabs({
   accessBarns,
   accessBarnHorses,
   primaryBarn,
+  primaryBarnEffectiveCapacity,
+  userBarnOptions,
   horses,
   horseCount,
   activeKeys,
@@ -43,6 +49,11 @@ export function DashboardTabs({
     Pick<Horse, "id" | "name" | "barn_name" | "primary_name_pref" | "breed" | "photo_url">[]
   >;
   primaryBarn: Barn | null;
+  /** base_stalls + SUM(active stall blocks) for primaryBarn. 0 when no barn. */
+  primaryBarnEffectiveCapacity: number;
+  /** Barns the current user owns, with horseCount + effectiveCapacity pre-computed
+   *  for the StallPurchaseFlow list. */
+  userBarnOptions: StallFlowBarnOption[];
   horses: Pick<
     Horse,
     "id" | "name" | "barn_name" | "primary_name_pref" | "photo_url" | "breed" | "sex" | "color" | "updated_at"
@@ -73,6 +84,8 @@ export function DashboardTabs({
   }>;
 }) {
   const [tab, setTab] = useState<"my" | "access">("my");
+  const [stallFlowBarnId, setStallFlowBarnId] = useState<string | null>(null);
+  const [stallFlowMode, setStallFlowMode] = useState<"expand" | "build">("expand");
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
@@ -180,8 +193,25 @@ export function DashboardTabs({
                     <PlanBadge tier={primaryBarn.plan_tier} />
                   </div>
                   <p className="text-sm text-barn-dark/65">Barn dashboard</p>
-                  <div className="mt-1 max-w-xs">
-                    <CapacityBar stallCapacity={primaryBarn.stall_capacity} horseCount={horseCount} compact />
+                  <div className="mt-1 flex max-w-md items-center gap-2">
+                    <div className="flex-1">
+                      <CapacityBar
+                        stallCapacity={primaryBarnEffectiveCapacity}
+                        horseCount={horseCount}
+                        compact
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStallFlowBarnId(primaryBarn.id);
+                        setStallFlowMode("expand");
+                      }}
+                      aria-label="Add more stalls"
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-brass-gold bg-brass-gold/20 text-barn-dark hover:bg-brass-gold/35"
+                    >
+                      <span aria-hidden="true" className="text-sm font-semibold leading-none">+</span>
+                    </button>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -199,6 +229,15 @@ export function DashboardTabs({
                   </Link>
                 </div>
               </div>
+
+              <StallPurchaseFlow
+                open={stallFlowBarnId !== null}
+                onClose={() => setStallFlowBarnId(null)}
+                userBarns={userBarnOptions}
+                defaultBarnId={stallFlowBarnId ?? undefined}
+                defaultMode={stallFlowMode}
+              />
+
 
               <div className="mt-8 grid gap-4 sm:grid-cols-3">
                 <div className="rounded-2xl border border-barn-dark/10 bg-white p-5 shadow-sm">

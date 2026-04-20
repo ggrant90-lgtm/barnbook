@@ -40,9 +40,13 @@ export async function createBarnAction(
 
   const isFirstBarn = (freeBarns ?? 0) === 0;
 
-  // Free barns get 5 stalls, paid barns get 10
+  // Free barns get 5 base stalls; paid barns start with 0 base stalls and
+  // are expected to have stall_blocks attached separately (e.g. via
+  // lib/stalls.ts buildNewBarnWithBlockAction). This /barn/new page still
+  // pre-creates 5 base stalls for paid-tier barns too so the old single-
+  // page form keeps working until it's migrated to the new flow.
   const isPaid = planTierSelected === "paid";
-  const stallCapacity = isPaid ? 10 : 5;
+  const baseStalls = isPaid ? 10 : 5;
 
   const { data: barn, error: barnErr } = await supabase
     .from("barns")
@@ -56,7 +60,7 @@ export async function createBarnAction(
       phone,
       barn_type,
       plan_tier: isPaid ? "paid" : "free",
-      stall_capacity: stallCapacity,
+      base_stalls: baseStalls,
       plan_notes: isPaid
         ? "10-stall paid barn — $25/mo"
         : isFirstBarn

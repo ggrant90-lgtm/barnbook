@@ -2,6 +2,7 @@ import { HorseCard } from "@/components/HorseCard";
 import { HorsePhoto } from "@/components/HorsePhoto";
 import { getActiveBarnId } from "@/lib/barn-session";
 import { getTodayAndUpcoming } from "@/app/(protected)/actions/calendar";
+import { getEffectiveCapacityMap } from "@/lib/stalls-query";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import type { ActivityLog, Barn, Horse } from "@/lib/types";
 import Link from "next/link";
@@ -323,12 +324,43 @@ export default async function DashboardPage() {
     }
   }
 
+  // Compute effective capacity for the primary barn + build userBarns list
+  // for the StallPurchaseFlow (owner-only barns).
+  const ownedBarnIds = (ownedBarns ?? []).map((b) => b.id);
+  const capacityMap = await getEffectiveCapacityMap(supabase, ownedBarnIds);
+
+  // Horse counts per owned barn (for the userBarns list in the modal).
+  const { data: horseCountRows } = ownedBarnIds.length
+    ? await supabase
+        .from("horses")
+        .select("barn_id")
+        .in("barn_id", ownedBarnIds)
+        .eq("archived", false)
+    : { data: [] as Array<{ barn_id: string }> };
+  const hcByBarn = new Map<string, number>();
+  for (const r of (horseCountRows ?? []) as Array<{ barn_id: string }>) {
+    hcByBarn.set(r.barn_id, (hcByBarn.get(r.barn_id) ?? 0) + 1);
+  }
+
+  const userBarnOptions = (ownedBarns ?? []).map((b) => ({
+    id: b.id,
+    name: b.name,
+    horseCount: hcByBarn.get(b.id) ?? 0,
+    effectiveCapacity: capacityMap.get(b.id) ?? (b.base_stalls ?? 0),
+  }));
+
+  const primaryBarnEffectiveCapacity = primaryBarn
+    ? capacityMap.get(primaryBarn.id) ?? (primaryBarn.base_stalls ?? 0)
+    : 0;
+
   return (
     <DashboardTabs
       ownedBarns={(ownedBarns ?? []) as Barn[]}
       accessBarns={accessBarns}
       accessBarnHorses={accessBarnHorses}
       primaryBarn={primaryBarn as Barn | null}
+      primaryBarnEffectiveCapacity={primaryBarnEffectiveCapacity}
+      userBarnOptions={userBarnOptions}
       horses={horses}
       horseCount={horseCount}
       activeKeys={activeKeys}

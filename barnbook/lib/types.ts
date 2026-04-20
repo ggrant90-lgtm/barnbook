@@ -44,7 +44,10 @@ export interface Barn {
   public_phone: string | null;
   barn_type: "standard" | "mare_motel";
   plan_tier: "free" | "paid" | "comped";
-  stall_capacity: number;
+  /** Free/base stalls the barn starts with (5 for free, 0 for stall-block-funded
+   *  "build new" barns). Effective capacity = base_stalls + SUM of active
+   *  barn_stall_blocks. Formerly `stall_capacity`. */
+  base_stalls: number;
   plan_started_at: string | null;
   plan_expires_at: string | null;
   plan_notes: string | null;
@@ -423,6 +426,9 @@ export interface BarnStallBlock {
   price_cents: number;
   stripe_subscription_item_id: string | null;
   status: "active" | "pending_cancel" | "cancelled";
+  /** true = block was comped during early access. Used to find these users
+   *  later when billing flips on. */
+  is_free_promo: boolean;
   added_at: string;
   added_by_user_id: string | null;
   cancelled_at: string | null;
@@ -587,6 +593,10 @@ export type BarnInsert = {
   public_email?: string | null;
   public_phone?: string | null;
   barn_type?: "standard" | "mare_motel";
+  plan_tier?: "free" | "paid" | "comped";
+  base_stalls?: number;
+  plan_started_at?: string | null;
+  plan_notes?: string | null;
   created_at?: string;
   updated_at?: string;
 };
