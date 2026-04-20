@@ -9,6 +9,8 @@ import {
   StallPurchaseFlow,
   type StallFlowBarnOption,
 } from "@/components/stalls/StallPurchaseFlow";
+import { ModulePremiumCard } from "@/components/modules/ModulePremiumCard";
+import type { ModuleAccess } from "@/lib/modules-query";
 import type { CalendarEvent } from "@/app/(protected)/actions/calendar";
 import type { ActivityLog, Barn, Horse } from "@/lib/types";
 import {
@@ -41,6 +43,8 @@ export function DashboardTabs({
   upcomingEvents,
   expiringDocuments,
   stallHorses,
+  breedersAccess,
+  businessAccess,
 }: {
   ownedBarns: Barn[];
   accessBarns: (Barn & { userRole: string })[];
@@ -82,6 +86,8 @@ export function DashboardTabs({
     barn_name: string;
     permission_level: string | null;
   }>;
+  breedersAccess: ModuleAccess;
+  businessAccess: ModuleAccess;
 }) {
   const [tab, setTab] = useState<"my" | "access">("my");
   const [stallFlowBarnId, setStallFlowBarnId] = useState<string | null>(null);
@@ -274,6 +280,25 @@ export function DashboardTabs({
                   View Requests
                 </Link>
               </div>
+
+              <section className="mt-12">
+                <h2 className="font-serif text-xl text-barn-dark">Premium modules</h2>
+                <p className="mt-1 text-sm text-barn-dark/60">
+                  Free 30-day trial — no credit card required.
+                </p>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <ModulePremiumCard
+                    module="breeders_pro"
+                    access={breedersAccess}
+                    moduleHref="/breeders-pro"
+                  />
+                  <ModulePremiumCard
+                    module="business_pro"
+                    access={businessAccess}
+                    moduleHref="/business-pro"
+                  />
+                </div>
+              </section>
 
               <section className="mt-12">
                 <h2 className="font-serif text-xl text-barn-dark">Horses</h2>

@@ -3,6 +3,7 @@ import { HorsePhoto } from "@/components/HorsePhoto";
 import { getActiveBarnId } from "@/lib/barn-session";
 import { getTodayAndUpcoming } from "@/app/(protected)/actions/calendar";
 import { getEffectiveCapacityMap } from "@/lib/stalls-query";
+import { getModuleAccess } from "@/lib/modules-query";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import type { ActivityLog, Barn, Horse } from "@/lib/types";
 import Link from "next/link";
@@ -353,6 +354,13 @@ export default async function DashboardPage() {
     ? capacityMap.get(primaryBarn.id) ?? (primaryBarn.base_stalls ?? 0)
     : 0;
 
+  // Module access (Breeders Pro + Business Pro) for the dashboard
+  // premium section.
+  const [breedersAccess, businessAccess] = await Promise.all([
+    getModuleAccess(supabase, user.id, "breeders_pro"),
+    getModuleAccess(supabase, user.id, "business_pro"),
+  ]);
+
   return (
     <DashboardTabs
       ownedBarns={(ownedBarns ?? []) as Barn[]}
@@ -373,6 +381,8 @@ export default async function DashboardPage() {
         horse_name: horseNameMap[d.horse_id] ?? "Unknown horse",
       }))}
       stallHorses={stallHorses}
+      breedersAccess={breedersAccess}
+      businessAccess={businessAccess}
     />
   );
 }

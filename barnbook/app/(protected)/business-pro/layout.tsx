@@ -1,13 +1,18 @@
 import { redirect } from "next/navigation";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import { BusinessProSessionProvider } from "@/components/business-pro/BusinessProSession";
+import { ModuleGate } from "@/components/modules/ModuleGate";
+
+const BUSINESS_PRO_DESCRIPTION =
+  "A premium financial management add-on for BarnBook. Track revenue, expenses, and receivables across all your barns with a QuickBooks-style dashboard, AR aging, trend charts, and per-barn breakdowns.";
 
 /**
  * Business Pro nested layout.
  *
- * Gates access based on `profiles.has_business_pro`. Non-subscribers see the
- * upsell card and a contact email. Subscribers proceed into the financial
- * dashboard and its child routes.
+ * Access gating is delegated to <ModuleGate module="business_pro">:
+ * admin flag OR active subscription OR active trial all grant access.
+ * Expired trials render children behind a grey-out so users can still
+ * see their data.
  */
 export default async function BusinessProLayout({
   children,
@@ -22,78 +27,9 @@ export default async function BusinessProLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, has_business_pro")
+    .select("full_name")
     .eq("id", user.id)
     .maybeSingle();
-
-  // ---- Subscription gate ----
-  if (!profile?.has_business_pro) {
-    return (
-      <div style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "60vh",
-        padding: "48px 24px",
-        textAlign: "center",
-        maxWidth: 520,
-        margin: "0 auto",
-      }}>
-        <div style={{
-          fontSize: 48,
-          marginBottom: 16,
-          fontFamily: "var(--font-display, serif)",
-        }}>
-          Business Pro
-        </div>
-        <p style={{
-          fontSize: 15,
-          color: "#6b7280",
-          lineHeight: 1.6,
-          marginBottom: 24,
-        }}>
-          Business Pro is a premium financial management add-on for BarnBook.
-          Track revenue, expenses, and receivables across all your barns with a
-          QuickBooks-style dashboard, accounts receivable aging, trend charts,
-          and per-barn breakdowns.
-        </p>
-        <a
-          href="https://calendly.com/ggrant90/30min"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "12px 20px",
-            borderRadius: 12,
-            background: "#c9a84c",
-            color: "#2a4031",
-            fontSize: 14,
-            fontWeight: 600,
-            textDecoration: "none",
-            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-            marginBottom: 16,
-          }}
-        >
-          📅 Schedule a 30-min walkthrough
-        </a>
-        <p style={{
-          fontSize: 13,
-          color: "#6b7280",
-        }}>
-          Or email{" "}
-          <a
-            href="mailto:admin@barnbook.us"
-            style={{ color: "#c9a84c", textDecoration: "underline" }}
-          >
-            admin@barnbook.us
-          </a>
-        </p>
-      </div>
-    );
-  }
 
   const meta = user.user_metadata as { full_name?: string } | undefined;
   const displayName =
@@ -112,14 +48,16 @@ export default async function BusinessProLayout({
       .toUpperCase() || "U";
 
   return (
-    <BusinessProSessionProvider
-      session={{
-        userName: displayName,
-        userInitials: initials,
-        userRole: "Business Pro",
-      }}
-    >
-      {children}
-    </BusinessProSessionProvider>
+    <ModuleGate module="business_pro" description={BUSINESS_PRO_DESCRIPTION}>
+      <BusinessProSessionProvider
+        session={{
+          userName: displayName,
+          userInitials: initials,
+          userRole: "Business Pro",
+        }}
+      >
+        {children}
+      </BusinessProSessionProvider>
+    </ModuleGate>
   );
 }

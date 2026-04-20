@@ -434,6 +434,30 @@ export interface BarnStallBlock {
   cancelled_at: string | null;
 }
 
+/** public.module_trials — 30-day free-trial record for a premium module. */
+export interface ModuleTrial {
+  id: string;
+  user_id: string;
+  module: "breeders_pro" | "business_pro";
+  started_at: string;
+  expires_at: string;
+  converted_at: string | null;
+  status: "active" | "expired" | "converted";
+  created_at: string;
+}
+
+/** public.module_subscriptions — active subscription (no Stripe yet). */
+export interface ModuleSubscription {
+  id: string;
+  user_id: string;
+  module: "breeders_pro" | "business_pro";
+  price_cents: number;
+  status: "active" | "cancelled" | "past_due";
+  started_at: string;
+  cancelled_at: string | null;
+  created_at: string;
+}
+
 /** public.paywall_interest */
 export interface PaywallInterest {
   id: string;
