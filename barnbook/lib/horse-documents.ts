@@ -132,16 +132,36 @@ export async function readImageForExtraction(
       mime_type: "image/jpeg",
     };
   } catch (e) {
-    // Fall back to raw file bytes if createImageBitmap fails (e.g., HEIC on
-    // some browsers). Claude vision can still handle the original.
-    try {
-      const buf = await file.arrayBuffer();
-      return { base64: arrayBufferToBase64(buf), mime_type: file.type };
-    } catch {
+    // createImageBitmap failed — the browser can't decode this image
+    // natively. HEIC/HEIF on Android Chrome is the common case. Claude
+    // vision only accepts JPEG, PNG, GIF, or WebP, so we can't just
+    // forward the raw bytes; surface a clear, actionable message
+    // instead of letting the server reject it with a generic 415.
+    if (file.type === "image/heic" || file.type === "image/heif") {
       return {
-        error: e instanceof Error ? e.message : "Image processing failed.",
+        error:
+          "This browser can't read HEIC images. Save the photo as JPEG or PNG and try again.",
       };
     }
+    // Non-HEIC decode failure — fall back to raw bytes only for formats
+    // Claude vision can actually handle.
+    const VISION_SAFE = new Set([
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+    ]);
+    if (VISION_SAFE.has(file.type)) {
+      try {
+        const buf = await file.arrayBuffer();
+        return { base64: arrayBufferToBase64(buf), mime_type: file.type };
+      } catch {
+        /* fall through to generic error */
+      }
+    }
+    return {
+      error: e instanceof Error ? e.message : "Image processing failed.",
+    };
   }
 }
 
