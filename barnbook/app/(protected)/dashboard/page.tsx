@@ -8,6 +8,7 @@ import { getOnboardingState } from "@/lib/onboarding-query";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import type { ActivityLog, Barn, Horse } from "@/lib/types";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { DashboardTabs } from "./DashboardTabs";
 
 function formatWhen(iso: string) {
@@ -105,6 +106,14 @@ export default async function DashboardPage() {
     : activeBarnId && activeBarnId !== "__all__"
       ? allUserBarns.find((b) => b.id === activeBarnId) ?? (ownedBarns ?? [])[0] ?? null
       : (ownedBarns ?? [])[0] ?? null;
+
+  // Service Barns have their own dashboard at /barn/[id]/service — the
+  // standard horse-photo grid is meaningless for a mobile service
+  // provider whose horses are quick records and Stall-Key linked refs.
+  if (primaryBarn && primaryBarn.barn_type === "service") {
+    redirect(`/barn/${primaryBarn.id}/service`);
+  }
+
   let horses: Pick<
     Horse,
     "id" | "name" | "barn_name" | "primary_name_pref" | "photo_url" | "breed" | "sex" | "color" | "updated_at"
