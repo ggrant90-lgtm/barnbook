@@ -51,7 +51,7 @@ export interface Barn {
   facebook: string | null;
   public_email: string | null;
   public_phone: string | null;
-  barn_type: "standard" | "mare_motel";
+  barn_type: "standard" | "mare_motel" | "service";
   plan_tier: "free" | "paid" | "comped";
   /** Free/base stalls the barn starts with (5 for free, 0 for stall-block-funded
    *  "build new" barns). Effective capacity = base_stalls + SUM of active
@@ -234,6 +234,17 @@ export interface Horse {
   turnout_schedule: string | null;
   archived: boolean;
   breeding_only: boolean;
+  /** Service Barn quick-record flag. True = this horse is a minimal
+   *  "line in the notebook" for a service provider, not a full profile.
+   *  Only the five fields below are expected to be populated. */
+  is_quick_record: boolean;
+  /** Quick-record contact info. Null on full horse profiles. */
+  owner_contact_name: string | null;
+  owner_contact_phone: string | null;
+  owner_contact_email: string | null;
+  /** Free-text physical location for quick records (e.g. "Smith Ranch
+   *  on Williamson Valley Rd"). Null on full profiles. */
+  location_name: string | null;
   created_at: string;
   updated_at: string;
   /** Breeding extensions */
@@ -453,6 +464,18 @@ export interface BarnStallBlock {
   cancelled_at: string | null;
 }
 
+/** public.service_barn_links — join table connecting a Service Barn to
+ *  horses at other BarnBook barns that the linker has Stall Key access
+ *  to. Not a copy — the horse lives at its real barn. */
+export interface ServiceBarnLink {
+  id: string;
+  service_barn_id: string;
+  horse_id: string;
+  linked_by_user_id: string;
+  notes: string | null;
+  created_at: string;
+}
+
 /** public.module_trials — 30-day free-trial record for a premium module. */
 export interface ModuleTrial {
   id: string;
@@ -635,7 +658,7 @@ export type BarnInsert = {
   facebook?: string | null;
   public_email?: string | null;
   public_phone?: string | null;
-  barn_type?: "standard" | "mare_motel";
+  barn_type?: "standard" | "mare_motel" | "service";
   plan_tier?: "free" | "paid" | "comped";
   base_stalls?: number;
   plan_started_at?: string | null;
@@ -720,6 +743,12 @@ export type HorseInsert = {
   stallion_stud_fee?: number | null;
   sire_horse_id?: string | null;
   dam_horse_id?: string | null;
+  // Service Barn quick-record fields
+  is_quick_record?: boolean;
+  owner_contact_name?: string | null;
+  owner_contact_phone?: string | null;
+  owner_contact_email?: string | null;
+  location_name?: string | null;
   created_at?: string;
   updated_at?: string;
 };

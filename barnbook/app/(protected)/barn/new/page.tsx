@@ -9,12 +9,15 @@ export default async function NewBarnPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/auth/signin");
 
-  // Check if user already has a free barn
+  // Check if user already has a free barn. Service Barns are
+  // excluded because they don't compete for the "one free barn" slot —
+  // a user can have a standard free barn AND one or more Service Barns.
   const { count } = await supabase
     .from("barns")
     .select("id", { count: "exact", head: true })
     .eq("owner_id", user.id)
-    .eq("plan_tier", "free");
+    .eq("plan_tier", "free")
+    .neq("barn_type", "service");
 
   const hasFreeBarn = (count ?? 0) > 0;
 

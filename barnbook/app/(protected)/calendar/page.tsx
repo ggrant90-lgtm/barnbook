@@ -15,16 +15,52 @@ export default async function CalendarPage() {
   if (!ctx) redirect("/dashboard");
 
   const barnId = ctx.barn.id;
+  const isServiceBarn = ctx.barn.barn_type === "service";
 
-  // Fetch horses in this barn
-  const { data: horsesRaw } = await supabase
-    .from("horses")
-    .select("id, name")
-    .eq("barn_id", barnId)
-    .eq("archived", false)
-    .order("name", { ascending: true });
-
-  const horses = (horsesRaw ?? []) as { id: string; name: string }[];
+  // Horses for the filter dropdown. On a Service Barn this includes
+  // both quick records (in this barn) and linked horses (at other
+  // barns). On a standard barn it's just the barn's horses.
+  let horses: { id: string; name: string }[] = [];
+  if (isServiceBarn) {
+    const [quickRes, linksRes] = await Promise.all([
+      supabase
+        .from("horses")
+        .select("id, name")
+        .eq("barn_id", barnId)
+        .eq("is_quick_record", true)
+        .eq("archived", false)
+        .order("name", { ascending: true }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("service_barn_links")
+        .select("horse_id")
+        .eq("service_barn_id", barnId),
+    ]);
+    const quicks = (quickRes.data ?? []) as { id: string; name: string }[];
+    const linkIds = ((linksRes.data ?? []) as Array<{ horse_id: string }>).map(
+      (l) => l.horse_id,
+    );
+    let linked: { id: string; name: string }[] = [];
+    if (linkIds.length > 0) {
+      const { data } = await supabase
+        .from("horses")
+        .select("id, name")
+        .in("id", linkIds)
+        .eq("archived", false);
+      linked = (data ?? []) as { id: string; name: string }[];
+    }
+    horses = [...quicks, ...linked].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+    );
+  } else {
+    const { data: horsesRaw } = await supabase
+      .from("horses")
+      .select("id, name")
+      .eq("barn_id", barnId)
+      .eq("archived", false)
+      .order("name", { ascending: true });
+    horses = (horsesRaw ?? []) as { id: string; name: string }[];
+  }
 
   // Fetch barn members for performer filter + quick-add
   const { data: barnMembers } = await supabase
@@ -67,6 +103,7 @@ export default async function CalendarPage() {
     barnId,
     start: monthStart.toISOString(),
     end: monthEnd.toISOString(),
+    serviceBarnMode: isServiceBarn,
   });
 
   return (
@@ -81,6 +118,7 @@ export default async function CalendarPage() {
         horses={horses}
         barnMembers={barnMembersList}
         currentUserId={user.id}
+        serviceBarnMode={isServiceBarn}
       />
     </div>
   );

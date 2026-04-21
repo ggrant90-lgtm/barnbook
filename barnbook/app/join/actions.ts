@@ -38,6 +38,25 @@ export async function redeemKeyAction(rawCode: string): Promise<{
   revalidatePath("/horses");
 
   if (j.key_type === "stall" && j.horse_id) {
+    // If the user owns a Service Barn, pass a querystring marker so the
+    // horse profile page can render a "Add {horse} to {Service Barn}?"
+    // banner inline. Picks the oldest Service Barn by default; if the
+    // user owns multiple, the banner will let them choose.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: serviceBarn } = await (supabase as any)
+      .from("barns")
+      .select("id")
+      .eq("owner_id", user.id)
+      .eq("barn_type", "service")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (serviceBarn?.id) {
+      return {
+        ok: true,
+        redirectTo: `/horses/${j.horse_id}?linkPrompt=${serviceBarn.id}`,
+      };
+    }
     return { ok: true, redirectTo: `/horses/${j.horse_id}` };
   }
   return { ok: true, redirectTo: "/dashboard" };

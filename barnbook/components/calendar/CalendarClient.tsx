@@ -51,6 +51,10 @@ interface Props {
   horses: Horse[];
   barnMembers: BarnMember[];
   currentUserId: string;
+  /** When true, getCalendarEvents is called in Service Barn mode:
+   *  quick records + linked horses (filtered to this user's own
+   *  entries for the linked set). */
+  serviceBarnMode?: boolean;
 }
 
 export function CalendarClient({
@@ -59,6 +63,7 @@ export function CalendarClient({
   horses,
   barnMembers,
   currentUserId,
+  serviceBarnMode = false,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -142,6 +147,7 @@ export function CalendarClient({
         maxCost: filters.maxCost,
         hasNotes: filters.hasNotes || undefined,
         hasCost: filters.hasCost || undefined,
+        serviceBarnMode,
         scheduled: filters.scheduled !== "all" ? filters.scheduled : undefined,
         keyword: filters.keyword || undefined,
       });
@@ -149,7 +155,7 @@ export function CalendarClient({
       setEvents(result.events);
       setLoading(false);
     },
-    [barnId, filters],
+    [barnId, filters, serviceBarnMode],
   );
 
   // Debounced refetch when filters change

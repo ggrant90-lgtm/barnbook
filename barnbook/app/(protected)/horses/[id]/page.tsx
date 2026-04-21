@@ -7,6 +7,8 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { HorseProfileClient } from "./HorseProfileClient";
+import { QuickRecordProfile } from "@/components/service-barn/QuickRecordProfile";
+import { AutoLinkBanner } from "@/components/service-barn/AutoLinkBanner";
 
 async function getOrigin(): Promise<string> {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
@@ -22,11 +24,12 @@ export default async function HorseProfilePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; error?: string }>;
+  searchParams: Promise<{ tab?: string; error?: string; linkPrompt?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
   const tab = sp.tab ?? "overview";
+  const linkPromptBarnId = sp.linkPrompt?.trim();
 
   const supabase = await createServerComponentClient();
   const {
@@ -46,6 +49,74 @@ export default async function HorseProfilePage({
   if (horseErr || !horseRaw) notFound();
 
   const horse = horseRaw as Horse;
+
+  // If the user just redeemed a Stall Key and they own a Service Barn,
+  // /join/actions.ts tacks on a ?linkPrompt=<serviceBarnId> querystring
+  // to invite auto-linking this horse. Validate the querystring against
+  // an actual service-type barn the user owns before rendering the
+  // banner — don't trust it blindly.
+  let autoLinkBanner: { serviceBarnId: string; serviceBarnName: string } | null = null;
+  if (linkPromptBarnId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: serviceBarn } = await (supabase as any)
+      .from("barns")
+      .select("id, name, owner_id, barn_type")
+      .eq("id", linkPromptBarnId)
+      .maybeSingle();
+    if (
+      serviceBarn &&
+      serviceBarn.owner_id === user.id &&
+      serviceBarn.barn_type === "service"
+    ) {
+      // Don't show the banner if the horse is already linked.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: existingLink } = await (supabase as any)
+        .from("service_barn_links")
+        .select("id")
+        .eq("service_barn_id", serviceBarn.id)
+        .eq("horse_id", horse.id)
+        .maybeSingle();
+      if (!existingLink) {
+        autoLinkBanner = {
+          serviceBarnId: serviceBarn.id as string,
+          serviceBarnName: serviceBarn.name as string,
+        };
+      }
+    }
+  }
+
+  // Quick records (Service Barn) short-circuit into a simplified single-
+  // page profile. They skip the full Horse Profile (documents, health
+  // tabs, breeding, etc. — none of which apply). We still pull the
+  // activity log below, but the QuickRecordProfile only uses a slice.
+  if (horse.is_quick_record) {
+    const [{ data: activityLogs }, { data: healthRecords }] = await Promise.all([
+      supabase
+        .from("activity_log")
+        .select("*")
+        .eq("horse_id", id)
+        .order("created_at", { ascending: false })
+        .limit(100),
+      supabase
+        .from("health_records")
+        .select("*")
+        .eq("horse_id", id)
+        .order("created_at", { ascending: false })
+        .limit(100),
+    ]);
+    const canEditQuick = horse.barn_id
+      ? await canUserEditHorseProfile(supabase, user.id, horse.barn_id)
+      : false;
+    return (
+      <QuickRecordProfile
+        horse={horse}
+        canEdit={canEditQuick}
+        activityLogs={(activityLogs ?? []) as ActivityLog[]}
+        healthRecords={(healthRecords ?? []) as HealthRecord[]}
+      />
+    );
+  }
+
   const canEdit = await canUserEditHorse(supabase, user.id, horse.barn_id);
   // Horse PROFILE edits (name/breed/photo/etc.) are owner-only — a hard rule
   // that supersedes key permissions.
@@ -548,6 +619,16 @@ export default async function HorseProfilePage({
 
   return (
     <Suspense fallback={<div className="px-4 py-16 text-center text-barn-dark/70">Loading…</div>}>
+      {autoLinkBanner && (
+        <div className="mx-auto max-w-7xl px-4 pt-4 sm:px-6">
+          <AutoLinkBanner
+            horseId={horse.id}
+            horseName={horse.name}
+            serviceBarnId={autoLinkBanner.serviceBarnId}
+            serviceBarnName={autoLinkBanner.serviceBarnName}
+          />
+        </div>
+      )}
       <HorseProfileClient
         horse={horse}
         canEdit={canEdit}

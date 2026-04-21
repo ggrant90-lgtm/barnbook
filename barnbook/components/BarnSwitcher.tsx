@@ -61,6 +61,10 @@ export function BarnSwitcher({
           </p>
           {!isAllBarns && activeBarn?.barn_type === "mare_motel" ? (
             <span className="text-[10px] text-brass-gold">Mare Motel</span>
+          ) : !isAllBarns && activeBarn?.barn_type === "service" ? (
+            <span className="text-[10px]" style={{ color: "#a3c0d0" }}>
+              Service Barn
+            </span>
           ) : isAllBarns ? (
             <span className="text-[10px] text-brass-gold">{allBarns.length} barns combined</span>
           ) : null}

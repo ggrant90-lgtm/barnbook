@@ -2,7 +2,7 @@ import { createPublicSupabaseClient } from "@/lib/supabase-public";
 import type { Barn, BarnPhoto, Horse } from "@/lib/types";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { BarnProfileClient } from "./BarnProfileClient";
 
 export async function generateMetadata({
@@ -40,6 +40,13 @@ export default async function PublicBarnProfilePage({
     .single();
 
   if (error || !barn) notFound();
+
+  // Service Barns are a provider's private workspace — they don't have
+  // a public profile. Redirect to the protected Service Barn dashboard;
+  // unauthenticated visitors get bounced to sign-in from there.
+  if ((barn as Barn).barn_type === "service") {
+    redirect(`/barn/${id}/service`);
+  }
 
   const [{ data: photosData }, { data: horsesData }] = await Promise.all([
     supabase

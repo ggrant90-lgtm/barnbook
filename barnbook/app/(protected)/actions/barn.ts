@@ -24,29 +24,37 @@ export async function createBarnAction(
   const zip = String(formData.get("zip") ?? "").trim() || null;
   const phone = String(formData.get("phone") ?? "").trim() || null;
   const barnTypeRaw = String(formData.get("barn_type") ?? "standard").trim();
-  const barn_type = barnTypeRaw === "mare_motel" ? "mare_motel" : "standard";
+  const barn_type: "standard" | "mare_motel" | "service" =
+    barnTypeRaw === "mare_motel"
+      ? "mare_motel"
+      : barnTypeRaw === "service"
+        ? "service"
+        : "standard";
   const planTierSelected = String(formData.get("plan_tier_selected") ?? "free").trim();
 
   if (!name) {
     return { error: "Barn name is required." };
   }
 
-  // Check one-free-barn rule: user can only have ONE free barn
+  // Check one-free-barn rule: user can only have ONE free barn. Service
+  // Barns are exempt — they have no capacity semantics (unlimited base
+  // stalls) and don't compete with a standard barn for the one-free slot.
   const { count: freeBarns } = await supabase
     .from("barns")
     .select("id", { count: "exact", head: true })
     .eq("owner_id", user.id)
-    .eq("plan_tier", "free");
+    .eq("plan_tier", "free")
+    .neq("barn_type", "service");
 
   const isFirstBarn = (freeBarns ?? 0) === 0;
 
-  // Free barns get 5 base stalls; paid barns start with 0 base stalls and
-  // are expected to have stall_blocks attached separately (e.g. via
-  // lib/stalls.ts buildNewBarnWithBlockAction). This /barn/new page still
-  // pre-creates 5 base stalls for paid-tier barns too so the old single-
-  // page form keeps working until it's migrated to the new flow.
-  const isPaid = planTierSelected === "paid";
-  const baseStalls = isPaid ? 10 : 5;
+  const isService = barn_type === "service";
+  // Free barns get 5 base stalls; paid barns get 10. Service Barns
+  // default to 999 (effectively unlimited) and skip the paid path
+  // entirely — the quick-records + linked-horses model means stall
+  // capacity isn't a meaningful concept for mobile service providers.
+  const isPaid = !isService && planTierSelected === "paid";
+  const baseStalls = isService ? 999 : isPaid ? 10 : 5;
 
   const { data: barn, error: barnErr } = await supabase
     .from("barns")
@@ -61,11 +69,13 @@ export async function createBarnAction(
       barn_type,
       plan_tier: isPaid ? "paid" : "free",
       base_stalls: baseStalls,
-      plan_notes: isPaid
-        ? "10-stall paid barn — $25/mo"
-        : isFirstBarn
-          ? "First free barn"
-          : "Additional free barn",
+      plan_notes: isService
+        ? "Service Barn — unlimited stalls, free"
+        : isPaid
+          ? "10-stall paid barn — $25/mo"
+          : isFirstBarn
+            ? "First free barn"
+            : "Additional free barn",
       plan_started_at: new Date().toISOString(),
     })
     .select("id")

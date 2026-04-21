@@ -43,6 +43,11 @@ export interface CalendarFilters {
   hasCost?: boolean;
   scheduled?: "all" | "scheduled" | "completed";
   keyword?: string;
+  /** When true, treat barnId as a Service Barn: include quick-record
+   *  horses (any creator's entries) AND linked horses (only the
+   *  current user's own entries). Used by the Service Barn calendar
+   *  to show "my work calendar" scoped to this provider. */
+  serviceBarnMode?: boolean;
 }
 
 export async function getCalendarEvents(
@@ -54,20 +59,68 @@ export async function getCalendarEvents(
   } = await supabase.auth.getUser();
   if (!user) return { events: [], error: "Not authenticated" };
 
-  // Get horses in this barn
-  let horseQuery = supabase
-    .from("horses")
-    .select("id, name, barn_name, primary_name_pref")
-    .eq("barn_id", filters.barnId)
-    .eq("archived", false);
+  // Get horses in this barn. For a standard barn this is a single query
+  // scoped to barn_id. For a Service Barn (serviceBarnMode) we gather
+  // quick records at the Service Barn PLUS linked horses at other barns
+  // — the latter requires a linkedHorseIds set so we can filter their
+  // entries below to logged_by = user.id.
+  const linkedHorseIds = new Set<string>();
+  let horseRows: Array<{
+    id: string;
+    name: string;
+    barn_name: string | null;
+    primary_name_pref: "papered" | "barn";
+  }> = [];
 
-  if (filters.horses && filters.horses.length > 0) {
-    horseQuery = horseQuery.in("id", filters.horses);
+  if (filters.serviceBarnMode) {
+    const [quickRes, linksRes] = await Promise.all([
+      supabase
+        .from("horses")
+        .select("id, name, barn_name, primary_name_pref")
+        .eq("barn_id", filters.barnId)
+        .eq("is_quick_record", true)
+        .eq("archived", false),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("service_barn_links")
+        .select("horse_id")
+        .eq("service_barn_id", filters.barnId),
+    ]);
+    const quickHorses = (quickRes.data ?? []) as typeof horseRows;
+    const linkIds = ((linksRes.data ?? []) as Array<{ horse_id: string }>).map(
+      (l) => l.horse_id,
+    );
+    let linkedHorses: typeof horseRows = [];
+    if (linkIds.length > 0) {
+      const { data } = await supabase
+        .from("horses")
+        .select("id, name, barn_name, primary_name_pref")
+        .in("id", linkIds)
+        .eq("archived", false);
+      linkedHorses = (data ?? []) as typeof horseRows;
+      for (const h of linkedHorses) linkedHorseIds.add(h.id);
+    }
+    horseRows = [...quickHorses, ...linkedHorses];
+    if (filters.horses && filters.horses.length > 0) {
+      const allowed = new Set(filters.horses);
+      horseRows = horseRows.filter((h) => allowed.has(h.id));
+    }
+  } else {
+    let horseQuery = supabase
+      .from("horses")
+      .select("id, name, barn_name, primary_name_pref")
+      .eq("barn_id", filters.barnId)
+      .eq("archived", false);
+    if (filters.horses && filters.horses.length > 0) {
+      horseQuery = horseQuery.in("id", filters.horses);
+    }
+    const { data } = await horseQuery;
+    horseRows = (data ?? []) as typeof horseRows;
   }
 
-  const { data: horses } = await horseQuery;
-  if (!horses || horses.length === 0) return { events: [] };
+  if (horseRows.length === 0) return { events: [] };
 
+  const horses = horseRows;
   const horseIds = horses.map((h) => h.id);
   const horseNameMap = new Map(horses.map((h) => [h.id, getHorseDisplayName(h)]));
 
@@ -146,6 +199,17 @@ export async function getCalendarEvents(
       filters.keyword &&
       !((a.notes ?? "").toLowerCase().includes(filters.keyword.toLowerCase()) ||
         (a.performed_by_name ?? "").toLowerCase().includes(filters.keyword.toLowerCase()))
+    ) {
+      continue;
+    }
+
+    // Service Barn: linked horses' entries only count as "my work" if
+    // this user logged them. Skip other providers' entries on the same
+    // horse so the calendar stays a personal workday view.
+    if (
+      filters.serviceBarnMode &&
+      linkedHorseIds.has(a.horse_id) &&
+      a.logged_by !== user.id
     ) {
       continue;
     }
@@ -243,6 +307,16 @@ export async function getCalendarEvents(
       filters.keyword &&
       !((h.notes ?? "").toLowerCase().includes(filters.keyword.toLowerCase()) ||
         (h.performed_by_name ?? "").toLowerCase().includes(filters.keyword.toLowerCase()))
+    ) {
+      continue;
+    }
+
+    // Service Barn linked-horse scoping (same rule as activity above):
+    // only the current user's own entries count as "my work."
+    if (
+      filters.serviceBarnMode &&
+      linkedHorseIds.has(h.horse_id) &&
+      h.logged_by !== user.id
     ) {
       continue;
     }
