@@ -46,6 +46,7 @@ type TabId =
 
 const ALL_LOG_TYPES = [
   { value: "exercise", label: "Exercise" },
+  { value: "pony", label: "Pony" },
   { value: "feed", label: "Feed" },
   { value: "medication", label: "Medication" },
   { value: "note", label: "Note" },
