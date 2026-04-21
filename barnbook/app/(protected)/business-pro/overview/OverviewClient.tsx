@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ResponsiveContainer,
@@ -134,7 +134,50 @@ export function OverviewClient({
   unpaidInvoices: UnpaidInvoice[];
   lineItemsForRevenue: LineItemForRevenue[];
 }) {
-  const [selectedBarnIds, setSelectedBarnIds] = useState<string[]>(barns.map((b) => b.id));
+  // Restore the previous barn selection from localStorage on mount.
+  // Starts with all-selected to match SSR (localStorage is unavailable
+  // on the server); swaps to the persisted subset on first client
+  // render. Filters out stale ids that no longer exist (barn deleted,
+  // renamed, or user lost access).
+  const [selectedBarnIds, setSelectedBarnIds] = useState<string[]>(
+    barns.map((b) => b.id),
+  );
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("barnbook:bp-overview:selectedBarnIds");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return;
+      const validIds = new Set(barns.map((b) => b.id));
+      const restored = parsed.filter(
+        (id): id is string => typeof id === "string" && validIds.has(id),
+      );
+      // Use the restored set even if empty — "no barns" is a valid
+      // persisted state (user deliberately deselected everything).
+      if (restored.length !== barns.length || !restored.every((id) => validIds.has(id))) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSelectedBarnIds(restored);
+      }
+    } catch {
+      /* localStorage may throw in embedded contexts — no-op */
+    }
+    // Only run on mount; barns is stable per render and we don't want
+    // to re-apply the persisted value after the user changes chips.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist whenever the user changes the chip set.
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "barnbook:bp-overview:selectedBarnIds",
+        JSON.stringify(selectedBarnIds),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [selectedBarnIds]);
+
   const [, startTransition] = useTransition();
 
   // Filter by selected barns
