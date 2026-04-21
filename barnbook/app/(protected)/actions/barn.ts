@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerComponentClient } from "@/lib/supabase-server";
+import { createAdminClient } from "@/lib/supabase-admin";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -139,14 +140,64 @@ export async function deleteBarnAction(
     return { error: `Move or remove all ${count} horse(s) from this barn before deleting it.` };
   }
 
-  // Delete barn_members, access_keys, barn_photos, then the barn
-  await supabase.from("barn_members").delete().eq("barn_id", barnId);
-  await supabase.from("access_keys").delete().eq("barn_id", barnId);
-  await supabase.from("barn_photos").delete().eq("barn_id", barnId);
-  await supabase.from("horse_stays").delete().eq("home_barn_id", barnId);
-  await supabase.from("horse_stays").delete().eq("host_barn_id", barnId);
+  // Cascade through every table that holds a barn_id FK. We do it
+  // explicitly (rather than relying on ON DELETE CASCADE) because most
+  // of these FKs predate the Business Pro / Service Barn / stall-block
+  // additions and weren't defined with cascade. The paywall_interest
+  // FK in particular has been throwing FK-violation errors on delete.
+  //
+  // Admin client skips RLS — ownership was verified above, and a few
+  // of the Business Pro tables (barn_clients*) have owner-only RLS
+  // that can flake in server-action contexts (same class of bug as
+  // 4d18c68 for horses_insert).
+  const admin = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = admin as any;
 
-  const { error } = await supabase.from("barns").delete().eq("id", barnId);
+  // Business Pro: invoice line items first (FK → invoices), then
+  // invoices themselves. Barn clients have per-client documents.
+  const { data: invoiceRows } = await db
+    .from("invoices")
+    .select("id")
+    .eq("barn_id", barnId);
+  const invoiceIds = ((invoiceRows ?? []) as { id: string }[]).map((r) => r.id);
+  if (invoiceIds.length > 0) {
+    await db.from("invoice_line_items").delete().in("invoice_id", invoiceIds);
+  }
+  await db.from("invoices").delete().eq("barn_id", barnId);
+
+  const { data: clientRows } = await db
+    .from("barn_clients")
+    .select("id")
+    .eq("barn_id", barnId);
+  const clientIds = ((clientRows ?? []) as { id: string }[]).map((r) => r.id);
+  if (clientIds.length > 0) {
+    await db.from("barn_client_documents").delete().in("client_id", clientIds);
+  }
+  await db.from("barn_clients").delete().eq("barn_id", barnId);
+
+  await db.from("barn_expenses").delete().eq("barn_id", barnId);
+
+  // Paywall interest + stall blocks — these had a FK with no cascade.
+  await db.from("paywall_interest").delete().eq("barn_id", barnId);
+  await db.from("barn_stall_blocks").delete().eq("barn_id", barnId);
+
+  // Service Barn links pointed AT horses elsewhere or live on this
+  // barn. Both sides — a service barn we're deleting, or a source barn
+  // whose horses had been linked into someone else's service barn.
+  await db.from("service_barn_links").delete().eq("service_barn_id", barnId);
+
+  // Key lifecycle: requests, members, access keys.
+  await db.from("key_requests").delete().eq("barn_id", barnId);
+  await db.from("barn_members").delete().eq("barn_id", barnId);
+  await db.from("access_keys").delete().eq("barn_id", barnId);
+
+  // Media / profile / stays.
+  await db.from("barn_photos").delete().eq("barn_id", barnId);
+  await db.from("horse_stays").delete().eq("home_barn_id", barnId);
+  await db.from("horse_stays").delete().eq("host_barn_id", barnId);
+
+  const { error } = await db.from("barns").delete().eq("id", barnId);
   if (error) return { error: error.message };
 
   // Clear active barn cookie if it was this barn
