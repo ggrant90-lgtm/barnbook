@@ -4,6 +4,7 @@ import { getActiveBarnId } from "@/lib/barn-session";
 import { getTodayAndUpcoming } from "@/app/(protected)/actions/calendar";
 import { getEffectiveCapacityMap } from "@/lib/stalls-query";
 import { getModuleAccess } from "@/lib/modules-query";
+import { getOnboardingState } from "@/lib/onboarding-query";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import type { ActivityLog, Barn, Horse } from "@/lib/types";
 import Link from "next/link";
@@ -356,10 +357,20 @@ export default async function DashboardPage() {
 
   // Module access (Breeders Pro + Business Pro) for the dashboard
   // premium section.
-  const [breedersAccess, businessAccess] = await Promise.all([
+  const [breedersAccess, businessAccess, onboardingState] = await Promise.all([
     getModuleAccess(supabase, user.id, "breeders_pro"),
     getModuleAccess(supabase, user.id, "business_pro"),
+    getOnboardingState(supabase, user.id),
   ]);
+
+  // Core onboarding wants the user's owned barn (the one auto-created at
+  // signup) so step 1 can rename it rather than creating a second. If
+  // there's no barn yet — rare but possible — the wizard step 1 will
+  // error and point the user to /barn/new.
+  const coreOnboardingBarn =
+    (ownedBarns ?? [])[0]
+      ? { id: (ownedBarns ?? [])[0].id, name: (ownedBarns ?? [])[0].name }
+      : null;
 
   return (
     <DashboardTabs
@@ -383,6 +394,8 @@ export default async function DashboardPage() {
       stallHorses={stallHorses}
       breedersAccess={breedersAccess}
       businessAccess={businessAccess}
+      onboardingState={onboardingState}
+      coreOnboardingBarn={coreOnboardingBarn}
     />
   );
 }

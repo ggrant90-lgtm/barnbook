@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import { getActiveBarnContext } from "@/lib/barn-session";
 import { getHorseDisplayName } from "@/lib/horse-name";
+import { getOnboardingState } from "@/lib/onboarding-query";
+import { BreedersProOnboardingLauncher } from "@/components/onboarding/BreedersProOnboardingLauncher";
 import { OverviewClient } from "./OverviewClient";
 import type { Pregnancy } from "@/lib/types";
 
@@ -129,8 +131,34 @@ export default async function OverviewPage() {
     (l: { horse_id: string }) => barnHorseIds.has(l.horse_id) || horseIds.has(l.horse_id),
   );
 
+  // Onboarding state + mares for the Breeders Pro wizard launcher.
+  const onboardingState = await getOnboardingState(supabase, user.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: mareRows } = await (supabase as any)
+    .from("horses")
+    .select("id, name, breed, photo_url")
+    .eq("barn_id", barnId)
+    .eq("archived", false)
+    .or(
+      "sex.ilike.%mare%,breeding_role.in.(donor,recipient,multiple)",
+    )
+    .order("name", { ascending: true })
+    .limit(50);
+  const existingMares = ((mareRows ?? []) as Array<{
+    id: string;
+    name: string;
+    breed: string | null;
+    photo_url: string | null;
+  }>);
+
   return (
-    <OverviewClient
+    <>
+      <BreedersProOnboardingLauncher
+        barnId={barnId}
+        onboardingState={onboardingState}
+        existingMares={existingMares}
+      />
+      <OverviewClient
       metrics={{
         activePregnancies: (pregnancies ?? []).length,
         embryosInBank: (embryos ?? []).length,
@@ -146,8 +174,10 @@ export default async function OverviewPage() {
         barn_name: string | null;
         primary_name_pref: "papered" | "barn";
       }>).map((m) => ({ id: m.id, name: getHorseDisplayName(m) }))}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       recentBreedLogs={filteredBreedLogs as any[]}
       horseNames={horseNames}
     />
+    </>
   );
 }

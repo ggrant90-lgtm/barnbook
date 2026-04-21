@@ -10,7 +10,10 @@ import {
   type StallFlowBarnOption,
 } from "@/components/stalls/StallPurchaseFlow";
 import { ModulePremiumCard } from "@/components/modules/ModulePremiumCard";
+import { CoreOnboarding } from "@/components/onboarding/CoreOnboarding";
+import { useWizardState } from "@/hooks/useWizardState";
 import type { ModuleAccess } from "@/lib/modules-query";
+import type { OnboardingState } from "@/lib/onboarding-query";
 import type { CalendarEvent } from "@/app/(protected)/actions/calendar";
 import type { ActivityLog, Barn, Horse } from "@/lib/types";
 import {
@@ -45,6 +48,8 @@ export function DashboardTabs({
   stallHorses,
   breedersAccess,
   businessAccess,
+  onboardingState,
+  coreOnboardingBarn,
 }: {
   ownedBarns: Barn[];
   accessBarns: (Barn & { userRole: string })[];
@@ -88,13 +93,49 @@ export function DashboardTabs({
   }>;
   breedersAccess: ModuleAccess;
   businessAccess: ModuleAccess;
+  onboardingState: OnboardingState;
+  /** User's owned barn used by the Core wizard step 1 rename path. Null
+   *  if no barn exists yet (rare — signup auto-creates one). */
+  coreOnboardingBarn: { id: string; name: string } | null;
 }) {
   const [tab, setTab] = useState<"my" | "access">("my");
   const [stallFlowBarnId, setStallFlowBarnId] = useState<string | null>(null);
   const [stallFlowMode, setStallFlowMode] = useState<"expand" | "build">("expand");
 
+  // Core onboarding wizard — auto-opens on first dashboard visit for
+  // new users (when not completed + not dismissed). Auto-opens at most
+  // once per tab session. Lazy initializer reads session state +
+  // claims the session-once flag in one pass.
+  const coreWizard = useWizardState("core", onboardingState);
+  const [coreOpen, setCoreOpen] = useState<boolean>(() => {
+    if (coreWizard.shouldAutoOpen) {
+      coreWizard.markAutoOpened();
+      return true;
+    }
+    return false;
+  });
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <CoreOnboarding
+        open={coreOpen}
+        onClose={async () => {
+          setCoreOpen(false);
+          // Close without completing = permanent dismissal. User can
+          // always revisit by clearing the flag — for now no UI path.
+          await coreWizard.dismissCore();
+        }}
+        onComplete={async () => {
+          await coreWizard.markComplete();
+        }}
+        initialBarn={coreOnboardingBarn}
+        initialStep={onboardingState.core.currentStep}
+        onStepChange={(step) => {
+          // Fire-and-forget; we don't block the user on save failures.
+          coreWizard.saveCoreStep(step);
+        }}
+      />
+
       {(expiringDocuments?.length ?? 0) > 0 && (
         <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
           <div className="text-xs font-medium uppercase tracking-wide text-amber-900/70 mb-2">

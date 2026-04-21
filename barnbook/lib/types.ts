@@ -21,6 +21,15 @@ export interface Profile {
   has_business_pro: boolean;
   business_pro_enabled_at: string | null;
   business_pro_enabled_by: string | null;
+  // ── Onboarding wizard state ──
+  onboarding_core_completed: boolean;
+  onboarding_business_pro_completed: boolean;
+  onboarding_breeders_pro_completed: boolean;
+  /** Set when the user explicitly dismissed the Core wizard. Non-null
+   *  means we will NOT auto-open it again. */
+  onboarding_core_dismissed_at: string | null;
+  /** 1-indexed step where the user left off in the Core wizard. */
+  onboarding_core_step: number;
   updated_at: string;
 }
 
@@ -63,8 +72,18 @@ export interface Barn {
   invoice_notes_default: string | null;
   invoice_terms_default: string | null;
   next_invoice_seq: number;
+  /** Line-item presets for the invoice creation flow. Saved by the
+   *  Business Pro wizard step 2. Shape: [{ label, priceCents }]. */
+  invoice_service_presets: InvoiceServicePreset[];
   created_at: string;
   updated_at: string;
+}
+
+/** Single saved invoice line-item preset, stored on
+ *  barns.invoice_service_presets as JSON. */
+export interface InvoiceServicePreset {
+  label: string;
+  priceCents: number;
 }
 
 /** public.invoice_line_items — custom invoice line items (non-log-entry charges) */

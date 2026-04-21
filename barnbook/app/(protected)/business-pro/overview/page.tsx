@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerComponentClient } from "@/lib/supabase-server";
+import { getOnboardingState } from "@/lib/onboarding-query";
+import { BusinessProOnboardingLauncher } from "@/components/onboarding/BusinessProOnboardingLauncher";
 import { OverviewClient } from "./OverviewClient";
 
 type FinancialRow = {
@@ -31,22 +33,68 @@ export default async function BusinessProOverviewPage() {
   // ── 1. Fetch user's owned barns ──
   const { data: ownedBarns } = await supabase
     .from("barns")
-    .select("id, name, barn_type, plan_tier")
+    .select("id, name, barn_type, plan_tier, company_name, company_phone, company_email")
     .eq("owner_id", user.id);
 
-  const barns = (ownedBarns ?? []) as { id: string; name: string; barn_type: string | null; plan_tier: string | null }[];
+  const barns = (ownedBarns ?? []) as {
+    id: string;
+    name: string;
+    barn_type: string | null;
+    plan_tier: string | null;
+    company_name: string | null;
+    company_phone: string | null;
+    company_email: string | null;
+  }[];
+
+  // Onboarding state + existing clients for the BP wizard launcher.
+  const onboardingState = await getOnboardingState(supabase, user.id);
+  const primaryBpBarn = barns[0] ?? null;
+  const bpInitialCompany = primaryBpBarn
+    ? {
+        name:
+          primaryBpBarn.company_name?.trim() ||
+          primaryBpBarn.name,
+        phone: primaryBpBarn.company_phone,
+        email: primaryBpBarn.company_email,
+      }
+    : { name: "", phone: null, email: null };
+
+  let existingBpClients: Array<{ id: string; display_name: string }> = [];
+  if (primaryBpBarn) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: clientRows } = await (supabase as any)
+      .from("barn_clients")
+      .select("id, display_name")
+      .eq("barn_id", primaryBpBarn.id)
+      .eq("archived", false)
+      .order("display_name", { ascending: true })
+      .limit(50);
+    existingBpClients = (clientRows ?? []) as Array<{
+      id: string;
+      display_name: string;
+    }>;
+  }
   if (barns.length === 0) {
-    // Render with empty state
+    // Render with empty state — still render the wizard launcher so
+    // it can decide (no-op when no barn).
     return (
-      <OverviewClient
-        barns={[]}
-        horseCountByBarn={{}}
-        allEntries={[]}
-        profileNames={{}}
-        horseNames={{}}
-        unpaidInvoices={[]}
-        lineItemsForRevenue={[]}
-      />
+      <>
+        <BusinessProOnboardingLauncher
+          barnId={null}
+          onboardingState={onboardingState}
+          initialCompany={bpInitialCompany}
+          existingClients={existingBpClients}
+        />
+        <OverviewClient
+          barns={[]}
+          horseCountByBarn={{}}
+          allEntries={[]}
+          profileNames={{}}
+          horseNames={{}}
+          unpaidInvoices={[]}
+          lineItemsForRevenue={[]}
+        />
+      </>
     );
   }
 
@@ -72,15 +120,23 @@ export default async function BusinessProOverviewPage() {
 
   if (horseIds.length === 0) {
     return (
-      <OverviewClient
-        barns={barns}
-        horseCountByBarn={horseCountByBarn}
-        allEntries={[]}
-        profileNames={{}}
-        horseNames={horseNames}
-        unpaidInvoices={[]}
-        lineItemsForRevenue={[]}
-      />
+      <>
+        <BusinessProOnboardingLauncher
+          barnId={primaryBpBarn?.id ?? null}
+          onboardingState={onboardingState}
+          initialCompany={bpInitialCompany}
+          existingClients={existingBpClients}
+        />
+        <OverviewClient
+          barns={barns}
+          horseCountByBarn={horseCountByBarn}
+          allEntries={[]}
+          profileNames={{}}
+          horseNames={horseNames}
+          unpaidInvoices={[]}
+          lineItemsForRevenue={[]}
+        />
+      </>
     );
   }
 
@@ -267,7 +323,14 @@ export default async function BusinessProOverviewPage() {
   }
 
   return (
-    <OverviewClient
+    <>
+      <BusinessProOnboardingLauncher
+        barnId={primaryBpBarn?.id ?? null}
+        onboardingState={onboardingState}
+        initialCompany={bpInitialCompany}
+        existingClients={existingBpClients}
+      />
+      <OverviewClient
       barns={barns}
       horseCountByBarn={horseCountByBarn}
       allEntries={allEntries.map((e) => {
@@ -286,5 +349,6 @@ export default async function BusinessProOverviewPage() {
       unpaidInvoices={unpaidInvoices as any[]}
       lineItemsForRevenue={lineItemsForRevenue}
     />
+    </>
   );
 }
