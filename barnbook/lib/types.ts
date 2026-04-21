@@ -550,6 +550,10 @@ export interface ActivityLog {
   paid_amount: number | null;
   invoice_id: string | null;
   created_at: string;
+  /** 'planned' = scheduled for the future (or overdue), 'completed' =
+   *  the work was actually performed. Existing rows default to
+   *  'completed'; only the Service Barn schedule path sets 'planned'. */
+  status: "planned" | "completed";
 }
 
 /** public.health_records */
@@ -581,6 +585,10 @@ export interface HealthRecord {
   paid_amount: number | null;
   invoice_id: string | null;
   created_at: string;
+  /** 'planned' = scheduled for the future (or overdue), 'completed' =
+   *  the work was actually performed. Existing rows default to
+   *  'completed'; only the Service Barn schedule path sets 'planned'. */
+  status: "planned" | "completed";
 }
 
 /** public.log_entry_line_items */

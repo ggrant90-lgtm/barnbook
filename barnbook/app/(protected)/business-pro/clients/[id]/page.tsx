@@ -72,6 +72,7 @@ export default async function ClientProfilePage({
       .select(
         "id, horse_id, activity_type, notes, performed_at, created_at, total_cost, cost_type, payment_status, client_id, billable_to_user_id, billable_to_name",
       )
+      .eq("status", "completed")
       .order("created_at", { ascending: false })
       .limit(200),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,6 +81,7 @@ export default async function ClientProfilePage({
       .select(
         "id, horse_id, record_type, notes, performed_at, created_at, total_cost, cost_type, payment_status, client_id, billable_to_user_id, billable_to_name",
       )
+      .eq("status", "completed")
       .order("created_at", { ascending: false })
       .limit(200),
   ]);

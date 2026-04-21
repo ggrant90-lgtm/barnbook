@@ -152,6 +152,7 @@ export default async function BusinessProOverviewPage() {
       .select("id, horse_id, activity_type, notes, performed_at, created_at, total_cost, cost_type, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at, invoice_id")
       .in("horse_id", horseIds)
       .not("cost_type", "is", null)
+      .eq("status", "completed")
       .or(`performed_at.gte.${sinceISO},created_at.gte.${sinceISO}`)
       .order("created_at", { ascending: false })
       .limit(5000),
@@ -160,6 +161,7 @@ export default async function BusinessProOverviewPage() {
       .select("id, horse_id, record_type, notes, performed_at, created_at, total_cost, cost_type, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at, invoice_id")
       .in("horse_id", horseIds)
       .not("cost_type", "is", null)
+      .eq("status", "completed")
       .or(`performed_at.gte.${sinceISO},created_at.gte.${sinceISO}`)
       .order("created_at", { ascending: false })
       .limit(5000),
@@ -197,6 +199,7 @@ export default async function BusinessProOverviewPage() {
       .in("horse_id", horseIds)
       .in("payment_status", ["unpaid", "partial"])
       .is("invoice_id", null)
+      .eq("status", "completed")
       .limit(5000),
     supabase
       .from("health_records")
@@ -204,6 +207,7 @@ export default async function BusinessProOverviewPage() {
       .in("horse_id", horseIds)
       .in("payment_status", ["unpaid", "partial"])
       .is("invoice_id", null)
+      .eq("status", "completed")
       .limit(5000),
   ]);
 

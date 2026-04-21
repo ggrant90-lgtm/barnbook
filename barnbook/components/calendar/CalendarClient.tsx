@@ -374,6 +374,8 @@ export function CalendarClient({
           .fc td.fc-day-today { background: rgba(201,168,76,0.08) !important; }
           .fc .fc-event { border-radius: 4px; padding: 1px 4px; font-size: 0.75rem; cursor: pointer; border-width: 2px; }
           .fc-event-scheduled { border-style: dashed !important; opacity: 0.8; }
+          .fc-event-planned { border-style: dashed !important; opacity: 0.9; }
+          .fc-event-planned::before { content: "○ "; font-weight: 700; }
           .fc .fc-col-header-cell { background: #f5f0e8; font-size: 0.75rem; font-weight: 600; color: rgba(26,18,7,0.6); }
           .fc .fc-timegrid-slot { height: 2.5rem; }
           .fc .fc-scrollgrid { border-color: rgba(26,18,7,0.1); }

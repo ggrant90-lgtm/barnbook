@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import type { Barn, Horse, ServiceBarnLink } from "@/lib/types";
 import { ServiceBarnDashboard } from "./ServiceBarnDashboard";
+import type { UpcomingEntry } from "./UpcomingStrip";
 
 /**
  * Service Barn dashboard — a service provider's mobile workspace.
@@ -154,6 +155,102 @@ export default async function ServiceBarnPage({
       (hrLinkedRes.count ?? 0);
   }
 
+  // ── Upcoming planned entries (overdue + next 14 days) ──
+  // Same scoping rule as the week-stats query: quick records include any
+  // creator's entries, linked horses only include this user's own.
+  // eslint-disable-next-line react-hooks/purity
+  const upcomingNowMs = Date.now();
+  const windowStart = new Date(upcomingNowMs - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const windowEnd = new Date(upcomingNowMs + 14 * 24 * 60 * 60 * 1000).toISOString();
+
+  const upcomingEntries: UpcomingEntry[] = [];
+  if (quickHorseIds.length + linkedHorseIds.length > 0) {
+    const horseNames = new Map<string, string>([
+      ...quickHorses.map((h): [string, string] => [h.id, h.name]),
+      ...linkedHorses.map((lh): [string, string] => [lh.horse.id, lh.horse.name]),
+    ]);
+    const linkedSet = new Set(linkedHorseIds);
+    const allHorseIds = [...quickHorseIds, ...linkedHorseIds];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    const [actRes, hrRes] = await Promise.all([
+      db
+        .from("activity_log")
+        .select(
+          "id, horse_id, performed_at, created_at, notes, logged_by, activity_type",
+        )
+        .in("horse_id", allHorseIds)
+        .eq("status", "planned")
+        .gte("performed_at", windowStart)
+        .lte("performed_at", windowEnd)
+        .order("performed_at", { ascending: true }),
+      db
+        .from("health_records")
+        .select(
+          "id, horse_id, performed_at, created_at, notes, logged_by, record_type, record_date",
+        )
+        .in("horse_id", allHorseIds)
+        .eq("status", "planned")
+        .gte("performed_at", windowStart)
+        .lte("performed_at", windowEnd)
+        .order("performed_at", { ascending: true }),
+    ]);
+
+    type ActRow = {
+      id: string;
+      horse_id: string;
+      performed_at: string | null;
+      created_at: string;
+      notes: string | null;
+      logged_by: string | null;
+      activity_type: string;
+    };
+    type HrRow = {
+      id: string;
+      horse_id: string;
+      performed_at: string | null;
+      created_at: string;
+      notes: string | null;
+      logged_by: string | null;
+      record_type: string | null;
+      record_date: string | null;
+    };
+
+    for (const a of (actRes.data ?? []) as ActRow[]) {
+      // Linked horses: only show this user's own scheduled work.
+      if (linkedSet.has(a.horse_id) && a.logged_by !== user.id) continue;
+      const when = a.performed_at ?? a.created_at;
+      upcomingEntries.push({
+        id: a.id,
+        kind: "activity",
+        horseId: a.horse_id,
+        horseName: horseNames.get(a.horse_id) ?? "Horse",
+        logType: a.activity_type ?? "note",
+        date: when,
+        notes: a.notes,
+      });
+    }
+    for (const h of (hrRes.data ?? []) as HrRow[]) {
+      if (linkedSet.has(h.horse_id) && h.logged_by !== user.id) continue;
+      const when =
+        h.performed_at ??
+        (h.record_date ? `${h.record_date}T12:00:00Z` : h.created_at);
+      const typeKey =
+        (h.record_type ?? "").toLowerCase().replace(/ /g, "_") || "vet_visit";
+      upcomingEntries.push({
+        id: h.id,
+        kind: "health",
+        horseId: h.horse_id,
+        horseName: horseNames.get(h.horse_id) ?? "Horse",
+        logType: typeKey,
+        date: when,
+        notes: h.notes,
+      });
+    }
+    upcomingEntries.sort((a, b) => a.date.localeCompare(b.date));
+  }
+
   return (
     <ServiceBarnDashboard
       barn={barn}
@@ -163,6 +260,7 @@ export default async function ServiceBarnPage({
         totalHorses: quickHorses.length + linkedHorses.length,
         entriesThisWeek,
       }}
+      upcoming={upcomingEntries}
     />
   );
 }

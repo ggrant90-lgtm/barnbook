@@ -129,6 +129,7 @@ export default async function InvoiceDetailPage({
             .in("cost_type", ["revenue", "pass_through"])
             .in("payment_status", ["unpaid", "partial"])
             .is("invoice_id", null)
+            .eq("status", "completed")
             .eq(billableFilter.col, billableFilter.val)
             .limit(200),
           supabase
@@ -138,6 +139,7 @@ export default async function InvoiceDetailPage({
             .in("cost_type", ["revenue", "pass_through"])
             .in("payment_status", ["unpaid", "partial"])
             .is("invoice_id", null)
+            .eq("status", "completed")
             .eq(billableFilter.col, billableFilter.val)
             .limit(200),
         ]);
@@ -156,6 +158,7 @@ export default async function InvoiceDetailPage({
             .in("cost_type", ["revenue", "pass_through"])
             .in("payment_status", ["unpaid", "partial"])
             .is("invoice_id", null)
+            .eq("status", "completed")
             .limit(200),
           supabase
             .from("health_records")
@@ -164,6 +167,7 @@ export default async function InvoiceDetailPage({
             .in("cost_type", ["revenue", "pass_through"])
             .in("payment_status", ["unpaid", "partial"])
             .is("invoice_id", null)
+            .eq("status", "completed")
             .limit(200),
         ]);
         collect((actOwn ?? []) as Record<string, unknown>[], "activity");

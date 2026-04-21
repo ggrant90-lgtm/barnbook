@@ -10,6 +10,7 @@ import { QuickLogFab } from "@/components/service-barn/QuickLogFab";
 import { QuickLogForm } from "@/components/service-barn/QuickLogForm";
 import { BarnTypeIcon } from "@/components/BarnTypeIcon";
 import { unlinkHorseFromServiceBarnAction } from "@/app/(protected)/actions/service-barn-links";
+import { UpcomingStrip, type UpcomingEntry } from "./UpcomingStrip";
 
 /**
  * Client dashboard for a Service Barn. Renders the unified list of
@@ -32,6 +33,7 @@ export function ServiceBarnDashboard({
   quickHorses,
   linkedHorses,
   stats,
+  upcoming,
 }: {
   barn: Barn;
   quickHorses: Horse[];
@@ -40,6 +42,7 @@ export function ServiceBarnDashboard({
     totalHorses: number;
     entriesThisWeek: number;
   };
+  upcoming: UpcomingEntry[];
 }) {
   const router = useRouter();
   const [q, setQ] = useState("");
@@ -165,6 +168,11 @@ export function ServiceBarnDashboard({
           Edit
         </Link>
       </div>
+
+      {/* Upcoming — planned entries due in the next 14 days plus any
+          overdue rows. Renders nothing when the provider has no
+          scheduled work. */}
+      <UpcomingStrip entries={upcoming} serviceBarnId={barn.id} />
 
       {/* Stats — slim inline row to minimize vertical real estate so
           the horse list starts higher on the page. */}
