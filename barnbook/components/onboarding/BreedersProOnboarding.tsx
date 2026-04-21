@@ -19,7 +19,7 @@ import { WizardBreedingTimeline } from "./WizardBreedingTimeline";
 interface Props {
   open: boolean;
   onClose: () => void;
-  onComplete: () => void;
+  onComplete: () => void | Promise<void>;
   barnId: string;
   existingMares: Array<{
     id: string;
@@ -108,11 +108,12 @@ function Inner({
     });
   }
 
-  function handleStep3() {
+  async function handleStep3() {
     if (method === "embryo_transfer") {
       // ET needs an embryo record + surrogate — too much for a quick
-      // wizard. Send them to the full flow.
-      onComplete();
+      // wizard. Send them to the full flow. Await onComplete before
+      // navigating so the flag-flip lands first.
+      await onComplete();
       onClose();
       if (typeof window !== "undefined") {
         window.location.href = "/breeders-pro/breeding/new";
@@ -172,8 +173,9 @@ function Inner({
     primaryLabel = mareDisplayName
       ? `Continue with ${mareDisplayName}`
       : "Continue";
-    onSkip = () => {
-      onComplete();
+    onSkip = async () => {
+      // Await so the completed flag flips BEFORE the modal unmounts.
+      await onComplete();
       onClose();
     };
     onBack = back;
@@ -193,8 +195,8 @@ function Inner({
       method !== "embryo_transfer" && !stallionName.trim();
   } else {
     title = "Your breeding timeline";
-    onPrimary = () => {
-      onComplete();
+    onPrimary = async () => {
+      await onComplete();
       onClose();
     };
     primaryLabel = "Go to Breeders Pro";

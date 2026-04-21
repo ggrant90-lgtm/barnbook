@@ -124,13 +124,19 @@ export function DashboardTabs({
       <CoreOnboarding
         open={coreOpen}
         onClose={async () => {
+          // "Dismissed without completing" path — fires on X, skip,
+          // backdrop click, Escape. Writes dismissed_at so we don't
+          // keep nagging the user on every dashboard visit.
           setCoreOpen(false);
-          // Close without completing = permanent dismissal. User can
-          // always revisit by clearing the flag — for now no UI path.
           await coreWizard.dismissCore();
         }}
         onComplete={async () => {
+          // Final-step completion path — writes completed=true AND
+          // closes the modal. Intentionally does NOT also call
+          // dismissCore; the completion flag alone stops the wizard
+          // from auto-opening next time (see shouldAutoOpenCore).
           await coreWizard.markComplete();
+          setCoreOpen(false);
         }}
         initialBarn={coreOnboardingBarn}
         initialStep={onboardingState.core.currentStep}

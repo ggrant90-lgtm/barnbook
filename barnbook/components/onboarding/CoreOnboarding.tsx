@@ -25,7 +25,9 @@ import { WizardHorsePreview } from "./WizardHorsePreview";
 interface Props {
   open: boolean;
   onClose: () => void;
-  onComplete: () => void;
+  /** May be async — the wizard awaits completion before closing so the
+   *  DB write lands before the parent's onClose runs. */
+  onComplete: () => void | Promise<void>;
   /** The user's existing barn (auto-created at signup) or null if none. */
   initialBarn: { id: string; name: string } | null;
   /** 1-indexed step to resume on (defaults to 1). */
@@ -227,8 +229,15 @@ function CoreOnboardingInner({
   }
 
   function handleStep5Done() {
-    onComplete();
-    onClose();
+    // Await completion so the DB write lands before the modal closes.
+    // The parent's onComplete handler is expected to close the modal
+    // itself (setCoreOpen(false)); we don't call onClose here because
+    // onClose is reserved for the "closed WITHOUT completing" path
+    // (X button, skip from an earlier step) and writes dismissed_at.
+    setError(null);
+    startTransition(async () => {
+      await onComplete();
+    });
   }
 
   // ── Render ─────────────────────────────────────────────────────────
@@ -249,10 +258,10 @@ function CoreOnboardingInner({
     title = "Add your first horse";
     onPrimary = handleStep2;
     primaryLabel = horseName.trim() ? `Add ${horseName.trim()}` : "Add this horse";
-    onSkip = () => {
-      onComplete();
-      onClose();
-    };
+    // Skipping at step 2 means "I'm not going to add a horse right now."
+    // Route through onClose (dismiss) rather than onComplete; it's
+    // closer to giving up than finishing.
+    onSkip = onClose;
     onBack = goBack;
     primaryDisabled = !horseName.trim();
   } else if (step === 3) {
@@ -339,8 +348,11 @@ function CoreOnboardingInner({
           horsePhotoPreview={horsePhotoPreview}
           recordLabel={recordLabel}
           onAddAnother={() => {
+            // User finished the wizard and wants to go add another horse.
+            // Completion path — onComplete closes the modal itself; no
+            // onClose needed (calling it here would also set dismissed_at,
+            // which is redundant alongside completed=true).
             onComplete();
-            onClose();
           }}
         />
       )}

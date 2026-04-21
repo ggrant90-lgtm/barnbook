@@ -25,7 +25,7 @@ import { WizardInvoicePreview } from "./WizardInvoicePreview";
 interface Props {
   open: boolean;
   onClose: () => void;
-  onComplete: () => void;
+  onComplete: () => void | Promise<void>;
   barnId: string;
   /** Prefill for step 1. */
   initialCompany: {
@@ -213,8 +213,11 @@ function Inner({
     title = "Create your first invoice";
     onPrimary = handleStep3;
     primaryLabel = "Create invoice";
-    onSkip = () => {
-      onComplete();
+    onSkip = async () => {
+      // Await completion so the flag flip lands BEFORE the modal
+      // unmounts — otherwise the wizard can reopen on the next visit
+      // if the DB write didn't finish in time.
+      await onComplete();
       onClose();
     };
     onBack = back;
@@ -224,8 +227,8 @@ function Inner({
       !lineDesc.trim();
   } else {
     title = "Your business is set up";
-    onPrimary = () => {
-      onComplete();
+    onPrimary = async () => {
+      await onComplete();
       onClose();
     };
     primaryLabel = "Go to Business Pro";

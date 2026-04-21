@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerComponentClient } from "@/lib/supabase-server";
+import { createAdminClient } from "@/lib/supabase-admin";
 import type { WizardId } from "@/lib/onboarding-query";
 import type { InvoiceServicePreset } from "@/lib/types";
 
@@ -23,6 +24,13 @@ const COMPLETION_COLUMN: Record<WizardId, string> = {
 /**
  * Mark the given wizard as completed for the current user.
  * Idempotent: re-calls just set the flag to true again.
+ *
+ * Uses the admin client for the UPDATE after authenticating the user.
+ * The profiles table has an RLS UPDATE policy of `auth.uid() = id`,
+ * but auth.uid() is known to be unreliable inside Next.js server
+ * actions (same class of bug as 4d18c68 for horses_insert) — without
+ * the admin path the update can silently fail and the wizard then
+ * reopens on next visit because the flag never flipped.
  */
 export async function markWizardCompleteAction(
   wizard: WizardId,
@@ -34,8 +42,9 @@ export async function markWizardCompleteAction(
   if (!user) return { error: "Not authenticated" };
 
   const column = COMPLETION_COLUMN[wizard];
+  const admin = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any)
+  const { error } = await (admin as any)
     .from("profiles")
     .update({ [column]: true })
     .eq("id", user.id);
@@ -62,8 +71,9 @@ export async function dismissCoreOnboardingAction(): Promise<MarkWizardResult> {
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
+  const admin = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any)
+  const { error } = await (admin as any)
     .from("profiles")
     .update({ onboarding_core_dismissed_at: new Date().toISOString() })
     .eq("id", user.id);
@@ -88,8 +98,9 @@ export async function saveCoreStepAction(
 
   const clamped = Math.max(1, Math.min(5, Math.floor(step)));
 
+  const admin = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any)
+  const { error } = await (admin as any)
     .from("profiles")
     .update({ onboarding_core_step: clamped })
     .eq("id", user.id);
