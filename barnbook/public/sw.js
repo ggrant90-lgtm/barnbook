@@ -1,7 +1,7 @@
 /// BarnBook Service Worker
 /// Handles caching, offline fallback, and push notification scaffolding
 
-const CACHE_NAME = "barnbook-v3";
+const CACHE_NAME = "barnbook-v4";
 const OFFLINE_URL = "/offline";
 
 // Pre-cache the offline page on install
