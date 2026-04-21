@@ -81,6 +81,7 @@ export async function generateAccessKeyAction(
     "shoeing",
     "worming",
     "vet_visit",
+    "dentistry",
     "feed",
     "medication",
     "note",

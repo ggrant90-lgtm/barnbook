@@ -53,6 +53,7 @@ export const DEFAULT_COST_TYPE: Record<string, CostType | null> = {
   shoeing: "pass_through",
   worming: "pass_through",
   vet_visit: "pass_through",
+  dentistry: "pass_through",
 };
 
 /** Aging thresholds for accounts receivable */

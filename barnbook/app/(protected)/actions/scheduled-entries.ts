@@ -29,7 +29,7 @@ const ACTIVITY_TYPES = new Set<LogType>([
   "note",
   "breed_data",
 ]);
-const HEALTH_TYPES = new Set<LogType>(["shoeing", "worming", "vet_visit"]);
+const HEALTH_TYPES = new Set<LogType>(["shoeing", "worming", "vet_visit", "dentistry"]);
 
 /** 'activity' → activity_log, 'health' → health_records. */
 export type LogKind = "activity" | "health";
@@ -41,6 +41,7 @@ function logKindForType(t: LogType): LogKind {
 function healthRecordType(t: LogType): string {
   if (t === "shoeing") return "Shoeing";
   if (t === "worming") return "Worming";
+  if (t === "dentistry") return "Dentistry";
   return "Vet visit";
 }
 

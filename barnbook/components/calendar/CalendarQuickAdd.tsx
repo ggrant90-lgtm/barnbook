@@ -9,7 +9,7 @@ interface BarnMember { id: string; name: string; role: string }
 
 const LOG_TYPES = [
   "exercise", "pony", "feed", "medication", "note", "breed_data",
-  "shoeing", "worming", "vet_visit",
+  "shoeing", "worming", "vet_visit", "dentistry",
 ];
 
 const inputClass =

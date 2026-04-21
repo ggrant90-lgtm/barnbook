@@ -478,7 +478,7 @@ export function LogDetailModal({
           <div className="mt-4 border-t border-barn-dark/10 pt-3 flex items-center justify-between">
             {canEdit && horseId ? (
               <Link
-                href={`/horses/${horseId}/log/${isActivity ? (entry as ActivityLog).activity_type : (entry as HealthRecord).record_type === "Shoeing" ? "shoeing" : (entry as HealthRecord).record_type === "Worming" ? "worming" : "vet_visit"}?edit=${entry.id}`}
+                href={`/horses/${horseId}/log/${isActivity ? (entry as ActivityLog).activity_type : (entry as HealthRecord).record_type === "Shoeing" ? "shoeing" : (entry as HealthRecord).record_type === "Worming" ? "worming" : (entry as HealthRecord).record_type === "Dentistry" ? "dentistry" : "vet_visit"}?edit=${entry.id}`}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-brass-gold/10 px-3 py-1.5 text-sm font-medium text-brass-gold hover:bg-brass-gold/20 transition"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

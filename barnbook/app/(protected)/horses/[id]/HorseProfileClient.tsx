@@ -54,6 +54,7 @@ const ALL_LOG_TYPES = [
   { value: "shoeing", label: "Shoeing" },
   { value: "worming", label: "Worming" },
   { value: "vet_visit", label: "Vet Visit" },
+  { value: "dentistry", label: "Dentistry" },
 ] as const;
 
 export function HorseProfileClient({

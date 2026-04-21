@@ -173,7 +173,7 @@ export function LogFormWrapper({
       // Upload media files if any
       if (files.length > 0 && logId) {
         const logCategory =
-          logType === "shoeing" || logType === "worming" || logType === "vet_visit"
+          logType === "shoeing" || logType === "worming" || logType === "vet_visit" || logType === "dentistry"
             ? "health"
             : "activity";
 

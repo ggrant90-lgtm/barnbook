@@ -281,13 +281,14 @@ export async function getCalendarEvents(
 
   if (filters.types && filters.types.length > 0) {
     const healthTypes = filters.types.filter((t) =>
-      ["shoeing", "worming", "vet_visit"].includes(t),
+      ["shoeing", "worming", "vet_visit", "dentistry"].includes(t),
     );
     if (healthTypes.length > 0) {
       const typeMap: Record<string, string> = {
         shoeing: "Shoeing",
         worming: "Worming",
         vet_visit: "Vet visit",
+        dentistry: "Dentistry",
       };
       healthQuery = healthQuery.in(
         "record_type",

@@ -263,7 +263,8 @@ export default async function HorseLogPage({
 
         {(logType === "shoeing" ||
           logType === "worming" ||
-          logType === "vet_visit") && (
+          logType === "vet_visit" ||
+          logType === "dentistry") && (
           <div>
             <label htmlFor="record_date" className="mb-1.5 block text-sm text-barn-dark/75">
               Record date
@@ -513,6 +514,42 @@ export default async function HorseLogPage({
                 Follow-up date
               </label>
               <input id="follow_up_date" name="follow_up_date" type="date" className={inputClass} defaultValue={dv("follow_up_date")} />
+            </div>
+          </>
+        ) : null}
+
+        {logType === "dentistry" ? (
+          <>
+            <div>
+              <label htmlFor="dentist_name" className="mb-1.5 block text-sm text-barn-dark/75">
+                Dentist name
+              </label>
+              <input id="dentist_name" name="dentist_name" type="text" className={inputClass} required defaultValue={dv("dentist_name")} />
+            </div>
+            <div>
+              <label htmlFor="procedure" className="mb-1.5 block text-sm text-barn-dark/75">
+                Procedure
+              </label>
+              <input
+                id="procedure"
+                name="procedure"
+                type="text"
+                className={inputClass}
+                defaultValue={dv("procedure")}
+                placeholder="e.g. Float, wolf tooth extraction"
+              />
+            </div>
+            <div>
+              <label htmlFor="notes" className="mb-1.5 block text-sm text-barn-dark/75">
+                Notes
+              </label>
+              <textarea id="notes" name="notes" rows={3} className={inputClass} defaultValue={dv("notes")} />
+            </div>
+            <div>
+              <label htmlFor="next_due_date" className="mb-1.5 block text-sm text-barn-dark/75">
+                Next due
+              </label>
+              <input id="next_due_date" name="next_due_date" type="date" className={inputClass} defaultValue={dv("next_due_date")} />
             </div>
           </>
         ) : null}

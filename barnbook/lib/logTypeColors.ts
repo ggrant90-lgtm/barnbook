@@ -5,6 +5,7 @@ export const LOG_TYPE_COLORS: Record<string, string> = {
   shoeing: "#8b4a2b",
   worming: "#c9932a",
   vet_visit: "#b8421f",
+  dentistry: "#3a7a8c",
   feed: "#6b7339",
   medication: "#7a4a6b",
   note: "#4a5055",
@@ -20,6 +21,7 @@ export const LOG_TYPE_COLORS: Record<string, string> = {
   Shoeing: "#8b4a2b",
   Worming: "#c9932a",
   "Vet visit": "#b8421f",
+  Dentistry: "#3a7a8c",
 };
 
 export function getLogTypeColor(type: string): string {
@@ -32,6 +34,7 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   shoeing: "Shoeing",
   worming: "Worming",
   vet_visit: "Vet Visit",
+  dentistry: "Dentistry",
   feed: "Feed",
   medication: "Medication",
   note: "Note",

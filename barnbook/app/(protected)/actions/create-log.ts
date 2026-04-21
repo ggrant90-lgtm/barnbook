@@ -188,7 +188,7 @@ export async function createLogAction(
     horseId,
     user.id,
     horse.barn_id,
-    logType as "shoeing" | "worming" | "vet_visit",
+    logType as "shoeing" | "worming" | "vet_visit" | "dentistry",
     formData,
     crm,
   );
@@ -353,7 +353,7 @@ async function insertHealth(
   horseId: string,
   userId: string,
   barnId: string,
-  logType: "shoeing" | "worming" | "vet_visit",
+  logType: "shoeing" | "worming" | "vet_visit" | "dentistry",
   formData: FormData,
   crm: { performed_by_user_id: string | null; performed_by_name: string | null; performed_at: string; total_cost: number | null },
 ): Promise<{ id: string; error?: string } | { id?: never; error: string }> {
@@ -377,6 +377,12 @@ async function insertHealth(
     provider_name = product_name;
     description = product_name;
     details = { product_name };
+  } else if (logType === "dentistry") {
+    record_type = "Dentistry";
+    provider_name = String(formData.get("dentist_name") ?? "").trim() || null;
+    const procedure = String(formData.get("procedure") ?? "").trim() || null;
+    description = procedure;
+    details = { dentist_name: provider_name, procedure };
   } else {
     record_type = "Vet visit";
     provider_name = String(formData.get("vet_name") ?? "").trim() || null;

@@ -225,6 +225,12 @@ export async function updateLogAction(
       provider_name = product_name;
       description = product_name;
       details = { product_name };
+    } else if (logType === "dentistry") {
+      record_type = "Dentistry";
+      provider_name = String(formData.get("dentist_name") ?? "").trim() || null;
+      const procedure = String(formData.get("procedure") ?? "").trim() || null;
+      description = procedure;
+      details = { dentist_name: provider_name, procedure };
     } else {
       record_type = "Vet visit";
       provider_name = String(formData.get("vet_name") ?? "").trim() || null;

@@ -36,8 +36,8 @@ interface Props {
   initialHorseId?: string;
 }
 
-const HEALTH_TYPES = new Set<LogType>(["shoeing", "worming", "vet_visit"]);
-const FOLLOWUP_TYPES = new Set<LogType>(["shoeing", "worming", "vet_visit"]);
+const HEALTH_TYPES = new Set<LogType>(["shoeing", "worming", "vet_visit", "dentistry"]);
+const FOLLOWUP_TYPES = new Set<LogType>(["shoeing", "worming", "vet_visit", "dentistry"]);
 
 type Mode = "log" | "schedule";
 type FollowUpPreset = "none" | "6w" | "3m" | "custom";
