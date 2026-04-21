@@ -24,6 +24,7 @@ export const EXERCISE_SUBTYPES = [
 
 export const LOG_TYPES = [
   "exercise",
+  "pony",
   "shoeing",
   "worming",
   "vet_visit",
@@ -79,6 +80,7 @@ export function isLogType(s: string): s is LogType {
 export function logTypeLabel(type: string): string {
   const map: Record<string, string> = {
     exercise: "Exercise",
+    pony: "Pony",
     shoeing: "Shoeing",
     worming: "Worming",
     vet_visit: "Vet visit",

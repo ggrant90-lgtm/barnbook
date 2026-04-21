@@ -1,6 +1,7 @@
 /** Color palette for log entry types — used by calendar, reports, and charts */
 export const LOG_TYPE_COLORS: Record<string, string> = {
   exercise: "#2a4031",
+  pony: "#5a7c4c",
   shoeing: "#8b4a2b",
   worming: "#c9932a",
   vet_visit: "#b8421f",
@@ -27,6 +28,7 @@ export function getLogTypeColor(type: string): string {
 
 export const LOG_TYPE_LABELS: Record<string, string> = {
   exercise: "Exercise",
+  pony: "Pony",
   shoeing: "Shoeing",
   worming: "Worming",
   vet_visit: "Vet Visit",

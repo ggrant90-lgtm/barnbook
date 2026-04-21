@@ -5,6 +5,9 @@ export function getActivitySummary(a: ActivityLog): string {
   if (a.activity_type === "exercise" && d?.subtype) {
     return `${String(d.subtype)}${a.duration_minutes ? ` · ${a.duration_minutes} min` : ""}`;
   }
+  if (a.activity_type === "pony") {
+    return `Pony${a.duration_minutes ? ` · ${a.duration_minutes} min` : ""}`;
+  }
   if (a.activity_type === "feed" && d) {
     return [d.feed_type, d.amount].filter(Boolean).join(" · ") || a.activity_type;
   }

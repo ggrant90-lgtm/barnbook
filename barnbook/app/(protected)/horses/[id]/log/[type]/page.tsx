@@ -241,6 +241,7 @@ export default async function HorseLogPage({
         barnClients={barnClients}
       >
         {(logType === "exercise" ||
+          logType === "pony" ||
           logType === "feed" ||
           logType === "medication" ||
           logType === "note") && (
@@ -315,6 +316,29 @@ export default async function HorseLogPage({
                 Notes
               </label>
               <textarea id="notes" name="notes" rows={3} className={inputClass} defaultValue={dv("notes")} />
+            </div>
+          </>
+        ) : null}
+
+        {logType === "pony" ? (
+          <>
+            <div>
+              <label htmlFor="duration_minutes" className="mb-1.5 block text-sm text-barn-dark/75">
+                Duration (minutes)
+              </label>
+              <input id="duration_minutes" name="duration_minutes" type="number" min={0} className={inputClass} defaultValue={dv("duration_minutes")} />
+            </div>
+            <div>
+              <label htmlFor="distance" className="mb-1.5 block text-sm text-barn-dark/75">
+                Distance (optional)
+              </label>
+              <input id="distance" name="distance" type="text" className={inputClass} defaultValue={dv("distance")} />
+            </div>
+            <div>
+              <label htmlFor="notes" className="mb-1.5 block text-sm text-barn-dark/75">
+                Notes
+              </label>
+              <textarea id="notes" name="notes" rows={3} className={inputClass} defaultValue={dv("notes")} placeholder="e.g. Ponied alongside gallop set" />
             </div>
           </>
         ) : null}

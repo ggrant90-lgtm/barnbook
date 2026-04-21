@@ -98,7 +98,7 @@ export async function updateLogAction(
   const logType = t as LogType;
   const crm = extractCrmFields(formData);
   const lineItems = extractLineItems(formData);
-  const activityTypes = ["exercise", "feed", "medication", "note", "breed_data"] as const;
+  const activityTypes = ["exercise", "pony", "feed", "medication", "note", "breed_data"] as const;
 
   if ((activityTypes as readonly string[]).includes(logType)) {
     // Build activity update payload
@@ -111,7 +111,16 @@ export async function updateLogAction(
       ? new Date(`${loggedAt}T12:00:00Z`).toISOString()
       : undefined; // don't overwrite if not provided
 
-    if (logType === "exercise") {
+    if (logType === "pony") {
+      // Matches the shape in create-log.ts insertActivity for "pony".
+      const dur = parseInt(String(formData.get("duration_minutes") ?? "0"), 10);
+      duration_minutes = Number.isNaN(dur) || dur < 0 ? 0 : dur;
+      const distRaw = String(formData.get("distance") ?? "").trim();
+      distance = distRaw === "" ? null : parseFloat(distRaw.replace(",", "."));
+      if (distance !== null && Number.isNaN(distance)) distance = null;
+      notes = String(formData.get("notes") ?? "").trim() || null;
+      details = { duration_minutes, distance };
+    } else if (logType === "exercise") {
       const subtype = String(formData.get("subtype") ?? "walk");
       const dur = parseInt(String(formData.get("duration_minutes") ?? "0"), 10);
       duration_minutes = Number.isNaN(dur) || dur < 0 ? 0 : dur;

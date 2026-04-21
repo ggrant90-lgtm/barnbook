@@ -116,7 +116,7 @@ export async function createLogAction(
   if (!canEdit) return { error: "No permission to edit this horse" };
 
   const logType = t as LogType;
-  const activityTypes = ["exercise", "feed", "medication", "note", "breed_data"] as const;
+  const activityTypes = ["exercise", "pony", "feed", "medication", "note", "breed_data"] as const;
 
   // Save new "Other" performer to saved_performers for future reuse
   const savePerformer = formData.get("save_performer") === "true";
@@ -156,7 +156,7 @@ export async function createLogAction(
       horseId,
       user.id,
       horse.barn_id,
-      logType as "exercise" | "feed" | "medication" | "note" | "breed_data",
+      logType as "exercise" | "pony" | "feed" | "medication" | "note" | "breed_data",
       formData,
       crm,
     );
@@ -217,7 +217,7 @@ async function insertActivity(
   horseId: string,
   userId: string,
   barnId: string,
-  logType: "exercise" | "feed" | "medication" | "note" | "breed_data",
+  logType: "exercise" | "pony" | "feed" | "medication" | "note" | "breed_data",
   formData: FormData,
   crm: { performed_by_user_id: string | null; performed_by_name: string | null; performed_at: string; total_cost: number | null },
 ): Promise<{ id: string; error?: string } | { id?: never; error: string }> {
@@ -230,7 +230,19 @@ async function insertActivity(
     ? new Date(`${loggedAt}T12:00:00Z`).toISOString()
     : new Date().toISOString();
 
-  if (logType === "exercise") {
+  if (logType === "pony") {
+    // "Ponying" = leading another horse alongside while riding. Typically
+    // billed as a training service. Same shape as exercise minus the
+    // subtype (there's only one kind of pony ride) — duration + distance
+    // + notes give the trainer what they need for CRM + billing.
+    const dur = parseInt(String(formData.get("duration_minutes") ?? "0"), 10);
+    duration_minutes = Number.isNaN(dur) || dur < 0 ? 0 : dur;
+    const distRaw = String(formData.get("distance") ?? "").trim();
+    distance = distRaw === "" ? null : parseFloat(distRaw.replace(",", "."));
+    if (distance !== null && Number.isNaN(distance)) distance = null;
+    notes = String(formData.get("notes") ?? "").trim() || null;
+    details = { duration_minutes, distance };
+  } else if (logType === "exercise") {
     const subtype = String(formData.get("subtype") ?? "walk");
     const dur = parseInt(String(formData.get("duration_minutes") ?? "0"), 10);
     duration_minutes = Number.isNaN(dur) || dur < 0 ? 0 : dur;

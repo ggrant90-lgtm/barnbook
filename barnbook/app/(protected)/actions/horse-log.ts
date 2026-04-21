@@ -41,9 +41,9 @@ export async function submitHorseLogAction(
 
   const logType = t as LogType;
 
-  const activityTypes = ["exercise", "feed", "medication", "note", "breed_data"] as const;
+  const activityTypes = ["exercise", "pony", "feed", "medication", "note", "breed_data"] as const;
   if ((activityTypes as readonly string[]).includes(logType)) {
-    const err = await insertActivity(supabase, horseId, user.id, horse.barn_id, logType as "exercise" | "feed" | "medication" | "note" | "breed_data", formData);
+    const err = await insertActivity(supabase, horseId, user.id, horse.barn_id, logType as "exercise" | "pony" | "feed" | "medication" | "note" | "breed_data", formData);
     if (err) {
       redirect(
         `/horses/${horseId}?tab=activity&error=${encodeURIComponent(err)}`,
@@ -68,7 +68,7 @@ async function insertActivity(
   horseId: string,
   userId: string,
   barnId: string,
-  logType: "exercise" | "feed" | "medication" | "note" | "breed_data",
+  logType: "exercise" | "pony" | "feed" | "medication" | "note" | "breed_data",
   formData: FormData,
 ): Promise<string | undefined> {
   let details: Json = {};
@@ -80,7 +80,17 @@ async function insertActivity(
     ? new Date(`${loggedAt}T12:00:00Z`).toISOString()
     : new Date().toISOString();
 
-  if (logType === "exercise") {
+  if (logType === "pony") {
+    // Ponying: leading another horse alongside while riding.
+    // Billed as a training service — duration/distance/notes only.
+    const dur = parseInt(String(formData.get("duration_minutes") ?? "0"), 10);
+    duration_minutes = Number.isNaN(dur) || dur < 0 ? 0 : dur;
+    const distRaw = String(formData.get("distance") ?? "").trim();
+    distance = distRaw === "" ? null : parseFloat(distRaw.replace(",", "."));
+    if (distance !== null && Number.isNaN(distance)) distance = null;
+    notes = String(formData.get("notes") ?? "").trim() || null;
+    details = { duration_minutes, distance };
+  } else if (logType === "exercise") {
     const subtype = String(formData.get("subtype") ?? "walk");
     const dur = parseInt(String(formData.get("duration_minutes") ?? "0"), 10);
     duration_minutes = Number.isNaN(dur) || dur < 0 ? 0 : dur;

@@ -77,6 +77,7 @@ export async function generateAccessKeyAction(
   const allowedRaw = formData.getAll("allowed_log_types[]") as string[];
   const VALID_LOG_TYPES = new Set([
     "exercise",
+    "pony",
     "shoeing",
     "worming",
     "vet_visit",

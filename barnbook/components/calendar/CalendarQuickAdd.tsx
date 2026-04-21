@@ -8,7 +8,7 @@ interface Horse { id: string; name: string }
 interface BarnMember { id: string; name: string; role: string }
 
 const LOG_TYPES = [
-  "exercise", "feed", "medication", "note", "breed_data",
+  "exercise", "pony", "feed", "medication", "note", "breed_data",
   "shoeing", "worming", "vet_visit",
 ];
 
