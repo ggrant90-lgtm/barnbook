@@ -6,7 +6,7 @@ import { useState, useTransition } from "react";
 import type { ActivityLog, HealthRecord, Horse } from "@/lib/types";
 import { updateQuickRecordAction } from "@/app/(protected)/actions/quick-records";
 import { getActivitySummary, getHealthSummary } from "@/lib/horse-display";
-import { logTypeLabel } from "@/lib/horse-form-constants";
+import { LOG_TYPES, logTypeLabel } from "@/lib/horse-form-constants";
 import { ErrorDetails } from "@/components/ui/ErrorDetails";
 
 /**
@@ -49,6 +49,7 @@ export function QuickRecordProfile({
   const [locationName, setLocationName] = useState(horse.location_name ?? "");
   const [color, setColor] = useState(horse.color ?? "");
   const [notes, setNotes] = useState(horse.special_care_notes ?? "");
+  const [showLogTypes, setShowLogTypes] = useState(false);
 
   function saveEdits() {
     setError(null);
@@ -233,13 +234,59 @@ export function QuickRecordProfile({
             Activity
           </h2>
           {canEdit && (
-            <Link
-              href={`/horses/${horse.id}/log/exercise`}
-              className="rounded-lg px-3 py-1.5 text-sm font-medium shadow"
-              style={{ background: "#c9a84c", color: "#2a4031" }}
-            >
-              + Add entry
-            </Link>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowLogTypes((v) => !v)}
+                aria-expanded={showLogTypes}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium shadow inline-flex items-center gap-1.5"
+                style={{ background: "#c9a84c", color: "#2a4031" }}
+              >
+                + Add entry
+                <svg
+                  className="h-3 w-3"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m19.5 8.25-7.5 7.5-7.5-7.5"
+                  />
+                </svg>
+              </button>
+              {showLogTypes && (
+                <>
+                  <button
+                    type="button"
+                    aria-hidden="true"
+                    onClick={() => setShowLogTypes(false)}
+                    className="fixed inset-0 z-40 cursor-default"
+                    style={{ background: "transparent" }}
+                  />
+                  <div
+                    role="menu"
+                    className="absolute right-0 z-50 mt-1 w-48 overflow-hidden rounded-lg border bg-white shadow-lg"
+                    style={{ borderColor: "rgba(42,64,49,0.15)" }}
+                  >
+                    {LOG_TYPES.map((t) => (
+                      <Link
+                        key={t}
+                        href={`/horses/${horse.id}/log/${t}`}
+                        role="menuitem"
+                        onClick={() => setShowLogTypes(false)}
+                        className="block px-4 py-2 text-sm text-barn-dark hover:bg-parchment"
+                      >
+                        {logTypeLabel(t)}
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
         {entries.length === 0 ? (

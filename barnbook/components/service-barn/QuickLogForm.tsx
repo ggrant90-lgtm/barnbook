@@ -31,6 +31,8 @@ interface Props {
   onClose: () => void;
   /** Optional: pre-selected log type (FAB-level default could pass it). */
   defaultLogType?: LogType;
+  /** Optional: pre-select a specific horse (per-card Log button). */
+  initialHorseId?: string;
 }
 
 const HEALTH_TYPES = new Set<LogType>(["shoeing", "worming", "vet_visit"]);
@@ -40,10 +42,11 @@ export function QuickLogForm({
   horseOptions,
   onClose,
   defaultLogType,
+  initialHorseId,
 }: Props) {
   const router = useRouter();
   const [horseId, setHorseId] = useState<string>(
-    horseOptions.length === 1 ? horseOptions[0].id : "",
+    initialHorseId ?? (horseOptions.length === 1 ? horseOptions[0].id : ""),
   );
   const [logType, setLogType] = useState<LogType>(
     defaultLogType ?? "exercise",
