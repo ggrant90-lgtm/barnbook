@@ -5,7 +5,13 @@ import { getActivitySummary, getHealthSummary } from "@/lib/horse-display";
 import { formatDateTime, formatDateShort } from "@/lib/format-date";
 import type { ActivityLog, HealthRecord, LogMedia, LogEntryLineItem } from "@/lib/types";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+  cancelScheduledEntryAction,
+  markEntryCompletedAction,
+  rescheduleEntryAction,
+} from "@/app/(protected)/actions/scheduled-entries";
 
 type LogItem =
   | { kind: "activity"; entry: ActivityLog }
@@ -51,6 +57,11 @@ export function LogDetailModal({
 }: LogDetailModalProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [plannedPending, startPlannedTransition] = useTransition();
+  const [plannedErr, setPlannedErr] = useState<string | null>(null);
+  const [reschedOpen, setReschedOpen] = useState(false);
+  const [reschedDate, setReschedDate] = useState<string>("");
+  const plannedRouter = useRouter();
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -65,9 +76,53 @@ export function LogDetailModal({
 
   const isActivity = item.kind === "activity";
   const entry = item.entry;
+  const isPlanned = entry.status === "planned";
   const typeName = isActivity
     ? logTypeLabel((entry as ActivityLog).activity_type)
     : (entry as HealthRecord).record_type;
+
+  function markDone() {
+    setPlannedErr(null);
+    startPlannedTransition(async () => {
+      const res = await markEntryCompletedAction(entry.id, item.kind);
+      if ("error" in res) {
+        setPlannedErr(res.error);
+        return;
+      }
+      onClose();
+      plannedRouter.refresh();
+    });
+  }
+
+  function commitReschedule() {
+    if (!reschedDate) return;
+    setPlannedErr(null);
+    startPlannedTransition(async () => {
+      const res = await rescheduleEntryAction(entry.id, item.kind, reschedDate);
+      if ("error" in res) {
+        setPlannedErr(res.error);
+        return;
+      }
+      setReschedOpen(false);
+      onClose();
+      plannedRouter.refresh();
+    });
+  }
+
+  function cancelPlanned() {
+    const ok = window.confirm("Cancel this scheduled entry?");
+    if (!ok) return;
+    setPlannedErr(null);
+    startPlannedTransition(async () => {
+      const res = await cancelScheduledEntryAction(entry.id, item.kind);
+      if ("error" in res) {
+        setPlannedErr(res.error);
+        return;
+      }
+      onClose();
+      plannedRouter.refresh();
+    });
+  }
   const date = isActivity
     ? formatDateTime((entry as ActivityLog).created_at)
     : formatDateShort((entry as HealthRecord).record_date);
@@ -90,9 +145,22 @@ export function LogDetailModal({
       >
         <div className="flex items-start justify-between">
           <div>
-            <span className="inline-block rounded-full bg-brass-gold/15 px-3 py-1 text-xs font-medium text-barn-dark">
-              {typeName}
-            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="inline-block rounded-full bg-brass-gold/15 px-3 py-1 text-xs font-medium text-barn-dark">
+                {typeName}
+              </span>
+              {isPlanned && (
+                <span
+                  className="inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                  style={{
+                    background: "rgba(75,100,121,0.15)",
+                    color: "#4b6479",
+                  }}
+                >
+                  Planned
+                </span>
+              )}
+            </div>
             <p className="mt-2 text-xs text-barn-dark/50">{date}</p>
           </div>
           <button
@@ -112,6 +180,94 @@ export function LogDetailModal({
             ? getActivitySummary(entry as ActivityLog)
             : getHealthSummary(entry as HealthRecord)}
         </p>
+
+        {/* Planned-entry actions: Mark done / Reschedule / Cancel */}
+        {isPlanned && (
+          <div
+            className="mt-3 rounded-lg border p-3"
+            style={{
+              borderColor: "rgba(75,100,121,0.25)",
+              background: "rgba(75,100,121,0.06)",
+            }}
+          >
+            {reschedOpen ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="date"
+                  value={reschedDate}
+                  onChange={(e) => setReschedDate(e.target.value)}
+                  min={new Date().toISOString().slice(0, 10)}
+                  className="rounded-md border px-2 py-1 text-sm outline-none"
+                  style={{ borderColor: "rgba(42,64,49,0.2)" }}
+                />
+                <button
+                  type="button"
+                  onClick={commitReschedule}
+                  disabled={plannedPending || !reschedDate}
+                  className="rounded-md px-3 py-1 text-xs font-semibold disabled:opacity-60"
+                  style={{ background: "#c9a84c", color: "#2a4031" }}
+                >
+                  {plannedPending ? "…" : "Save date"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReschedOpen(false)}
+                  disabled={plannedPending}
+                  className="rounded-md border px-3 py-1 text-xs"
+                  style={{ borderColor: "rgba(42,64,49,0.15)" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={markDone}
+                  disabled={plannedPending}
+                  className="rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-60"
+                  style={{ background: "#c9a84c", color: "#2a4031" }}
+                >
+                  Mark done
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReschedDate(
+                      (entry.performed_at
+                        ? entry.performed_at.slice(0, 10)
+                        : !isActivity
+                          ? (entry as HealthRecord).record_date
+                          : new Date().toISOString().slice(0, 10)) ?? "",
+                    );
+                    setReschedOpen(true);
+                  }}
+                  disabled={plannedPending}
+                  className="rounded-md border px-3 py-1.5 text-xs font-medium text-barn-dark/80"
+                  style={{ borderColor: "rgba(42,64,49,0.15)" }}
+                >
+                  Reschedule
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelPlanned}
+                  disabled={plannedPending}
+                  className="rounded-md px-3 py-1.5 text-xs font-medium text-barn-dark/55 hover:text-[#b8421f]"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+            {plannedErr && (
+              <div
+                className="mt-2 text-xs"
+                style={{ color: "#b8421f" }}
+              >
+                {plannedErr}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Performed by / Performed at */}
         {(performerName || entry.performed_at) && (

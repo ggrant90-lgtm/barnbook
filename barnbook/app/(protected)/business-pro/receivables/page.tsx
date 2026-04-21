@@ -94,6 +94,7 @@ export default async function ReceivablesPage() {
       .in("payment_status", ["unpaid", "partial"])
       .in("cost_type", ["revenue", "pass_through"])
       .is("invoice_id", null)
+      .eq("status", "completed")
       .limit(5000),
     supabase
       .from("health_records")
@@ -102,6 +103,7 @@ export default async function ReceivablesPage() {
       .in("payment_status", ["unpaid", "partial"])
       .in("cost_type", ["revenue", "pass_through"])
       .is("invoice_id", null)
+      .eq("status", "completed")
       .limit(5000),
   ]);
 

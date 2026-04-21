@@ -7,8 +7,10 @@ import type { Barn, Horse } from "@/lib/types";
 import { ServiceBarnHorseCard } from "@/components/service-barn/ServiceBarnHorseCard";
 import { LinkHorseModal } from "@/components/service-barn/LinkHorseModal";
 import { QuickLogFab } from "@/components/service-barn/QuickLogFab";
+import { QuickLogForm } from "@/components/service-barn/QuickLogForm";
 import { BarnTypeIcon } from "@/components/BarnTypeIcon";
 import { unlinkHorseFromServiceBarnAction } from "@/app/(protected)/actions/service-barn-links";
+import { UpcomingStrip, type UpcomingEntry } from "./UpcomingStrip";
 
 /**
  * Client dashboard for a Service Barn. Renders the unified list of
@@ -31,6 +33,7 @@ export function ServiceBarnDashboard({
   quickHorses,
   linkedHorses,
   stats,
+  upcoming,
 }: {
   barn: Barn;
   quickHorses: Horse[];
@@ -39,12 +42,14 @@ export function ServiceBarnDashboard({
     totalHorses: number;
     entriesThisWeek: number;
   };
+  upcoming: UpcomingEntry[];
 }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("alpha");
   const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [quickLogHorseId, setQuickLogHorseId] = useState<string | null>(null);
 
   const unifiedRows = useMemo(() => {
     const ql = q.trim().toLowerCase();
@@ -163,6 +168,11 @@ export function ServiceBarnDashboard({
           Edit
         </Link>
       </div>
+
+      {/* Upcoming — planned entries due in the next 14 days plus any
+          overdue rows. Renders nothing when the provider has no
+          scheduled work. */}
+      <UpcomingStrip entries={upcoming} serviceBarnId={barn.id} />
 
       {/* Stats — slim inline row to minimize vertical real estate so
           the horse list starts higher on the page. */}
@@ -293,9 +303,7 @@ export function ServiceBarnDashboard({
             >
               <ServiceBarnHorseCard
                 variant={row}
-                onLog={(horseId) => {
-                  router.push(`/horses/${horseId}/log/exercise`);
-                }}
+                onLog={(horseId) => setQuickLogHorseId(horseId)}
                 onUnlink={row.kind === "linked" ? handleUnlink : undefined}
               />
             </li>
@@ -308,6 +316,16 @@ export function ServiceBarnDashboard({
         serviceBarnId={barn.id}
         horseOptions={fabHorseOptions}
       />
+
+      {/* Per-card Log button opens the same QuickLogForm, pre-selected. */}
+      {quickLogHorseId && (
+        <QuickLogForm
+          serviceBarnId={barn.id}
+          horseOptions={fabHorseOptions}
+          initialHorseId={quickLogHorseId}
+          onClose={() => setQuickLogHorseId(null)}
+        />
+      )}
 
       {/* Link modal */}
       {linkModalOpen && (

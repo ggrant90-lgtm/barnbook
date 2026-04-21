@@ -25,6 +25,10 @@ export interface CalendarEvent {
     loggedBy: string | null;
     details: Record<string, unknown> | null;
     entryId: string;
+    /** 'planned' = scheduled for the future and not yet done;
+     *  'completed' = real work already performed. Drives the dashed
+     *  border on the calendar event and the Mark-done action. */
+    status: "planned" | "completed";
   };
 }
 
@@ -180,6 +184,13 @@ export async function getCalendarEvents(
   for (const a of activities ?? []) {
     const performedAt = a.performed_at ?? a.created_at;
     const isFuture = performedAt > now;
+    // `status` is the source of truth; `isFuture` stays as a visual
+    // fallback for rows without an explicit status (and for completed
+    // entries that happen to be dated in the future — rare, but
+    // possible when a user schedules a real log entry ahead).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const aStatus = ((a as any).status as "planned" | "completed" | undefined) ?? "completed";
+    const isPlanned = aStatus === "planned";
 
     // For breed_data, use the subtype for color and filtering
     const details = (a.details ?? {}) as Record<string, string>;
@@ -187,8 +198,10 @@ export async function getCalendarEvents(
     const effectiveType = breedSubtype ?? a.activity_type;
     const color = getLogTypeColor(effectiveType);
 
-    if (filters.scheduled === "scheduled" && !isFuture) continue;
-    if (filters.scheduled === "completed" && isFuture) continue;
+    // The `scheduled` filter is now status-driven: planned vs completed.
+    // Pre-status rows surface as "completed" (the default migration value).
+    if (filters.scheduled === "scheduled" && !isPlanned) continue;
+    if (filters.scheduled === "completed" && isPlanned) continue;
 
     // Filter breed_data by subtype when type filters are active
     if (breedSubtype && filters.types && filters.types.length > 0) {
@@ -216,15 +229,20 @@ export async function getCalendarEvents(
 
     const endTime = new Date(new Date(performedAt).getTime() + 30 * 60 * 1000).toISOString();
 
+    const dim = isPlanned || isFuture;
+    const classNames: string[] = [];
+    if (dim) classNames.push("fc-event-scheduled");
+    if (isPlanned) classNames.push("fc-event-planned");
+
     events.push({
       id: `activity-${a.id}`,
       title: `${getLogTypeLabel(effectiveType)} — ${horseNameMap.get(a.horse_id) ?? "Horse"}`,
       start: performedAt,
       end: endTime,
-      backgroundColor: isFuture ? `${color}20` : color,
+      backgroundColor: dim ? `${color}20` : color,
       borderColor: color,
-      textColor: isFuture ? color : "#ffffff",
-      classNames: isFuture ? ["fc-event-scheduled"] : [],
+      textColor: dim ? color : "#ffffff",
+      classNames,
       extendedProps: {
         kind: "activity",
         logType: effectiveType,
@@ -237,6 +255,7 @@ export async function getCalendarEvents(
         loggedBy: a.logged_by,
         details: a.details as Record<string, unknown> | null,
         entryId: a.id,
+        status: aStatus,
       },
     });
   }
@@ -297,11 +316,14 @@ export async function getCalendarEvents(
     if (performedAt > filters.end && (h.record_date ?? "") > filters.end.slice(0, 10)) continue;
 
     const isFuture = performedAt > now;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const hStatus = ((h as any).status as "planned" | "completed" | undefined) ?? "completed";
+    const isPlanned = hStatus === "planned";
     const typeKey = h.record_type?.toLowerCase().replace(" ", "_") ?? "vet_visit";
     const color = getLogTypeColor(typeKey);
 
-    if (filters.scheduled === "scheduled" && !isFuture) continue;
-    if (filters.scheduled === "completed" && isFuture) continue;
+    if (filters.scheduled === "scheduled" && !isPlanned) continue;
+    if (filters.scheduled === "completed" && isPlanned) continue;
 
     if (
       filters.keyword &&
@@ -323,15 +345,20 @@ export async function getCalendarEvents(
 
     const endTime = new Date(new Date(performedAt).getTime() + 30 * 60 * 1000).toISOString();
 
+    const dim = isPlanned || isFuture;
+    const classNames: string[] = [];
+    if (dim) classNames.push("fc-event-scheduled");
+    if (isPlanned) classNames.push("fc-event-planned");
+
     events.push({
       id: `health-${h.id}`,
       title: `${h.record_type} — ${horseNameMap.get(h.horse_id) ?? "Horse"}`,
       start: performedAt,
       end: endTime,
-      backgroundColor: isFuture ? `${color}20` : color,
+      backgroundColor: dim ? `${color}20` : color,
       borderColor: color,
-      textColor: isFuture ? color : "#ffffff",
-      classNames: isFuture ? ["fc-event-scheduled"] : [],
+      textColor: dim ? color : "#ffffff",
+      classNames,
       extendedProps: {
         kind: "health",
         logType: typeKey,
@@ -344,6 +371,7 @@ export async function getCalendarEvents(
         loggedBy: h.logged_by,
         details: h.details as Record<string, unknown> | null,
         entryId: h.id,
+        status: hStatus,
       },
     });
   }

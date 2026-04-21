@@ -54,6 +54,7 @@ export default async function NewInvoicePage() {
       .in("cost_type", ["revenue", "pass_through"])
       .in("payment_status", ["unpaid", "partial"])
       .is("invoice_id", null)
+      .eq("status", "completed")
       .limit(5000),
     supabase
       .from("health_records")
@@ -62,6 +63,7 @@ export default async function NewInvoicePage() {
       .in("cost_type", ["revenue", "pass_through"])
       .in("payment_status", ["unpaid", "partial"])
       .is("invoice_id", null)
+      .eq("status", "completed")
       .limit(5000),
   ]);
 

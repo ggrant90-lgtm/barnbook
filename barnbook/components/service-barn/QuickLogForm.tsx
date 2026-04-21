@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createLogAction } from "@/app/(protected)/actions/create-log";
+import { scheduleEntryAction } from "@/app/(protected)/actions/scheduled-entries";
 import { LOG_TYPES, logTypeLabel, type LogType } from "@/lib/horse-form-constants";
 import { ErrorDetails } from "@/components/ui/ErrorDetails";
 
@@ -31,19 +32,32 @@ interface Props {
   onClose: () => void;
   /** Optional: pre-selected log type (FAB-level default could pass it). */
   defaultLogType?: LogType;
+  /** Optional: pre-select a specific horse (per-card Log button). */
+  initialHorseId?: string;
 }
 
 const HEALTH_TYPES = new Set<LogType>(["shoeing", "worming", "vet_visit"]);
+const FOLLOWUP_TYPES = new Set<LogType>(["shoeing", "worming", "vet_visit"]);
+
+type Mode = "log" | "schedule";
+type FollowUpPreset = "none" | "6w" | "3m" | "custom";
+
+function addDays(iso: string, days: number): string {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 export function QuickLogForm({
   serviceBarnId,
   horseOptions,
   onClose,
   defaultLogType,
+  initialHorseId,
 }: Props) {
   const router = useRouter();
   const [horseId, setHorseId] = useState<string>(
-    horseOptions.length === 1 ? horseOptions[0].id : "",
+    initialHorseId ?? (horseOptions.length === 1 ? horseOptions[0].id : ""),
   );
   const [logType, setLogType] = useState<LogType>(
     defaultLogType ?? "exercise",
@@ -51,8 +65,13 @@ export function QuickLogForm({
   const [date, setDate] = useState<string>(todayIso());
   const [cost, setCost] = useState("");
   const [notes, setNotes] = useState("");
+  const [mode, setMode] = useState<Mode>("log");
+  const [followUpPreset, setFollowUpPreset] = useState<FollowUpPreset>("none");
+  const [followUpCustomDate, setFollowUpCustomDate] = useState<string>("");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  const supportsFollowUp = mode === "log" && FOLLOWUP_TYPES.has(logType);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -62,12 +81,43 @@ export function QuickLogForm({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  /** Resolve the follow-up date from preset + custom input, or null
+   *  when no follow-up was asked for / the inputs are invalid. */
+  function resolveFollowUpDate(): string | null {
+    if (!supportsFollowUp || followUpPreset === "none") return null;
+    if (followUpPreset === "6w") return addDays(date, 42);
+    if (followUpPreset === "3m") return addDays(date, 90);
+    // custom
+    const d = followUpCustomDate.trim();
+    return d ? d : null;
+  }
+
   function handleSave() {
     setError(null);
     if (!horseId) {
       setError("Pick a horse.");
       return;
     }
+
+    if (mode === "schedule") {
+      // Schedule path: one scheduleEntryAction call, no createLogAction.
+      startTransition(async () => {
+        const res = await scheduleEntryAction(horseId, logType, {
+          date,
+          notes: notes.trim() || undefined,
+          cost: cost.trim() ? parseFloat(cost.trim()) : undefined,
+        });
+        if ("error" in res) {
+          setError(res.error);
+          return;
+        }
+        onClose();
+        router.refresh();
+      });
+      return;
+    }
+
+    // Log path — existing behavior plus optional follow-up scheduling.
     startTransition(async () => {
       const fd = new FormData();
       const isHealth = HEALTH_TYPES.has(logType);
@@ -91,6 +141,25 @@ export function QuickLogForm({
         setError(res.error);
         return;
       }
+
+      // Follow-up: fire a second scheduleEntryAction after the main
+      // log commits. A failure here shouldn't wipe the successful log,
+      // so we surface it but keep the modal open for the user to deal
+      // with it.
+      const followUpDate = resolveFollowUpDate();
+      if (followUpDate) {
+        const followRes = await scheduleEntryAction(horseId, logType, {
+          date: followUpDate,
+        });
+        if ("error" in followRes) {
+          setError(
+            `Log saved, but the follow-up couldn't be scheduled: ${followRes.error}`,
+          );
+          router.refresh();
+          return;
+        }
+      }
+
       onClose();
       router.refresh();
     });
@@ -137,7 +206,7 @@ export function QuickLogForm({
           }}
         >
           <div className="font-serif text-lg font-semibold text-barn-dark">
-            Quick log
+            {mode === "log" ? "Quick log" : "Schedule"}
           </div>
           <button
             type="button"
@@ -150,6 +219,35 @@ export function QuickLogForm({
         </div>
 
         <div style={{ flex: 1, overflow: "auto", padding: 16 }} className="space-y-3">
+          {/* Mode toggle: Log entry vs Schedule. A segmented control is
+              cheap to build with two buttons and zero added deps. */}
+          <div
+            role="tablist"
+            aria-label="Entry mode"
+            className="inline-flex rounded-xl border p-0.5"
+            style={{ borderColor: "rgba(42,64,49,0.15)", background: "rgba(42,64,49,0.04)" }}
+          >
+            {(["log", "schedule"] as const).map((m) => {
+              const active = mode === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setMode(m)}
+                  className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+                  style={{
+                    background: active ? "#c9a84c" : "transparent",
+                    color: active ? "#2a4031" : "rgba(42,64,49,0.7)",
+                  }}
+                >
+                  {m === "log" ? "Log entry" : "Schedule"}
+                </button>
+              );
+            })}
+          </div>
+
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-barn-dark/80">
               Horse
@@ -195,7 +293,7 @@ export function QuickLogForm({
             </select>
           </label>
 
-          <div className="grid gap-3 grid-cols-2">
+          <div className={mode === "log" ? "grid gap-3 grid-cols-2" : ""}>
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium text-barn-dark/80">
                 Date
@@ -204,6 +302,7 @@ export function QuickLogForm({
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
+                min={mode === "schedule" ? todayIso() : undefined}
                 className="w-full rounded-xl border px-4 py-3 outline-none"
                 style={{
                   borderColor: "rgba(42,64,49,0.15)",
@@ -211,27 +310,34 @@ export function QuickLogForm({
                   background: "white",
                 }}
               />
+              {mode === "log" && (
+                <span className="mt-1 block text-[11px] text-barn-dark/55">
+                  Tap to set a past date for historical entries.
+                </span>
+              )}
             </label>
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-barn-dark/80">
-                Cost (optional)
-              </span>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                min="0"
-                value={cost}
-                onChange={(e) => setCost(e.target.value)}
-                placeholder="$"
-                className="w-full rounded-xl border px-4 py-3 outline-none"
-                style={{
-                  borderColor: "rgba(42,64,49,0.15)",
-                  color: "#2a4031",
-                  background: "white",
-                }}
-              />
-            </label>
+            {mode === "log" && (
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-barn-dark/80">
+                  Cost (optional)
+                </span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  value={cost}
+                  onChange={(e) => setCost(e.target.value)}
+                  placeholder="$"
+                  className="w-full rounded-xl border px-4 py-3 outline-none"
+                  style={{
+                    borderColor: "rgba(42,64,49,0.15)",
+                    color: "#2a4031",
+                    background: "white",
+                  }}
+                />
+              </label>
+            )}
           </div>
 
           <label className="block">
@@ -250,6 +356,75 @@ export function QuickLogForm({
               }}
             />
           </label>
+
+          {/* Follow-up — only for log-mode on types that have a
+              natural "next time" cadence. Creates a second, planned
+              entry after the main log insert. */}
+          {supportsFollowUp && (
+            <details
+              className="rounded-xl border px-3 py-2"
+              style={{
+                borderColor: "rgba(42,64,49,0.12)",
+                background: "rgba(42,64,49,0.03)",
+              }}
+            >
+              <summary
+                className="cursor-pointer text-sm font-medium text-barn-dark/85"
+                style={{ listStyle: "none" }}
+              >
+                Schedule follow-up?
+              </summary>
+              <div className="mt-2 space-y-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {(
+                    [
+                      { key: "none", label: "No follow-up" },
+                      { key: "6w", label: "6 weeks" },
+                      { key: "3m", label: "3 months" },
+                      { key: "custom", label: "Custom" },
+                    ] as const
+                  ).map((opt) => {
+                    const active = followUpPreset === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => setFollowUpPreset(opt.key)}
+                        aria-pressed={active}
+                        className="rounded-full border px-2.5 py-1 text-xs font-medium"
+                        style={{
+                          borderColor: active ? "#c9a84c" : "rgba(42,64,49,0.15)",
+                          background: active ? "rgba(201,168,76,0.15)" : "white",
+                          color: "#2a4031",
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {followUpPreset === "custom" && (
+                  <input
+                    type="date"
+                    value={followUpCustomDate}
+                    onChange={(e) => setFollowUpCustomDate(e.target.value)}
+                    min={todayIso()}
+                    className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
+                    style={{
+                      borderColor: "rgba(42,64,49,0.15)",
+                      color: "#2a4031",
+                      background: "white",
+                    }}
+                  />
+                )}
+                {followUpPreset !== "none" && (
+                  <div className="text-[11px] text-barn-dark/55">
+                    Creates a planned entry for the same horse and type.
+                  </div>
+                )}
+              </div>
+            </details>
+          )}
 
           {error && (
             <ErrorDetails
@@ -285,7 +460,13 @@ export function QuickLogForm({
             className="rounded-xl px-5 py-2 text-sm font-semibold shadow disabled:opacity-60"
             style={{ background: "#c9a84c", color: "#2a4031" }}
           >
-            {pending ? "Saving…" : "Save"}
+            {pending
+              ? mode === "schedule"
+                ? "Scheduling…"
+                : "Saving…"
+              : mode === "schedule"
+                ? "Schedule"
+                : "Save"}
           </button>
         </div>
       </div>
