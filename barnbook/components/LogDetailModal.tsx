@@ -61,6 +61,9 @@ export function LogDetailModal({
   const [plannedErr, setPlannedErr] = useState<string | null>(null);
   const [reschedOpen, setReschedOpen] = useState(false);
   const [reschedDate, setReschedDate] = useState<string>("");
+  const [completingOpen, setCompletingOpen] = useState(false);
+  const [doneCost, setDoneCost] = useState("");
+  const [doneNotes, setDoneNotes] = useState("");
   const plannedRouter = useRouter();
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -81,10 +84,26 @@ export function LogDetailModal({
     ? logTypeLabel((entry as ActivityLog).activity_type)
     : (entry as HealthRecord).record_type;
 
-  function markDone() {
+  function submitDone(options?: { skipFields?: boolean }) {
     setPlannedErr(null);
+    const costRaw = doneCost.trim();
+    const parsedCost = costRaw ? parseFloat(costRaw) : null;
+    const costToSend = options?.skipFields
+      ? undefined
+      : costRaw
+        ? Number.isNaN(parsedCost as number)
+          ? undefined
+          : parsedCost
+        : undefined;
+    const notesToSend = options?.skipFields
+      ? undefined
+      : doneNotes.trim() || undefined;
+
     startPlannedTransition(async () => {
-      const res = await markEntryCompletedAction(entry.id, item.kind);
+      const res = await markEntryCompletedAction(entry.id, item.kind, {
+        cost: costToSend,
+        notes: notesToSend,
+      });
       if ("error" in res) {
         setPlannedErr(res.error);
         return;
@@ -160,6 +179,29 @@ export function LogDetailModal({
                   Planned
                 </span>
               )}
+              {!isPlanned && entry.was_scheduled && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                  style={{
+                    background: "rgba(75,100,121,0.12)",
+                    color: "#4b6479",
+                  }}
+                  title="This entry was scheduled ahead and marked done"
+                >
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={3}
+                    aria-hidden="true"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Scheduled
+                </span>
+              )}
             </div>
             <p className="mt-2 text-xs text-barn-dark/50">{date}</p>
           </div>
@@ -190,7 +232,61 @@ export function LogDetailModal({
               background: "rgba(75,100,121,0.06)",
             }}
           >
-            {reschedOpen ? (
+            {completingOpen ? (
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-barn-dark/70">
+                  Complete this entry — capture what actually happened.
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={doneCost}
+                    onChange={(e) => setDoneCost(e.target.value)}
+                    placeholder="Cost ($)"
+                    className="w-28 rounded-md border px-2 py-1 text-sm outline-none"
+                    style={{ borderColor: "rgba(42,64,49,0.2)" }}
+                  />
+                  <input
+                    type="text"
+                    value={doneNotes}
+                    onChange={(e) => setDoneNotes(e.target.value)}
+                    placeholder="Notes"
+                    className="flex-1 min-w-[10rem] rounded-md border px-2 py-1 text-sm outline-none"
+                    style={{ borderColor: "rgba(42,64,49,0.2)" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => submitDone()}
+                    disabled={plannedPending}
+                    className="rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-60"
+                    style={{ background: "#c9a84c", color: "#2a4031" }}
+                  >
+                    {plannedPending ? "…" : "Save & complete"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => submitDone({ skipFields: true })}
+                    disabled={plannedPending}
+                    className="rounded-md border px-3 py-1.5 text-xs text-barn-dark/75"
+                    style={{ borderColor: "rgba(42,64,49,0.15)" }}
+                    title="Mark done without cost or notes"
+                  >
+                    Skip
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCompletingOpen(false)}
+                    disabled={plannedPending}
+                    className="rounded-md px-2 py-1.5 text-xs text-barn-dark/55"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            ) : reschedOpen ? (
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   type="date"
@@ -223,7 +319,7 @@ export function LogDetailModal({
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={markDone}
+                  onClick={() => setCompletingOpen(true)}
                   disabled={plannedPending}
                   className="rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-60"
                   style={{ background: "#c9a84c", color: "#2a4031" }}

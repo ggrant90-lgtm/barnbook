@@ -554,6 +554,10 @@ export interface ActivityLog {
    *  the work was actually performed. Existing rows default to
    *  'completed'; only the Service Barn schedule path sets 'planned'. */
   status: "planned" | "completed";
+  /** True if the entry was originally created via scheduleEntryAction
+   *  (i.e., planned ahead). Survives the planned→completed flip so the
+   *  UI can distinguish proactive work from ad-hoc logs. */
+  was_scheduled: boolean;
 }
 
 /** public.health_records */
@@ -589,6 +593,10 @@ export interface HealthRecord {
    *  the work was actually performed. Existing rows default to
    *  'completed'; only the Service Barn schedule path sets 'planned'. */
   status: "planned" | "completed";
+  /** True if the entry was originally created via scheduleEntryAction
+   *  (i.e., planned ahead). Survives the planned→completed flip so the
+   *  UI can distinguish proactive work from ad-hoc logs. */
+  was_scheduled: boolean;
 }
 
 /** public.log_entry_line_items */

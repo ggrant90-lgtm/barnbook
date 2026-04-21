@@ -123,6 +123,7 @@ export async function scheduleEntryAction(
         performed_at,
         total_cost,
         status: "planned",
+        was_scheduled: true,
       })
       .select("id")
       .single();
@@ -151,6 +152,7 @@ export async function scheduleEntryAction(
       performed_at,
       total_cost,
       status: "planned",
+      was_scheduled: true,
     })
     .select("id")
     .single();
@@ -162,12 +164,17 @@ export async function scheduleEntryAction(
 /**
  * Flip a planned entry to completed. Snaps `performed_at` /
  * `record_date` to now so the entry lands at today's date in the
- * horse's activity history. Users who want a different completion
- * date can edit the entry afterward.
+ * horse's activity history. The optional `cost` and `notes` let the
+ * user capture the actual outcome at the moment of completion — they
+ * overwrite whatever placeholder values were on the planned row.
+ * A null/undefined cost leaves the existing value; an empty-string
+ * notes field likewise leaves the existing value (use a space or
+ * explicit clear if you truly mean to blank it).
  */
 export async function markEntryCompletedAction(
   logId: string,
   kind: LogKind,
+  input?: { cost?: number | null; notes?: string | null },
 ): Promise<{ ok: true } | { error: string }> {
   const supabase = await createServerComponentClient();
   const {
@@ -209,6 +216,25 @@ export async function markEntryCompletedAction(
     kind === "activity"
       ? { status: "completed", performed_at: nowIso }
       : { status: "completed", performed_at: nowIso, record_date: todayDate };
+
+  // Optional fill-in at completion. cost=undefined leaves the existing
+  // value; cost=null explicitly clears it. notes follows the same rule,
+  // but we also treat an empty-trimmed string as "don't overwrite."
+  if (input?.cost !== undefined) {
+    update.total_cost = input.cost;
+    // If the provider is setting a non-null cost and nothing already
+    // marked this as revenue, default to revenue — matches the
+    // service-provider heuristic used by QuickLogForm.
+    if (input.cost != null) update.cost_type = "revenue";
+  }
+  if (input?.notes !== undefined) {
+    const trimmed = input.notes?.trim();
+    if (trimmed !== undefined && trimmed !== "") {
+      update.notes = trimmed;
+    } else if (input.notes === null) {
+      update.notes = null;
+    }
+  }
 
   const { error } = await db.from(table).update(update).eq("id", logId);
   if (error) return { error: error.message };

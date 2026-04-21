@@ -29,6 +29,10 @@ export interface CalendarEvent {
      *  'completed' = real work already performed. Drives the dashed
      *  border on the calendar event and the Mark-done action. */
     status: "planned" | "completed";
+    /** Survives the planned→completed flip so the popover can show a
+     *  small "Scheduled ✓" badge on completed entries that were
+     *  planned ahead. */
+    wasScheduled: boolean;
   };
 }
 
@@ -256,6 +260,8 @@ export async function getCalendarEvents(
         details: a.details as Record<string, unknown> | null,
         entryId: a.id,
         status: aStatus,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        wasScheduled: ((a as any).was_scheduled as boolean | undefined) === true,
       },
     });
   }
@@ -372,6 +378,8 @@ export async function getCalendarEvents(
         details: h.details as Record<string, unknown> | null,
         entryId: h.id,
         status: hStatus,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        wasScheduled: ((h as any).was_scheduled as boolean | undefined) === true,
       },
     });
   }
