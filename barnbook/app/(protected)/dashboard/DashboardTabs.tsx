@@ -23,7 +23,7 @@ import {
   normalizePermissionLevel,
 } from "@/lib/key-permissions";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function formatWhen(iso: string) {
   const d = new Date(iso);
@@ -104,16 +104,20 @@ export function DashboardTabs({
 
   // Core onboarding wizard — auto-opens on first dashboard visit for
   // new users (when not completed + not dismissed). Auto-opens at most
-  // once per tab session. Lazy initializer reads session state +
-  // claims the session-once flag in one pass.
+  // once per tab session. Has to be set in an effect (not lazy init)
+  // because shouldAutoOpen reads sessionStorage, which is only
+  // available after hydration; useState's initializer runs at SSR
+  // time and React reuses that value on mount.
   const coreWizard = useWizardState("core", onboardingState);
-  const [coreOpen, setCoreOpen] = useState<boolean>(() => {
+  const [coreOpen, setCoreOpen] = useState(false);
+  useEffect(() => {
     if (coreWizard.shouldAutoOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCoreOpen(true);
       coreWizard.markAutoOpened();
-      return true;
     }
-    return false;
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coreWizard.shouldAutoOpen]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">

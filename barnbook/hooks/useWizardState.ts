@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { OnboardingState, WizardId } from "@/lib/onboarding-query";
 import { shouldAutoOpenCore } from "@/lib/onboarding-query";
@@ -40,21 +40,26 @@ export function useWizardState(
   }, [wizard, initialState]);
 
   const sessionKey = `barnbook:onboarding-auto-opened:${wizard}`;
-  // Lazy initializer reads sessionStorage once during the first client
-  // render — no setState-in-effect pass. Returns false during SSR so
-  // the first client render matches.
-  const [shouldAutoOpen] = useState<boolean>(() => {
-    if (!dbEligible) return false;
-    if (typeof window === "undefined") return false;
+  // Has to be a setState-in-effect — useState's lazy initializer runs
+  // during SSR (where sessionStorage isn't available), and React reuses
+  // the SSR value on hydration without re-running the init. So we
+  // start `false` (matches SSR), then flip to true on the client after
+  // mount if eligible. The react-hooks/set-state-in-effect lint rule
+  // doesn't account for browser-only state, so it's disabled here.
+  const [shouldAutoOpen, setShouldAutoOpen] = useState(false);
+  useEffect(() => {
+    if (!dbEligible) return;
+    let alreadyOpened = false;
     try {
-      return sessionStorage.getItem(sessionKey) !== "1";
+      alreadyOpened = sessionStorage.getItem(sessionKey) === "1";
     } catch {
-      // sessionStorage may throw in embedded contexts (iframes, etc.).
-      // Falling back to "yes auto-open" is fine — the worst that happens
-      // is the wizard pops once after a dismiss within the same tab.
-      return true;
+      /* sessionStorage may throw in iframes — treat as not-opened */
     }
-  });
+    if (!alreadyOpened) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setShouldAutoOpen(true);
+    }
+  }, [dbEligible, sessionKey]);
 
   const markAutoOpened = useCallback(() => {
     try {

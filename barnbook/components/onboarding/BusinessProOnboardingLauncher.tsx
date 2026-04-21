@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWizardState } from "@/hooks/useWizardState";
 import { BusinessProOnboarding } from "./BusinessProOnboarding";
 import type { OnboardingState } from "@/lib/onboarding-query";
@@ -27,14 +27,20 @@ export function BusinessProOnboardingLauncher({
   existingClients: Array<{ id: string; display_name: string }>;
 }) {
   const wizard = useWizardState("business_pro", onboardingState);
-  // Lazy initializer decides + claims the session-once flag in one
-  // pass. No effect needed; component never re-opens itself after a
-  // close, which is the desired behavior.
-  const [open, setOpen] = useState<boolean>(() => {
-    const should = Boolean(wizard.shouldAutoOpen && barnId);
-    if (should) wizard.markAutoOpened();
-    return should;
-  });
+  // Open state must default to false (matches SSR) and only flip true
+  // after mount if eligible — useWizardState's shouldAutoOpen is
+  // browser-only (reads sessionStorage), so it's false until effects run.
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (wizard.shouldAutoOpen && barnId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpen(true);
+      wizard.markAutoOpened();
+    }
+    // shouldAutoOpen + barnId are stable for a given mount; we
+    // intentionally only fire this once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wizard.shouldAutoOpen, barnId]);
 
   if (!barnId) return null;
 

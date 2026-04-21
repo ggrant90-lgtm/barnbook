@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWizardState } from "@/hooks/useWizardState";
 import { BreedersProOnboarding } from "./BreedersProOnboarding";
 import type { OnboardingState } from "@/lib/onboarding-query";
@@ -26,13 +26,15 @@ export function BreedersProOnboardingLauncher({
   }>;
 }) {
   const wizard = useWizardState("breeders_pro", onboardingState);
-  // Lazy initializer decides + claims the session-once flag in one
-  // pass. No effect needed.
-  const [open, setOpen] = useState<boolean>(() => {
-    const should = Boolean(wizard.shouldAutoOpen && barnId);
-    if (should) wizard.markAutoOpened();
-    return should;
-  });
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (wizard.shouldAutoOpen && barnId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpen(true);
+      wizard.markAutoOpened();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wizard.shouldAutoOpen, barnId]);
 
   if (!barnId) return null;
 
