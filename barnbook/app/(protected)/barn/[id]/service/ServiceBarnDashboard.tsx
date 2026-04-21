@@ -164,11 +164,19 @@ export function ServiceBarnDashboard({
         </Link>
       </div>
 
-      {/* Stats strip */}
-      <div className="mt-6 grid gap-3 sm:grid-cols-3">
-        <StatCard label="Horses" value={stats.totalHorses.toString()} />
-        <StatCard label="Entries this week" value={stats.entriesThisWeek.toString()} />
-        <StatCard label="Quick + Linked" value={`${quickHorses.length} + ${linkedHorses.length}`} />
+      {/* Stats — slim inline row to minimize vertical real estate so
+          the horse list starts higher on the page. */}
+      <div
+        className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border bg-white px-3 py-2 text-sm"
+        style={{ borderColor: "rgba(42,64,49,0.1)" }}
+      >
+        <StatInline label="Horses" value={stats.totalHorses.toString()} />
+        <StatInline label="This week" value={stats.entriesThisWeek.toString()} />
+        <StatInline
+          label="Q / L"
+          value={`${quickHorses.length} / ${linkedHorses.length}`}
+          title={`${quickHorses.length} quick records · ${linkedHorses.length} linked horses`}
+        />
       </div>
 
       {/* Quick actions */}
@@ -276,7 +284,7 @@ export function ServiceBarnDashboard({
           No horses match your filters.
         </p>
       ) : (
-        <ul className="mt-6 space-y-3">
+        <ul className="mt-4 space-y-1.5">
           {unifiedRows.map((row) => (
             <li
               key={
@@ -314,21 +322,24 @@ export function ServiceBarnDashboard({
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatInline({
+  label,
+  value,
+  title,
+}: {
+  label: string;
+  value: string;
+  title?: string;
+}) {
   return (
-    <div
-      className="rounded-2xl border bg-white p-4 shadow-sm"
-      style={{ borderColor: "rgba(42,64,49,0.1)" }}
-    >
-      <div
-        className="text-[11px] font-medium uppercase tracking-wide"
+    <span title={title} className="inline-flex items-baseline gap-1">
+      <span
+        className="text-[11px] uppercase tracking-wide"
         style={{ color: "rgba(42,64,49,0.55)" }}
       >
         {label}
-      </div>
-      <div className="mt-1 font-serif text-2xl font-semibold text-barn-dark">
-        {value}
-      </div>
-    </div>
+      </span>
+      <span className="font-semibold text-barn-dark">{value}</span>
+    </span>
   );
 }

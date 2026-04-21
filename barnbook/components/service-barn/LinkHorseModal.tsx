@@ -220,7 +220,7 @@ export function LinkHorseModal({
               we&apos;ll offer to link it here automatically.
             </p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-1">
               {rows.map((r) => {
                 const selected = selectedIds.has(r.horseId);
                 return (
@@ -229,40 +229,29 @@ export function LinkHorseModal({
                       type="button"
                       onClick={() => toggle(r.horseId)}
                       aria-pressed={selected}
-                      className="w-full rounded-xl border p-3 flex items-center gap-3 text-left"
+                      className="w-full rounded-lg border px-3 py-2 flex items-center gap-2.5 text-left"
                       style={{
                         borderColor: selected ? "#c9a84c" : "rgba(42,64,49,0.12)",
                         background: selected ? "rgba(201,168,76,0.08)" : "white",
                       }}
                     >
                       <div
+                        aria-hidden="true"
                         style={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: 8,
-                          background: "rgba(163,184,143,0.2)",
-                          overflow: "hidden",
+                          width: 16,
+                          height: 16,
+                          borderRadius: 4,
+                          border: selected
+                            ? "5px solid #c9a84c"
+                            : "2px solid rgba(42,64,49,0.35)",
                           flexShrink: 0,
                         }}
-                      >
-                        {r.photoUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={r.photoUrl}
-                            alt=""
-                            style={{
-                              width: "100%",
-                              height: "100%",
-                              objectFit: "cover",
-                            }}
-                          />
-                        ) : null}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium text-barn-dark truncate">
+                      />
+                      <div className="min-w-0 flex-1 flex flex-wrap items-baseline gap-x-2">
+                        <span className="font-medium text-barn-dark truncate">
                           {r.horseName}
-                        </div>
-                        <div className="text-xs text-barn-dark/55 truncate">
+                        </span>
+                        <span className="text-xs text-barn-dark/55 truncate">
                           at {r.owningBarnName}
                           {r.permissionLevel && (
                             <>
@@ -272,19 +261,8 @@ export function LinkHorseModal({
                               </span>
                             </>
                           )}
-                        </div>
+                        </span>
                       </div>
-                      <div
-                        style={{
-                          width: 18,
-                          height: 18,
-                          borderRadius: 4,
-                          border: selected
-                            ? "5px solid #c9a84c"
-                            : "2px solid rgba(42,64,49,0.35)",
-                        }}
-                        aria-hidden="true"
-                      />
                     </button>
                   </li>
                 );
