@@ -9,7 +9,7 @@ import {
   StallPurchaseFlow,
   type StallFlowBarnOption,
 } from "@/components/stalls/StallPurchaseFlow";
-import { ModulePremiumCard } from "@/components/modules/ModulePremiumCard";
+import { ModuleChip } from "@/components/modules/ModuleChip";
 import { CoreOnboarding } from "@/components/onboarding/CoreOnboarding";
 import { useWizardState } from "@/hooks/useWizardState";
 import type { ModuleAccess } from "@/lib/modules-query";
@@ -332,24 +332,22 @@ export function DashboardTabs({
                 </Link>
               </div>
 
-              <section className="mt-12">
-                <h2 className="font-serif text-xl text-barn-dark">Premium modules</h2>
-                <p className="mt-1 text-sm text-barn-dark/60">
-                  Free 30-day trial — no credit card required.
-                </p>
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <ModulePremiumCard
-                    module="breeders_pro"
-                    access={breedersAccess}
-                    moduleHref="/breeders-pro"
-                  />
-                  <ModulePremiumCard
-                    module="business_pro"
-                    access={businessAccess}
-                    moduleHref="/business-pro"
-                  />
-                </div>
-              </section>
+              {/* Premium modules — quiet chip row. Renders as a
+                  simple link for users on an active trial /
+                  subscription; only becomes promotional for users who
+                  haven't started a trial. */}
+              <div className="mt-8 flex flex-wrap gap-2">
+                <ModuleChip
+                  module="breeders_pro"
+                  access={breedersAccess}
+                  moduleHref="/breeders-pro"
+                />
+                <ModuleChip
+                  module="business_pro"
+                  access={businessAccess}
+                  moduleHref="/business-pro"
+                />
+              </div>
 
               <section className="mt-12">
                 <h2 className="font-serif text-xl text-barn-dark">Horses</h2>
