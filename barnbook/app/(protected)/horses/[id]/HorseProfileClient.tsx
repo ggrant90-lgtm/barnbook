@@ -468,7 +468,7 @@ export function HorseProfileClient({
                 {showHeaderLogDropdown && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowHeaderLogDropdown(false)} />
-                    <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-xl border border-barn-dark/10 bg-white py-1 shadow-lg">
+                    <div className="absolute left-0 top-full z-50 mt-1 w-48 rounded-xl border border-barn-dark/10 bg-white py-1 shadow-lg sm:left-auto sm:right-0">
                       {sortedLogTypes.map((lt) => (
                         <Link
                           key={lt.value}
