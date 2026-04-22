@@ -228,6 +228,13 @@ export function QuickLogForm({
           overflow: "hidden",
           borderTopLeftRadius: 16,
           borderTopRightRadius: 16,
+          // Mobile: cap the sheet to viewport height so the inner
+          // <form> with flex:1 + overflow:auto actually computes a
+          // scroll region. Without this, the sheet grew with content
+          // (FinancialsSection pushed it past the viewport) and the
+          // form never scrolled. `dvh` respects the mobile address
+          // bar; `vh` is the fallback on older browsers.
+          maxHeight: "100dvh",
         }}
       >
         <div
