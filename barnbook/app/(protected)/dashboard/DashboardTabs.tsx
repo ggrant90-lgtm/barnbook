@@ -5,6 +5,7 @@ import { HorseCard } from "@/components/HorseCard";
 import { HorsePhoto } from "@/components/HorsePhoto";
 import { PlanBadge } from "@/components/PlanBadge";
 import { TodayWidget } from "@/components/TodayWidget";
+import { BarnTypeIcon } from "@/components/BarnTypeIcon";
 import {
   StallPurchaseFlow,
   type StallFlowBarnOption,
@@ -50,6 +51,7 @@ export function DashboardTabs({
   businessAccess,
   onboardingState,
   coreOnboardingBarn,
+  allBarnsOverview,
 }: {
   ownedBarns: Barn[];
   accessBarns: (Barn & { userRole: string })[];
@@ -97,6 +99,18 @@ export function DashboardTabs({
   /** User's owned barn used by the Core wizard step 1 rename path. Null
    *  if no barn exists yet (rare — signup auto-creates one). */
   coreOnboardingBarn: { id: string; name: string } | null;
+  /** Per-barn summary rendered when the user has "All Barns" active
+   *  (activeBarnId === "__all__"). Empty array otherwise — the single-
+   *  barn view uses its own dedicated data and doesn't read this. */
+  allBarnsOverview: Array<{
+    id: string;
+    name: string;
+    barn_type: string;
+    plan_tier: string;
+    horseCount: number;
+    effectiveCapacity: number;
+    isOwner: boolean;
+  }>;
 }) {
   const [tab, setTab] = useState<"my" | "access">("my");
   const [stallFlowBarnId, setStallFlowBarnId] = useState<string | null>(null);
@@ -397,7 +411,14 @@ export function DashboardTabs({
                 )}
               </section>
             </>
-          ) : null}
+          ) : (
+            /* All Barns view — one card per barn with capacity. Each
+                card deep-links into its barn (Service Barns route to
+                their dedicated /service dashboard; everything else
+                goes to /barn/[id]/dashboard via BarnSwitcher-style
+                routing, or rather just /barn/[id]). */
+            <AllBarnsOverview barns={allBarnsOverview} />
+          )}
         </>
       ) : null}
 
@@ -598,4 +619,164 @@ function labelForDocType(t: string): string {
     default:
       return "Document";
   }
+}
+
+/**
+ * All Barns view — grid of cards, one per barn, with horse count /
+ * capacity. Service Barns skip the capacity bar because base_stalls
+ * is the 999 sentinel (meaningless for mobile providers); they show
+ * the horse count alone so the card is still informative.
+ *
+ * Each card links into that barn's dedicated surface: Service Barns
+ * go straight to /barn/[id]/service, everything else to /barn/[id].
+ */
+function AllBarnsOverview({
+  barns,
+}: {
+  barns: Array<{
+    id: string;
+    name: string;
+    barn_type: string;
+    plan_tier: string;
+    horseCount: number;
+    effectiveCapacity: number;
+    isOwner: boolean;
+  }>;
+}) {
+  if (barns.length === 0) {
+    return (
+      <div className="mt-10 rounded-2xl border border-barn-dark/10 bg-white p-8 text-center shadow-sm">
+        <p className="font-serif text-lg text-barn-dark">No barns yet</p>
+        <p className="mt-2 text-sm text-barn-dark/60">
+          Create a barn or redeem a key to get started.
+        </p>
+      </div>
+    );
+  }
+
+  // Split owned vs access so the user can tell at a glance which
+  // ones they run vs which ones they just hold keys for.
+  const owned = barns.filter((b) => b.isOwner);
+  const access = barns.filter((b) => !b.isOwner);
+
+  return (
+    <div className="mt-6 space-y-8">
+      <div>
+        <div className="mb-3 flex items-baseline justify-between">
+          <h1 className="font-serif text-2xl font-semibold text-barn-dark">
+            All Barns
+          </h1>
+          <Link
+            href="/barn/new"
+            className="text-xs font-medium text-brass-gold hover:underline"
+          >
+            + Create barn
+          </Link>
+        </div>
+        <p className="text-sm text-barn-dark/60">
+          {barns.length} barn{barns.length === 1 ? "" : "s"} total ·{" "}
+          {barns.reduce((sum, b) => sum + b.horseCount, 0)} horses combined
+        </p>
+      </div>
+
+      {owned.length > 0 && (
+        <section>
+          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-barn-dark/55">
+            Your Barns
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {owned.map((b) => (
+              <BarnOverviewCard key={b.id} barn={b} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {access.length > 0 && (
+        <section>
+          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-barn-dark/55">
+            Shared With You
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {access.map((b) => (
+              <BarnOverviewCard key={b.id} barn={b} />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function BarnOverviewCard({
+  barn,
+}: {
+  barn: {
+    id: string;
+    name: string;
+    barn_type: string;
+    plan_tier: string;
+    horseCount: number;
+    effectiveCapacity: number;
+  };
+}) {
+  const href =
+    barn.barn_type === "service" ? `/barn/${barn.id}/service` : `/barn/${barn.id}`;
+  const isService = barn.barn_type === "service";
+  const isMareMotel = barn.barn_type === "mare_motel";
+  const subtitle = isService
+    ? "Service Barn"
+    : isMareMotel
+      ? "Mare Motel"
+      : "Standard Barn";
+  const remaining = Math.max(0, barn.effectiveCapacity - barn.horseCount);
+
+  return (
+    <Link
+      href={href}
+      className="group rounded-2xl border border-barn-dark/10 bg-white p-4 shadow-sm transition hover:border-brass-gold hover:shadow-md"
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+          style={{
+            background: isService
+              ? "rgba(75,100,121,0.15)"
+              : isMareMotel
+                ? "rgba(201,168,76,0.18)"
+                : "rgba(42,64,49,0.08)",
+            color: isService ? "#4b6479" : "#2a4031",
+          }}
+        >
+          <BarnTypeIcon type={barn.barn_type as "standard" | "mare_motel" | "service"} size={22} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-serif text-lg font-semibold text-barn-dark truncate group-hover:text-brass-gold">
+              {barn.name}
+            </h3>
+            <PlanBadge tier={barn.plan_tier} />
+          </div>
+          <div className="text-xs text-barn-dark/55">{subtitle}</div>
+        </div>
+      </div>
+
+      {isService ? (
+        <div className="mt-4 text-sm text-barn-dark/70">
+          {barn.horseCount} horse{barn.horseCount === 1 ? "" : "s"} tracked
+        </div>
+      ) : (
+        <div className="mt-4">
+          <CapacityBar
+            stallCapacity={barn.effectiveCapacity}
+            horseCount={barn.horseCount}
+            compact
+          />
+          <div className="mt-1.5 text-xs text-barn-dark/55">
+            {remaining} stall{remaining === 1 ? "" : "s"} remaining
+          </div>
+        </div>
+      )}
+    </Link>
+  );
 }

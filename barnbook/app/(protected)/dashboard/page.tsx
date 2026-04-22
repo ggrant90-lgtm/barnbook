@@ -336,16 +336,21 @@ export default async function DashboardPage() {
   }
 
   // Compute effective capacity for the primary barn + build userBarns list
-  // for the StallPurchaseFlow (owner-only barns).
+  // for the StallPurchaseFlow (owner-only barns). For the All Barns view
+  // we need capacity + horse counts across *every* barn the user has any
+  // relationship to (owned or access), so the "All Barns" dashboard can
+  // render one card per barn with a capacity bar.
   const ownedBarnIds = (ownedBarns ?? []).map((b) => b.id);
-  const capacityMap = await getEffectiveCapacityMap(supabase, ownedBarnIds);
+  const allUserBarnIds = allUserBarns.map((b) => b.id);
+  const capacityMap = await getEffectiveCapacityMap(supabase, allUserBarnIds);
 
-  // Horse counts per owned barn (for the userBarns list in the modal).
-  const { data: horseCountRows } = ownedBarnIds.length
+  // Horse counts per barn — one query across the full set covers both
+  // the owner-only StallPurchaseFlow list and the All Barns overview.
+  const { data: horseCountRows } = allUserBarnIds.length
     ? await supabase
         .from("horses")
         .select("barn_id")
-        .in("barn_id", ownedBarnIds)
+        .in("barn_id", allUserBarnIds)
         .eq("archived", false)
     : { data: [] as Array<{ barn_id: string }> };
   const hcByBarn = new Map<string, number>();
@@ -363,6 +368,22 @@ export default async function DashboardPage() {
   const primaryBarnEffectiveCapacity = primaryBarn
     ? capacityMap.get(primaryBarn.id) ?? (primaryBarn.base_stalls ?? 0)
     : 0;
+
+  // All Barns overview: one card per barn. Service barns don't have
+  // meaningful capacity semantics (stored as 999); the card renders
+  // just the horse count in that case. Owned + access barns are both
+  // included; an isOwner flag lets the UI tag them differently.
+  const allBarnsOverview = isAllBarns
+    ? allUserBarns.map((b) => ({
+        id: b.id,
+        name: b.name,
+        barn_type: b.barn_type,
+        plan_tier: b.plan_tier,
+        horseCount: hcByBarn.get(b.id) ?? 0,
+        effectiveCapacity: capacityMap.get(b.id) ?? (b.base_stalls ?? 0),
+        isOwner: ownedBarnIds.includes(b.id),
+      }))
+    : [];
 
   // Module access (Breeders Pro + Business Pro) for the dashboard
   // premium section.
@@ -405,6 +426,7 @@ export default async function DashboardPage() {
       businessAccess={businessAccess}
       onboardingState={onboardingState}
       coreOnboardingBarn={coreOnboardingBarn}
+      allBarnsOverview={allBarnsOverview}
     />
   );
 }
