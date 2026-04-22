@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { ActivityLog, HealthRecord, Horse } from "@/lib/types";
 import { updateQuickRecordAction } from "@/app/(protected)/actions/quick-records";
+import { deleteHorseAction } from "@/app/(protected)/actions/horse";
 import { getActivitySummary, getHealthSummary } from "@/lib/horse-display";
 import { LOG_TYPES, logTypeLabel } from "@/lib/horse-form-constants";
 import { ErrorDetails } from "@/components/ui/ErrorDetails";
@@ -50,6 +51,24 @@ export function QuickRecordProfile({
   const [color, setColor] = useState(horse.color ?? "");
   const [notes, setNotes] = useState(horse.special_care_notes ?? "");
   const [showLogTypes, setShowLogTypes] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  function handleDelete() {
+    setError(null);
+    startTransition(async () => {
+      // Quick records get a permanent delete — soft-archiving doesn't
+      // help a service provider keep their list clean, and quick
+      // records have no complex dependencies to preserve.
+      const res = await deleteHorseAction(horse.id, true);
+      if (res.error) {
+        setError(res.error);
+        setConfirmingDelete(false);
+        return;
+      }
+      router.push(`/barn/${horse.barn_id}/service`);
+      router.refresh();
+    });
+  }
 
   function saveEdits() {
     setError(null);
@@ -154,14 +173,53 @@ export function QuickRecordProfile({
                 </div>
               </div>
               {canEdit && (
-                <button
-                  type="button"
-                  onClick={() => setEditing(true)}
-                  className="rounded-lg border px-3 py-1.5 text-xs font-medium text-barn-dark hover:bg-parchment"
-                  style={{ borderColor: "rgba(42,64,49,0.15)" }}
-                >
-                  Edit
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setEditing(true)}
+                    disabled={pending}
+                    className="rounded-lg border px-3 py-1.5 text-xs font-medium text-barn-dark hover:bg-parchment disabled:opacity-50"
+                    style={{ borderColor: "rgba(42,64,49,0.15)" }}
+                  >
+                    Edit
+                  </button>
+                  {confirmingDelete ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-barn-dark/55">
+                        Delete?
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleDelete}
+                        disabled={pending}
+                        className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                        style={{ background: "#b8421f" }}
+                      >
+                        {pending ? "…" : "Yes, delete"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingDelete(false)}
+                        disabled={pending}
+                        className="rounded-lg border px-2.5 py-1.5 text-xs text-barn-dark/70"
+                        style={{ borderColor: "rgba(42,64,49,0.15)" }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDelete(true)}
+                      disabled={pending}
+                      className="rounded-lg border px-3 py-1.5 text-xs font-medium text-barn-dark/60 hover:text-[#b8421f] hover:border-[#b8421f]/40 disabled:opacity-50"
+                      style={{ borderColor: "rgba(42,64,49,0.15)" }}
+                      title="Delete this quick record"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 

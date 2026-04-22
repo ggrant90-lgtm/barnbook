@@ -27,7 +27,17 @@ export function BarnSwitcher({
     setOpen(false);
     onSwitch?.();
     await switchBarnAction(barnId);
-    router.push(window.location.pathname);
+    // Route to the dashboard that matches the new barn's type — the
+    // standard /dashboard horse grid is meaningless for a Service
+    // Barn and vice versa. For "All Barns" and regular barns, fall
+    // back to the normal dashboard. Staying on the current path
+    // (previous behavior) stranded users on mismatched views.
+    const target = allBarns.find((b) => b.id === barnId);
+    const href =
+      target?.barn_type === "service"
+        ? `/barn/${barnId}/service`
+        : "/dashboard";
+    router.push(href);
     router.refresh();
   }
 
