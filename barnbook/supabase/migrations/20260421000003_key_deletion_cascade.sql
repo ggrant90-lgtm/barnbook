@@ -18,9 +18,31 @@
 --      when that user has no remaining path to the horse (not a barn
 --      owner, not a barn member, no other stall-key grant).
 --
--- Zero risk to existing data: only re-defines the FK constraint and
--- adds a new trigger. No rows are altered by the migration itself.
+-- Zero risk to active grants: only orphaned rows (source_key_id
+-- pointing at a key that no longer exists, or NULL) are touched
+-- during the one-time cleanup. Those grants exist only because the
+-- old ON DELETE SET NULL behavior silently preserved them after the
+-- source key was deleted — they've been leaking access ever since.
 -- ==========================================================================
+
+
+-- ── 0. One-time cleanup of orphaned grants ──────────────────────────────
+-- The FK swap below would otherwise fail on rows whose source_key_id
+-- points at a non-existent key. These are exactly the leaks we want
+-- gone anyway (the key was deleted; access should have ended). We
+-- also sweep the matching service_barn_links up front because the
+-- new trigger isn't installed yet at this point in the migration.
+DELETE FROM public.service_barn_links sbl
+USING public.user_horse_access uha, public.barns sb
+WHERE uha.source_key_id IS NOT NULL
+  AND uha.source_key_id NOT IN (SELECT id FROM public.access_keys)
+  AND sbl.service_barn_id = sb.id
+  AND sb.owner_id = uha.user_id
+  AND sbl.horse_id = uha.horse_id;
+
+DELETE FROM public.user_horse_access
+WHERE source_key_id IS NOT NULL
+  AND source_key_id NOT IN (SELECT id FROM public.access_keys);
 
 
 -- ── 1. Cascade access_keys → user_horse_access on delete ─────────────────
