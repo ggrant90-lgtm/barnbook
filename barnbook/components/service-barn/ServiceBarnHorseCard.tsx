@@ -55,8 +55,14 @@ export function ServiceBarnHorseCard({
       className="rounded-lg border bg-white px-3 py-2 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3"
       style={{ borderColor: "rgba(42,64,49,0.1)" }}
     >
-      {/* Name + subtitle + badge — single line on desktop */}
-      <div className="flex items-center gap-2 min-w-0 flex-1">
+      {/* Name + subtitle + badge — single line on desktop. The whole
+          area is a Link to the horse profile so a tap anywhere on the
+          name region opens the profile; action buttons on the right
+          keep their own handlers. */}
+      <Link
+        href={viewHref}
+        className="flex items-center gap-2 min-w-0 flex-1 hover:text-brass-gold"
+      >
         <span
           aria-label={badge.title}
           title={badge.title}
@@ -65,20 +71,23 @@ export function ServiceBarnHorseCard({
         >
           {badge.text}
         </span>
-        <span className="font-medium text-barn-dark truncate">{horse.name}</span>
+        <span className="font-medium text-barn-dark truncate hover:text-brass-gold">{horse.name}</span>
         {subtitle && (
           <span className="text-xs text-barn-dark/55 truncate hidden sm:inline">
             &middot; {subtitle}
           </span>
         )}
-      </div>
+      </Link>
 
       {/* Mobile-only subtitle row (avoids cramming it on one line with
-          the name on small screens) */}
+          the name on small screens). Linked too so tap targets match. */}
       {subtitle && (
-        <div className="text-xs text-barn-dark/55 truncate sm:hidden -mt-1">
+        <Link
+          href={viewHref}
+          className="text-xs text-barn-dark/55 truncate sm:hidden -mt-1"
+        >
           {subtitle}
-        </div>
+        </Link>
       )}
 
       {/* Actions */}
