@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { canUserEditHorse } from "@/lib/horse-access";
+import { canUserLogOnHorse } from "@/lib/horse-access";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import { isLogType, type LogType } from "@/lib/horse-form-constants";
@@ -89,7 +89,13 @@ export async function scheduleEntryAction(
     .single();
   if (!horse) return { error: "Horse not found" };
 
-  const canEdit = await canUserEditHorse(supabase, user.id, horse.barn_id);
+  const canEdit = await canUserLogOnHorse(
+    supabase,
+    user.id,
+    horseId,
+    horse.barn_id,
+    logType,
+  );
   if (!canEdit) return { error: "No permission to schedule for this horse." };
 
   const admin = createAdminClient();
@@ -206,7 +212,7 @@ export async function markEntryCompletedAction(
     .single();
   if (!horse) return { error: "Horse not found" };
 
-  const canEdit = await canUserEditHorse(supabase, user.id, horse.barn_id);
+  const canEdit = await canUserLogOnHorse(supabase, user.id, row.horse_id, horse.barn_id);
   if (!canEdit) return { error: "No permission to mark this entry done." };
 
   const now = new Date();
@@ -284,7 +290,7 @@ export async function rescheduleEntryAction(
     .single();
   if (!horse) return { error: "Horse not found" };
 
-  const canEdit = await canUserEditHorse(supabase, user.id, horse.barn_id);
+  const canEdit = await canUserLogOnHorse(supabase, user.id, row.horse_id, horse.barn_id);
   if (!canEdit) return { error: "No permission to reschedule this entry." };
 
   const performed_at = midday(newDate);
@@ -337,7 +343,7 @@ export async function cancelScheduledEntryAction(
     .single();
   if (!horse) return { error: "Horse not found" };
 
-  const canEdit = await canUserEditHorse(supabase, user.id, horse.barn_id);
+  const canEdit = await canUserLogOnHorse(supabase, user.id, row.horse_id, horse.barn_id);
   if (!canEdit) return { error: "No permission to cancel this entry." };
 
   const { error } = await db

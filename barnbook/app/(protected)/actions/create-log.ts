@@ -1,7 +1,7 @@
 "use server";
 
 import { isLogType, type LogType } from "@/lib/horse-form-constants";
-import { canUserEditHorse } from "@/lib/horse-access";
+import { canUserLogOnHorse } from "@/lib/horse-access";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/types";
@@ -112,7 +112,13 @@ export async function createLogAction(
 
   if (!horse) return { error: "Horse not found" };
 
-  const canEdit = await canUserEditHorse(supabase, user.id, horse.barn_id);
+  const canEdit = await canUserLogOnHorse(
+    supabase,
+    user.id,
+    horseId,
+    horse.barn_id,
+    t,
+  );
   if (!canEdit) return { error: "No permission to edit this horse" };
 
   const logType = t as LogType;
