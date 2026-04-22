@@ -185,13 +185,31 @@ export default async function ServiceBarnPage({
       (hrLinkedRes.count ?? 0);
   }
 
-  // ── Upcoming planned entries (overdue + next 14 days) ──
+  // ── Upcoming planned entries (due today or earlier) ──
+  // Future-dated planned entries live on the calendar until their day
+  // arrives; once they're due today they surface on the dashboard and
+  // stay until the user marks them done, moves them, or cancels.
+  // `windowStart` is generous (90 days back) so long-stale overdue
+  // entries never silently fall off the list — the user has to
+  // explicitly handle them.
   // Same scoping rule as the week-stats query: quick records include any
   // creator's entries, linked horses only include this user's own.
   // eslint-disable-next-line react-hooks/purity
   const upcomingNowMs = Date.now();
-  const windowStart = new Date(upcomingNowMs - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const windowEnd = new Date(upcomingNowMs + 14 * 24 * 60 * 60 * 1000).toISOString();
+  const windowStart = new Date(upcomingNowMs - 90 * 24 * 60 * 60 * 1000).toISOString();
+  // End-of-today in UTC — anything dated later is "future, not here yet."
+  const nowDate = new Date(upcomingNowMs);
+  const windowEnd = new Date(
+    Date.UTC(
+      nowDate.getUTCFullYear(),
+      nowDate.getUTCMonth(),
+      nowDate.getUTCDate(),
+      23,
+      59,
+      59,
+      999,
+    ),
+  ).toISOString();
 
   const upcomingEntries: UpcomingEntry[] = [];
   if (quickHorseIds.length + linkedHorseIds.length > 0) {

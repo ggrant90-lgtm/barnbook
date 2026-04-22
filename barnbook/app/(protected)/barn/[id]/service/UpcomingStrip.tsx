@@ -46,7 +46,7 @@ export function UpcomingStrip({
     >
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-barn-dark/65">
-          Upcoming
+          Today
         </h2>
         <Link
           href="/calendar?scheduled=scheduled"
