@@ -378,14 +378,19 @@ export function DashboardTabs({
                 ) : (
                   <ul className="mt-4 divide-y divide-barn-dark/10 rounded-2xl border border-barn-dark/10 bg-white">
                     {recentActivity.map(({ log, horseName }) => (
-                      <li key={log.id} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="font-medium text-barn-dark">{log.activity_type}</p>
-                          <p className="text-sm text-barn-dark/65">{horseName}</p>
-                        </div>
-                        <time className="text-xs text-barn-dark/50" dateTime={log.created_at}>
-                          {formatWhen(log.created_at)}
-                        </time>
+                      <li key={log.id}>
+                        <Link
+                          href={`/horses/${log.horse_id}`}
+                          className="flex flex-col gap-1 px-4 py-3 hover:bg-parchment/60 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div>
+                            <p className="font-medium text-barn-dark">{log.activity_type}</p>
+                            <p className="text-sm text-barn-dark/65">{horseName}</p>
+                          </div>
+                          <time className="text-xs text-barn-dark/50" dateTime={log.created_at}>
+                            {formatWhen(log.created_at)}
+                          </time>
+                        </Link>
                       </li>
                     ))}
                   </ul>
