@@ -36,6 +36,36 @@ export default async function ServiceBarnPage({
   if (barn.owner_id !== user.id) redirect(`/barn/${barnId}`);
   if (barn.barn_type !== "service") redirect(`/barn/${barnId}`);
 
+  // ── Business Pro context for the Quick Log form ──
+  // Same pattern used by the horse-profile log page (lines 103-129 at
+  // /horses/[id]/log/[type]/page.tsx). If the user has BP, the Quick
+  // Log modal renders the FinancialsSection so cost_type / billable_to
+  // / payment_status all make it onto the row — which is what ties the
+  // entry back into BP dashboards and AR.
+  const { data: currentProfile } = await supabase
+    .from("profiles")
+    .select("has_business_pro")
+    .eq("id", user.id)
+    .maybeSingle();
+  const hasBusinessPro = currentProfile?.has_business_pro === true;
+
+  const { data: barnClientsRaw } = hasBusinessPro
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ? await (supabase as any)
+        .from("barn_clients")
+        .select("id, display_name, user_id, name_key")
+        .eq("barn_id", barnId)
+        .eq("archived", false)
+        .order("display_name", { ascending: true })
+        .limit(2000)
+    : { data: [] };
+  const barnClients = (barnClientsRaw ?? []) as {
+    id: string;
+    display_name: string;
+    user_id: string | null;
+    name_key: string;
+  }[];
+
   // Quick records in this Service Barn.
   const { data: quickHorsesRaw } = await supabase
     .from("horses")
@@ -261,6 +291,9 @@ export default async function ServiceBarnPage({
         entriesThisWeek,
       }}
       upcoming={upcomingEntries}
+      hasBusinessPro={hasBusinessPro}
+      barnClients={barnClients}
+      currentUserId={user.id}
     />
   );
 }

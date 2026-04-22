@@ -10,12 +10,25 @@ import { QuickLogForm, type QuickLogHorseOption } from "./QuickLogForm";
  * entry form the spec calls out). The button is thumb-reachable on
  * mobile and sits above the mobile bottom nav via z-index.
  */
+interface BarnClientOption {
+  id: string;
+  display_name: string;
+  user_id: string | null;
+  name_key: string;
+}
+
 export function QuickLogFab({
   serviceBarnId,
   horseOptions,
+  hasBusinessPro,
+  barnClients,
+  currentUserId,
 }: {
   serviceBarnId: string;
   horseOptions: QuickLogHorseOption[];
+  hasBusinessPro: boolean;
+  barnClients: BarnClientOption[];
+  currentUserId: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -67,6 +80,9 @@ export function QuickLogFab({
         <QuickLogForm
           serviceBarnId={serviceBarnId}
           horseOptions={horseOptions}
+          hasBusinessPro={hasBusinessPro}
+          barnClients={barnClients}
+          currentUserId={currentUserId}
           onClose={() => setOpen(false)}
         />
       )}

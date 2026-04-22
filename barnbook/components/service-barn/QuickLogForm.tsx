@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createLogAction } from "@/app/(protected)/actions/create-log";
 import { scheduleEntryAction } from "@/app/(protected)/actions/scheduled-entries";
 import { LOG_TYPES, logTypeLabel, type LogType } from "@/lib/horse-form-constants";
 import { ErrorDetails } from "@/components/ui/ErrorDetails";
+import { FinancialsSection } from "@/components/business-pro/FinancialsSection";
 
 /**
  * Streamlined log-entry form that opens from the Service Barn FAB.
@@ -24,6 +25,17 @@ export interface QuickLogHorseOption {
   id: string;
   name: string;
   subtitle: string; // "at {owning barn}" for linked, location for quick
+  /** Owner name for this horse — used by FinancialsSection's "Billable
+   *  to owner" mode. Quick records use owner_contact_name; linked
+   *  horses use the real owner_name from the horses table. */
+  ownerName?: string | null;
+}
+
+interface BarnClientOption {
+  id: string;
+  display_name: string;
+  user_id: string | null;
+  name_key: string;
 }
 
 interface Props {
@@ -34,6 +46,16 @@ interface Props {
   defaultLogType?: LogType;
   /** Optional: pre-select a specific horse (per-card Log button). */
   initialHorseId?: string;
+  /** When true, the FinancialsSection renders in log mode so the entry
+   *  carries cost_type / billable_to / payment_status fields — which
+   *  is what makes it show up in Business Pro dashboards and AR. */
+  hasBusinessPro: boolean;
+  /** Barn's client directory for the "Billable to client" picker. */
+  barnClients: BarnClientOption[];
+  /** Required so we can build the barn-members list for
+   *  FinancialsSection's "Billable to member" mode. Service Barns are
+   *  typically single-owner, so the only member is the current user. */
+  currentUserId: string;
 }
 
 const HEALTH_TYPES = new Set<LogType>(["shoeing", "worming", "vet_visit", "dentistry"]);
@@ -54,8 +76,12 @@ export function QuickLogForm({
   onClose,
   defaultLogType,
   initialHorseId,
+  hasBusinessPro,
+  barnClients,
+  currentUserId,
 }: Props) {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const [horseId, setHorseId] = useState<string>(
     initialHorseId ?? (horseOptions.length === 1 ? horseOptions[0].id : ""),
   );
@@ -119,15 +145,23 @@ export function QuickLogForm({
 
     // Log path — existing behavior plus optional follow-up scheduling.
     startTransition(async () => {
-      const fd = new FormData();
+      // If BP is active, pull FormData from the real form element so
+      // FinancialsSection's hidden inputs (cost_type, billable_to_*,
+      // payment_status, etc.) come through. Otherwise build FormData
+      // from scratch — same behavior as before.
+      const fd = hasBusinessPro && formRef.current
+        ? new FormData(formRef.current)
+        : new FormData();
       const isHealth = HEALTH_TYPES.has(logType);
       if (isHealth) fd.set("record_date", date);
       else fd.set("logged_at", date);
 
       if (cost.trim()) {
         fd.set("total_cost", cost.trim());
-        // Service provider defaults: service entries are revenue.
-        fd.set("cost_type", "revenue");
+        // Service provider defaults: service entries are revenue — but
+        // only if BP didn't emit its own cost_type (i.e., the user
+        // didn't pick a type in FinancialsSection).
+        if (!fd.get("cost_type")) fd.set("cost_type", "revenue");
       }
       if (notes.trim()) fd.set("notes", notes.trim());
 
@@ -218,7 +252,17 @@ export function QuickLogForm({
           </button>
         </div>
 
-        <div style={{ flex: 1, overflow: "auto", padding: 16 }} className="space-y-3">
+        {/* The body is a real <form> element so FinancialsSection's
+            hidden inputs participate in FormData(form) on submit. The
+            Save button outside the form calls handleSave directly, so
+            no onSubmit handler is wired — Enter in inputs is a no-op
+            by design. */}
+        <form
+          ref={formRef}
+          onSubmit={(e) => e.preventDefault()}
+          style={{ flex: 1, overflow: "auto", padding: 16 }}
+          className="space-y-3"
+        >
           {/* Mode toggle: Log entry vs Schedule. A segmented control is
               cheap to build with two buttons and zero added deps. */}
           <div
@@ -426,6 +470,23 @@ export function QuickLogForm({
             </details>
           )}
 
+          {/* Business Pro financials — same component as the full log
+              form at /horses/[id]/log/[type]. It renders hidden inputs
+              (cost_type / billable_to_* / payment_status / paid_*)
+              that are captured when handleSave reads FormData from
+              this <form>. Only shown in log mode when the user has BP. */}
+          {mode === "log" && hasBusinessPro && (
+            <FinancialsSection
+              logType={logType}
+              totalCost={cost.trim() ? parseFloat(cost.trim()) || 0 : 0}
+              barnMembers={[{ id: currentUserId, name: "Me", role: "owner" }]}
+              clients={barnClients}
+              horseOwnerName={
+                horseOptions.find((h) => h.id === horseId)?.ownerName ?? null
+              }
+            />
+          )}
+
           {error && (
             <ErrorDetails
               title="Couldn't save"
@@ -433,7 +494,7 @@ export function QuickLogForm({
               extra={{ ServiceBarn: serviceBarnId, Horse: horseId, Type: logType }}
             />
           )}
-        </div>
+        </form>
 
         <div
           style={{

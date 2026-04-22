@@ -28,12 +28,22 @@ export interface LinkedHorseProp {
 type Filter = "all" | "quick" | "linked";
 type Sort = "alpha" | "recent" | "outstanding";
 
+interface BarnClientOption {
+  id: string;
+  display_name: string;
+  user_id: string | null;
+  name_key: string;
+}
+
 export function ServiceBarnDashboard({
   barn,
   quickHorses,
   linkedHorses,
   stats,
   upcoming,
+  hasBusinessPro,
+  barnClients,
+  currentUserId,
 }: {
   barn: Barn;
   quickHorses: Horse[];
@@ -43,6 +53,9 @@ export function ServiceBarnDashboard({
     entriesThisWeek: number;
   };
   upcoming: UpcomingEntry[];
+  hasBusinessPro: boolean;
+  barnClients: BarnClientOption[];
+  currentUserId: string;
 }) {
   const router = useRouter();
   const [q, setQ] = useState("");
@@ -125,11 +138,16 @@ export function ServiceBarnDashboard({
           id: h.id,
           name: h.name,
           subtitle: h.location_name ?? h.owner_contact_name ?? "Quick record",
+          // Quick records use owner_contact_name; linked horses use the
+          // real owner_name off the horses table. FinancialsSection's
+          // "Billable to owner" mode reads this field.
+          ownerName: h.owner_contact_name ?? null,
         })),
         ...linkedHorses.map((lh) => ({
           id: lh.horse.id,
           name: lh.horse.name,
           subtitle: `at ${lh.owningBarnName}`,
+          ownerName: lh.horse.owner_name ?? null,
         })),
       ].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
     [quickHorses, linkedHorses],
@@ -315,6 +333,9 @@ export function ServiceBarnDashboard({
       <QuickLogFab
         serviceBarnId={barn.id}
         horseOptions={fabHorseOptions}
+        hasBusinessPro={hasBusinessPro}
+        barnClients={barnClients}
+        currentUserId={currentUserId}
       />
 
       {/* Per-card Log button opens the same QuickLogForm, pre-selected. */}
@@ -323,6 +344,9 @@ export function ServiceBarnDashboard({
           serviceBarnId={barn.id}
           horseOptions={fabHorseOptions}
           initialHorseId={quickLogHorseId}
+          hasBusinessPro={hasBusinessPro}
+          barnClients={barnClients}
+          currentUserId={currentUserId}
           onClose={() => setQuickLogHorseId(null)}
         />
       )}
