@@ -26,6 +26,25 @@ export function UpcomingRow({ entry }: { entry: UpcomingEntry }) {
   const [completing, setCompleting] = useState(false);
   const [doneCost, setDoneCost] = useState("");
   const [doneNotes, setDoneNotes] = useState("");
+  const [newTime, setNewTime] = useState<string>(() => {
+    // Prefill the reschedule time input from the stored performed_at
+    // when the entry has a specific time (not the noon-UTC all-day
+    // sentinel). Matches the format the <input type="time"> expects.
+    const iso = entry.date;
+    if (iso.endsWith("T12:00:00.000Z") || iso.endsWith("T12:00:00Z")) {
+      return "";
+    }
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  });
+  // "All-day" entries were stored by midday() — detect that so we
+  // don't clutter the row with a meaningless "12:00 PM".
+  const isAllDay =
+    entry.date.endsWith("T12:00:00.000Z") ||
+    entry.date.endsWith("T12:00:00Z");
 
   const entryDate = new Date(entry.date);
   // Snapshot "now" once per mount — react-hooks/purity would flag
@@ -66,7 +85,12 @@ export function UpcomingRow({ entry }: { entry: UpcomingEntry }) {
     setErr(null);
     if (!newDate) return;
     startTransition(async () => {
-      const res = await rescheduleEntryAction(entry.id, entry.kind, newDate);
+      const res = await rescheduleEntryAction(
+        entry.id,
+        entry.kind,
+        newDate,
+        newTime.trim() || undefined,
+      );
       if ("error" in res) {
         setErr(res.error);
         return;
@@ -116,6 +140,15 @@ export function UpcomingRow({ entry }: { entry: UpcomingEntry }) {
             day: "numeric",
             year: entryDate.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
           })}
+          {!isAllDay && (
+            <>
+              {" · "}
+              {entryDate.toLocaleTimeString(undefined, {
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </>
+          )}
         </span>
         {isOverdue && (
           <span
@@ -137,6 +170,14 @@ export function UpcomingRow({ entry }: { entry: UpcomingEntry }) {
                 onChange={(e) => setNewDate(e.target.value)}
                 className="rounded-md border px-2 py-1 text-xs outline-none"
                 style={{ borderColor: "rgba(42,64,49,0.2)" }}
+              />
+              <input
+                type="time"
+                value={newTime}
+                onChange={(e) => setNewTime(e.target.value)}
+                className="rounded-md border px-2 py-1 text-xs outline-none"
+                style={{ borderColor: "rgba(42,64,49,0.2)" }}
+                title="Time (optional)"
               />
               <button
                 type="button"

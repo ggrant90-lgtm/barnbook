@@ -61,6 +61,7 @@ export function LogDetailModal({
   const [plannedErr, setPlannedErr] = useState<string | null>(null);
   const [reschedOpen, setReschedOpen] = useState(false);
   const [reschedDate, setReschedDate] = useState<string>("");
+  const [reschedTime, setReschedTime] = useState<string>("");
   const [completingOpen, setCompletingOpen] = useState(false);
   const [doneCost, setDoneCost] = useState("");
   const [doneNotes, setDoneNotes] = useState("");
@@ -117,7 +118,12 @@ export function LogDetailModal({
     if (!reschedDate) return;
     setPlannedErr(null);
     startPlannedTransition(async () => {
-      const res = await rescheduleEntryAction(entry.id, item.kind, reschedDate);
+      const res = await rescheduleEntryAction(
+        entry.id,
+        item.kind,
+        reschedDate,
+        reschedTime.trim() || undefined,
+      );
       if ("error" in res) {
         setPlannedErr(res.error);
         return;
@@ -296,6 +302,14 @@ export function LogDetailModal({
                   className="rounded-md border px-2 py-1 text-sm outline-none"
                   style={{ borderColor: "rgba(42,64,49,0.2)" }}
                 />
+                <input
+                  type="time"
+                  value={reschedTime}
+                  onChange={(e) => setReschedTime(e.target.value)}
+                  className="rounded-md border px-2 py-1 text-sm outline-none"
+                  style={{ borderColor: "rgba(42,64,49,0.2)" }}
+                  title="Time (optional)"
+                />
                 <button
                   type="button"
                   onClick={commitReschedule}
@@ -303,7 +317,7 @@ export function LogDetailModal({
                   className="rounded-md px-3 py-1 text-xs font-semibold disabled:opacity-60"
                   style={{ background: "#c9a84c", color: "#2a4031" }}
                 >
-                  {plannedPending ? "…" : "Save date"}
+                  {plannedPending ? "…" : "Save"}
                 </button>
                 <button
                   type="button"
@@ -336,6 +350,25 @@ export function LogDetailModal({
                           ? (entry as HealthRecord).record_date
                           : new Date().toISOString().slice(0, 10)) ?? "",
                     );
+                    // Prefill the time input with the entry's current
+                    // time, unless it's the noon-UTC all-day sentinel
+                    // set by schedule() when no time was picked.
+                    const iso = entry.performed_at ?? "";
+                    const allDay =
+                      iso.endsWith("T12:00:00.000Z") ||
+                      iso.endsWith("T12:00:00Z");
+                    if (iso && !allDay) {
+                      const d = new Date(iso);
+                      if (!Number.isNaN(d.getTime())) {
+                        const hh = String(d.getHours()).padStart(2, "0");
+                        const mm = String(d.getMinutes()).padStart(2, "0");
+                        setReschedTime(`${hh}:${mm}`);
+                      } else {
+                        setReschedTime("");
+                      }
+                    } else {
+                      setReschedTime("");
+                    }
                     setReschedOpen(true);
                   }}
                   disabled={plannedPending}

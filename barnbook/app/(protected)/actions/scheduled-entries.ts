@@ -53,6 +53,39 @@ function midday(isoDate: string): string {
 }
 
 /**
+ * Build a timestamp from a local date + HH:MM time. Uses the server's
+ * local timezone at parse time — fine for our use because this is
+ * called from a server action inside Next.js where the timezone is
+ * controlled by Vercel/the runtime, and the result is stored as UTC.
+ *
+ * We intentionally parse as local (not UTC) so "9:00 AM Friday" means
+ * Friday morning in the provider's clock, not Friday morning UTC.
+ * Returns null if the time is malformed.
+ */
+function localDateTimeToIso(isoDate: string, hhmm: string): string | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(hhmm.trim());
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  // Parse the date parts locally so construction uses the local zone.
+  const [y, m, d] = isoDate.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const local = new Date(y, m - 1, d, hour, minute, 0, 0);
+  if (Number.isNaN(local.getTime())) return null;
+  return local.toISOString();
+}
+
+/** Build the final performed_at ISO string for a scheduled entry. */
+function scheduledPerformedAt(isoDate: string, time?: string): string {
+  if (time && time.trim()) {
+    const dt = localDateTimeToIso(isoDate, time.trim());
+    if (dt) return dt;
+  }
+  return midday(isoDate);
+}
+
+/**
  * Create a scheduled (future or past-dated-planned) log entry.
  * The row is inserted with the minimum fields the rest of the app
  * already tolerates: type + date + optional notes/cost. Everything
@@ -64,6 +97,10 @@ export async function scheduleEntryAction(
   input: {
     /** ISO date, e.g. 2026-06-12 */
     date: string;
+    /** Optional HH:MM (24-hour). If omitted, the entry is stored at
+     *  noon UTC and renders as "all-day" style on the calendar and
+     *  without a time on the Upcoming strip. */
+    time?: string;
     notes?: string;
     cost?: number;
   },
@@ -107,7 +144,7 @@ export async function scheduleEntryAction(
     typeof input.cost === "number" && !Number.isNaN(input.cost)
       ? input.cost
       : null;
-  const performed_at = midday(input.date);
+  const performed_at = scheduledPerformedAt(input.date, input.time);
 
   const kind = logKindForType(logType);
 
@@ -251,12 +288,15 @@ export async function markEntryCompletedAction(
 }
 
 /**
- * Change the date of a planned entry. Does not flip status.
+ * Change the date (and optionally time) of a planned entry. Does
+ * not flip status. Passing newTime as an empty string clears the
+ * time and falls back to noon-UTC.
  */
 export async function rescheduleEntryAction(
   logId: string,
   kind: LogKind,
   newDate: string,
+  newTime?: string,
 ): Promise<{ ok: true } | { error: string }> {
   if (!newDate || Number.isNaN(new Date(newDate).getTime())) {
     return { error: "Pick a valid date." };
@@ -293,7 +333,7 @@ export async function rescheduleEntryAction(
   const canEdit = await canUserLogOnHorse(supabase, user.id, row.horse_id, horse.barn_id);
   if (!canEdit) return { error: "No permission to reschedule this entry." };
 
-  const performed_at = midday(newDate);
+  const performed_at = scheduledPerformedAt(newDate, newTime);
   const update: Record<string, unknown> =
     kind === "activity"
       ? { performed_at }

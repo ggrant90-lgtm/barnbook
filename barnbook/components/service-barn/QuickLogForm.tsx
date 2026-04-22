@@ -89,6 +89,7 @@ export function QuickLogForm({
     defaultLogType ?? "exercise",
   );
   const [date, setDate] = useState<string>(todayIso());
+  const [time, setTime] = useState<string>("");
   const [cost, setCost] = useState("");
   const [notes, setNotes] = useState("");
   const [mode, setMode] = useState<Mode>("log");
@@ -130,6 +131,7 @@ export function QuickLogForm({
       startTransition(async () => {
         const res = await scheduleEntryAction(horseId, logType, {
           date,
+          time: time.trim() || undefined,
           notes: notes.trim() || undefined,
           cost: cost.trim() ? parseFloat(cost.trim()) : undefined,
         });
@@ -344,7 +346,7 @@ export function QuickLogForm({
             </select>
           </label>
 
-          <div className={mode === "log" ? "grid gap-3 grid-cols-2" : ""}>
+          <div className="grid gap-3 grid-cols-2">
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium text-barn-dark/80">
                 Date
@@ -367,7 +369,7 @@ export function QuickLogForm({
                 </span>
               )}
             </label>
-            {mode === "log" && (
+            {mode === "log" ? (
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-barn-dark/80">
                   Cost (optional)
@@ -387,6 +389,26 @@ export function QuickLogForm({
                     background: "white",
                   }}
                 />
+              </label>
+            ) : (
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-barn-dark/80">
+                  Time (optional)
+                </span>
+                <input
+                  type="time"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  className="w-full rounded-xl border px-4 py-3 outline-none"
+                  style={{
+                    borderColor: "rgba(42,64,49,0.15)",
+                    color: "#2a4031",
+                    background: "white",
+                  }}
+                />
+                <span className="mt-1 block text-[11px] text-barn-dark/55">
+                  Leave blank for an all-day slot.
+                </span>
               </label>
             )}
           </div>
