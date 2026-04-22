@@ -6,9 +6,11 @@ import { useState, useTransition } from "react";
 import type { ActivityLog, HealthRecord, Horse } from "@/lib/types";
 import { updateQuickRecordAction } from "@/app/(protected)/actions/quick-records";
 import { deleteHorseAction } from "@/app/(protected)/actions/horse";
+import { deleteLogAction } from "@/app/(protected)/actions/delete-log";
 import { getActivitySummary, getHealthSummary } from "@/lib/horse-display";
 import { LOG_TYPES, logTypeLabel } from "@/lib/horse-form-constants";
 import { ErrorDetails } from "@/components/ui/ErrorDetails";
+import { LogDetailModal } from "@/components/LogDetailModal";
 
 /**
  * Simplified single-page profile for a Service Barn quick record.
@@ -52,6 +54,13 @@ export function QuickRecordProfile({
   const [notes, setNotes] = useState(horse.special_care_notes ?? "");
   const [showLogTypes, setShowLogTypes] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // Tapped log entry — opens LogDetailModal with Edit/Delete/Mark done/
+  // Reschedule/Cancel depending on the entry's status.
+  const [selectedLog, setSelectedLog] = useState<
+    | { kind: "activity"; entry: ActivityLog }
+    | { kind: "health"; entry: HealthRecord }
+    | null
+  >(null);
 
   function handleDelete() {
     setError(null);
@@ -93,22 +102,31 @@ export function QuickRecordProfile({
   }
 
   // Merge activity + health into one chronological list for display.
+  // Each entry carries the full row so the tap-to-open detail modal
+  // has everything it needs (cost, notes, details, planned status,
+  // was_scheduled, etc.) without another round-trip.
   type Entry =
-    | { kind: "activity"; id: string; label: string; at: string }
-    | { kind: "health"; id: string; label: string; at: string };
+    | { kind: "activity"; id: string; label: string; at: string; entry: ActivityLog }
+    | { kind: "health"; id: string; label: string; at: string; entry: HealthRecord };
   const entries: Entry[] = [
-    ...activityLogs.map((a) => ({
-      kind: "activity" as const,
-      id: a.id,
-      label: `${logTypeLabel(a.activity_type)} — ${getActivitySummary(a)}`,
-      at: a.performed_at ?? a.created_at,
-    })),
-    ...healthRecords.map((h) => ({
-      kind: "health" as const,
-      id: h.id,
-      label: `${h.record_type} — ${getHealthSummary(h)}`,
-      at: h.performed_at ?? h.created_at,
-    })),
+    ...activityLogs.map(
+      (a): Entry => ({
+        kind: "activity",
+        id: a.id,
+        label: `${logTypeLabel(a.activity_type)} — ${getActivitySummary(a)}`,
+        at: a.performed_at ?? a.created_at,
+        entry: a,
+      }),
+    ),
+    ...healthRecords.map(
+      (h): Entry => ({
+        kind: "health",
+        id: h.id,
+        label: `${h.record_type} — ${getHealthSummary(h)}`,
+        at: h.performed_at ?? h.created_at,
+        entry: h,
+      }),
+    ),
   ].sort(
     (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime(),
   );
@@ -354,26 +372,69 @@ export function QuickRecordProfile({
         ) : (
           <ul className="mt-3 space-y-2">
             {entries.slice(0, 25).map((e) => (
-              <li
-                key={`${e.kind}-${e.id}`}
-                className="rounded-xl border bg-white px-4 py-2.5 text-sm"
-                style={{ borderColor: "rgba(42,64,49,0.1)" }}
-              >
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <span style={{ color: "#2a4031" }}>{e.label}</span>
-                  <span className="text-xs text-barn-dark/55">
-                    {new Date(e.at).toLocaleDateString(undefined, {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </span>
-                </div>
+              <li key={`${e.kind}-${e.id}`}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedLog(
+                      e.kind === "activity"
+                        ? { kind: "activity", entry: e.entry }
+                        : { kind: "health", entry: e.entry },
+                    )
+                  }
+                  className="w-full rounded-xl border bg-white px-4 py-2.5 text-left text-sm hover:bg-parchment/60"
+                  style={{ borderColor: "rgba(42,64,49,0.1)" }}
+                >
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span style={{ color: "#2a4031" }}>{e.label}</span>
+                    <span className="text-xs text-barn-dark/55">
+                      {new Date(e.at).toLocaleDateString(undefined, {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
+                  </div>
+                </button>
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      {/* Log detail modal — same component used on the full horse
+          profile, which already wires Edit / Delete plus the
+          planned-entry actions (Mark done / Reschedule / Cancel).
+          Media + line items aren't tracked on quick records, so they
+          render as empty arrays. */}
+      {selectedLog && (
+        <LogDetailModal
+          item={selectedLog}
+          media={[]}
+          lineItems={[]}
+          onClose={() => setSelectedLog(null)}
+          canEdit={canEdit}
+          canDelete={canEdit}
+          horseId={horse.id}
+          onDelete={async () => {
+            const logType =
+              selectedLog.kind === "activity"
+                ? ("activity" as const)
+                : ("health" as const);
+            const res = await deleteLogAction(
+              selectedLog.entry.id,
+              logType,
+              horse.id,
+            );
+            if (res.error) {
+              setError(res.error);
+              return;
+            }
+            setSelectedLog(null);
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }
