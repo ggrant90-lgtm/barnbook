@@ -20,6 +20,9 @@ export const EXERCISE_SUBTYPES = [
   "walk",
   "swim",
   "treadmill",
+  "work",
+  "gate",
+  "race",
 ] as const;
 
 export const LOG_TYPES = [
