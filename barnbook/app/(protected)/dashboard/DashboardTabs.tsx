@@ -24,7 +24,9 @@ import {
   normalizePermissionLevel,
 } from "@/lib/key-permissions";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
+import { switchBarnAction } from "@/app/(protected)/actions/switch-barn";
 
 function formatWhen(iso: string) {
   const d = new Date(iso);
@@ -812,8 +814,8 @@ function BarnOverviewCard({
     effectiveCapacity: number;
   };
 }) {
-  const href =
-    barn.barn_type === "service" ? `/barn/${barn.id}/service` : `/barn/${barn.id}`;
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
   const isService = barn.barn_type === "service";
   const isMareMotel = barn.barn_type === "mare_motel";
   const subtitle = isService
@@ -823,10 +825,25 @@ function BarnOverviewCard({
       : "Standard Barn";
   const remaining = Math.max(0, barn.effectiveCapacity - barn.horseCount);
 
+  // Clicking a card switches the active barn (updates the sidebar
+  // selector + the BarnSwitcher label) and routes to that barn's
+  // dashboard — Service Barns go to their dedicated /service view,
+  // everything else to /dashboard so the user gets the same per-barn
+  // horse grid + recent activity they'd see from the switcher.
+  function handleOpen() {
+    startTransition(async () => {
+      await switchBarnAction(barn.id);
+      router.push(isService ? `/barn/${barn.id}/service` : "/dashboard");
+      router.refresh();
+    });
+  }
+
   return (
-    <Link
-      href={href}
-      className="group rounded-2xl border border-barn-dark/10 bg-white p-4 shadow-sm transition hover:border-brass-gold hover:shadow-md"
+    <button
+      type="button"
+      onClick={handleOpen}
+      disabled={pending}
+      className="group rounded-2xl border border-barn-dark/10 bg-white p-4 shadow-sm transition hover:border-brass-gold hover:shadow-md disabled:opacity-60 text-left w-full"
     >
       <div className="flex items-start gap-3">
         <div
@@ -869,6 +886,6 @@ function BarnOverviewCard({
           </div>
         </div>
       )}
-    </Link>
+    </button>
   );
 }

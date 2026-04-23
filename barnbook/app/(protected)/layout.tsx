@@ -61,17 +61,29 @@ export default async function ProtectedLayout({
 
   const allBarns = [...((ownedBarns ?? []) as Barn[]), ...memberBarns];
 
-  // Determine active barn from cookie or default to primary
+  // Determine active barn from cookie or default to primary. The
+  // cookie can be a UUID or the sentinel "__all__" — we preserve the
+  // sentinel so BarnSwitcher can render "All Barns" as the selected
+  // label. Previously we coerced __all__ to null, which made the
+  // switcher fall back to the first-owned barn and made the header
+  // always display that barn's name regardless of what the user
+  // picked.
   const cookieStore = await cookies();
   const activeBarnId = cookieStore.get("active_barn_id")?.value;
   const ctx = await getActiveBarnContext(supabase, user.id);
 
-  const activeBarn = activeBarnId
-    ? allBarns.find((b) => b.id === activeBarnId) ?? ctx?.barn ?? null
-    : ctx?.barn ?? null;
+  const isAllBarns = activeBarnId === "__all__" && allBarns.length > 1;
+  const activeBarn = isAllBarns
+    ? null
+    : activeBarnId
+      ? allBarns.find((b) => b.id === activeBarnId) ?? ctx?.barn ?? null
+      : ctx?.barn ?? null;
 
   const hasBarn = allBarns.length > 0;
-  const barnName = activeBarn?.name ?? null;
+  const barnName = isAllBarns ? "All Barns" : activeBarn?.name ?? null;
+  const effectiveActiveBarnId = isAllBarns
+    ? "__all__"
+    : activeBarn?.id ?? null;
   // Only users who own at least one barn can generate/manage keys — the
   // nav item gets hidden from barn-key and stall-key holders.
   const isBarnOwner = (ownedBarns ?? []).length > 0;
@@ -85,7 +97,7 @@ export default async function ProtectedLayout({
       hasBarn={hasBarn}
       isBarnOwner={isBarnOwner}
       allBarns={allBarns.map((b) => ({ id: b.id, name: b.name, barn_type: b.barn_type }))}
-      activeBarnId={activeBarn?.id ?? null}
+      activeBarnId={effectiveActiveBarnId}
     >
       <InstallPrompt />
       {children}
