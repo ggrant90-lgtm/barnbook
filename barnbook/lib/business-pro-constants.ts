@@ -54,6 +54,9 @@ export const DEFAULT_COST_TYPE: Record<string, CostType | null> = {
   worming: "pass_through",
   vet_visit: "pass_through",
   dentistry: "pass_through",
+  // Barn-level logs are most commonly expenses (hay delivery, utilities,
+  // repairs). Users can flip to revenue/pass-through when appropriate.
+  barn_log: "expense",
 };
 
 /** Aging thresholds for accounts receivable */
@@ -86,6 +89,40 @@ export const EXPENSE_CATEGORIES = [
 ] as const;
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
+/**
+ * Barn-log categories — a superset of expense categories plus activity-only
+ * entries (things you do at the barn that may have zero cost). Shared with
+ * the dedicated Barn Logs surface at /logs.
+ *
+ * Order matters: activity-focused categories come first so the most common
+ * "I just did something" entries are at the top of the dropdown; financial
+ * categories follow for the hay-delivery case. "Other" stays last.
+ */
+export const BARN_LOG_CATEGORIES = [
+  "Cleaning",
+  "Maintenance",
+  "Grounds/Pasture",
+  "Delivery received",
+  "Waste removal",
+  "Equipment check",
+  "Feed",
+  "Hay",
+  "Bedding",
+  "Utilities",
+  "Rent/Mortgage",
+  "Insurance",
+  "Farrier",
+  "Vet",
+  "Labor/Payroll",
+  "Supplies",
+  "Repairs/Maintenance",
+  "Fuel",
+  "Taxes",
+  "Other",
+] as const;
+
+export type BarnLogCategory = (typeof BARN_LOG_CATEGORIES)[number];
 
 export const PAYMENT_METHODS = [
   "check",

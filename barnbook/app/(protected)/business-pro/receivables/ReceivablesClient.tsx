@@ -13,13 +13,20 @@ import {
 
 export interface Entry {
   id: string;
-  source: "activity" | "health";
-  horse_id: string;
+  source: "activity" | "health" | "barn_expense";
+  /** Present on horse-sourced rows; undefined for barn_expense. */
+  horse_id?: string;
   barn_id: string | null;
   performed_at: string | null;
   created_at: string;
   activity_type?: string;
   record_type?: string;
+  /** barn_expense rows only: the selected category. */
+  category?: string;
+  /** barn_expense rows: supplier / counterparty. */
+  vendor_name?: string | null;
+  /** barn_expense rows: short description/title. */
+  description?: string | null;
   notes: string | null;
   total_cost: number | null;
   cost_type: "revenue" | "expense" | "pass_through" | null;
@@ -43,7 +50,25 @@ function entryDate(e: Entry): Date {
 }
 
 function entryType(e: Entry): string {
-  return e.activity_type || e.record_type || "other";
+  return e.activity_type || e.record_type || e.category || "other";
+}
+
+/** Label for the "horse" column — barn_expense rows don't have a
+ *  horse, so we show the vendor/description or fall back to the
+ *  category. Horse rows still use horseNames[e.horse_id]. */
+function entryCounterpartyLabel(
+  e: Entry,
+  horseNames: Record<string, string>,
+): string {
+  if (e.source === "barn_expense") {
+    return (
+      e.description?.trim() ||
+      e.vendor_name?.trim() ||
+      e.category ||
+      "Barn expense"
+    );
+  }
+  return (e.horse_id && horseNames[e.horse_id]) || "Unknown";
 }
 
 function getClientKey(e: {
@@ -178,7 +203,7 @@ export function ReceivablesClient({
         if (agingBucket(days) !== filter) return false;
       }
       if (s) {
-        const horse = (horseNames[e.horse_id] ?? "").toLowerCase();
+        const horse = entryCounterpartyLabel(e, horseNames).toLowerCase();
         const type = entryType(e).toLowerCase();
         const notes = (e.notes ?? "").toLowerCase();
         const clientStr = (
@@ -300,20 +325,20 @@ export function ReceivablesClient({
   }, [filteredEntries, profileNames, clientNames]);
 
   // Handlers
-  const handleMarkPaid = (entryId: string, source: "activity" | "health") => {
+  const handleMarkPaid = (entryId: string, source: "activity" | "health" | "barn_expense") => {
     startTransition(async () => {
       await markAsPaidAction(entryId, source);
     });
   };
 
-  const handleWaive = (entryId: string, source: "activity" | "health") => {
+  const handleWaive = (entryId: string, source: "activity" | "health" | "barn_expense") => {
     if (!confirm("Waive this charge? This marks it as forgiven / written off.")) return;
     startTransition(async () => {
       await waiveChargeAction(entryId, source);
     });
   };
 
-  const handlePartial = (entryId: string, source: "activity" | "health") => {
+  const handlePartial = (entryId: string, source: "activity" | "health" | "barn_expense") => {
     const amtStr = prompt("Amount received:");
     if (!amtStr) return;
     const amt = parseFloat(amtStr);
@@ -331,7 +356,7 @@ export function ReceivablesClient({
     startTransition(async () => {
       for (const compoundId of selectedIds) {
         const [source, id] = compoundId.split(":");
-        await markAsPaidAction(id, source as "activity" | "health");
+        await markAsPaidAction(id, source as "activity" | "health" | "barn_expense");
       }
       setSelectedIds(new Set());
     });
@@ -372,7 +397,7 @@ export function ReceivablesClient({
           g.name,
           entryDate(e).toISOString().slice(0, 10),
           barnNames[e.barn_id ?? ""] ?? "",
-          horseNames[e.horse_id] ?? "",
+          entryCounterpartyLabel(e, horseNames),
           entryType(e).replace(/_/g, " "),
           (e.notes ?? "").replace(/\n/g, " ").replace(/,/g, ";"),
           (e.total_cost ?? 0).toFixed(2),
@@ -755,9 +780,9 @@ function ClientGroup({
   barnNames: Record<string, string>;
   selectedIds: Set<string>;
   toggleSelect: (id: string) => void;
-  onMarkPaid: (id: string, source: "activity" | "health") => void;
-  onPartial: (id: string, source: "activity" | "health") => void;
-  onWaive: (id: string, source: "activity" | "health") => void;
+  onMarkPaid: (id: string, source: "activity" | "health" | "barn_expense") => void;
+  onPartial: (id: string, source: "activity" | "health" | "barn_expense") => void;
+  onWaive: (id: string, source: "activity" | "health" | "barn_expense") => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const sortedEntries = useMemo(
@@ -851,17 +876,29 @@ function ClientGroup({
                 <span style={{ fontSize: 10, color: "var(--bp-ink-quaternary)", minWidth: 40 }}>
                   {days}d
                 </span>
-                <Link
-                  href={`/horses/${e.horse_id}`}
-                  style={{
-                    color: "var(--bp-ink)",
-                    textDecoration: "none",
-                    fontWeight: 500,
-                    minWidth: 100,
-                  }}
-                >
-                  {horseNames[e.horse_id] ?? "Unknown"}
-                </Link>
+                {e.source === "barn_expense" ? (
+                  <span
+                    style={{
+                      color: "var(--bp-ink)",
+                      fontWeight: 500,
+                      minWidth: 100,
+                    }}
+                  >
+                    {entryCounterpartyLabel(e, horseNames)}
+                  </span>
+                ) : (
+                  <Link
+                    href={`/horses/${e.horse_id}`}
+                    style={{
+                      color: "var(--bp-ink)",
+                      textDecoration: "none",
+                      fontWeight: 500,
+                      minWidth: 100,
+                    }}
+                  >
+                    {entryCounterpartyLabel(e, horseNames)}
+                  </Link>
+                )}
                 <span
                   className="bp-mono"
                   style={{

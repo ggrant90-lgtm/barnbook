@@ -210,6 +210,31 @@ export default async function DashboardPage() {
     todayEvents = await getTodayAndUpcoming(primaryBarn.id);
   }
 
+  // Recent barn-level logs for the single-barn dashboard ribbon. Five
+  // newest entries on barn_expenses scoped to the active barn. Only
+  // fetched when a specific barn is active — the All Barns view has
+  // its own layout and doesn't need this section.
+  type DashboardBarnLog = {
+    id: string;
+    barn_id: string;
+    performed_at: string;
+    category: string;
+    total_cost: number;
+    vendor_name: string | null;
+    description: string | null;
+  };
+  let recentBarnLogs: DashboardBarnLog[] = [];
+  if (primaryBarn) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: rows } = await (supabase as any)
+      .from("barn_expenses")
+      .select("id, barn_id, performed_at, category, total_cost, vendor_name, description")
+      .eq("barn_id", primaryBarn.id)
+      .order("performed_at", { ascending: false })
+      .limit(5);
+    recentBarnLogs = (rows ?? []) as DashboardBarnLog[];
+  }
+
   // Fetch horses for each access barn (full barn access via Barn Key)
   const accessBarnHorses: Record<
     string,
@@ -427,6 +452,7 @@ export default async function DashboardPage() {
       onboardingState={onboardingState}
       coreOnboardingBarn={coreOnboardingBarn}
       allBarnsOverview={allBarnsOverview}
+      recentBarnLogs={recentBarnLogs}
     />
   );
 }

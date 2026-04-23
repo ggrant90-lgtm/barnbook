@@ -4,13 +4,23 @@ import { ReceivablesClient } from "./ReceivablesClient";
 
 type FinancialRow = {
   id: string;
-  source: "activity" | "health";
-  horse_id: string;
+  source: "activity" | "health" | "barn_expense";
+  /** Horse-sourced rows carry the horse_id; barn_expense rows leave
+   *  it undefined because those are barn-level with no horse link. */
+  horse_id?: string;
   barn_id: string | null;
   performed_at: string | null;
   created_at: string;
   activity_type?: string;
   record_type?: string;
+  /** Free-text category on barn_expense rows (Hay, Utilities, etc.).
+   *  Undefined for activity_log / health_records rows. */
+  category?: string;
+  /** Vendor / supplier on barn_expense rows. Undefined otherwise. */
+  vendor_name?: string | null;
+  /** Description/title on barn_expense rows. Other sources use
+   *  activity_type/record_type for the primary label. */
+  description?: string | null;
   notes: string | null;
   total_cost: number | null;
   cost_type: "revenue" | "expense" | "pass_through" | null;
@@ -86,7 +96,17 @@ export default async function ReceivablesPage() {
 
   // Fetch ALL unpaid/partial revenue + pass_through entries that are NOT
   // already bundled onto an invoice (those are tracked at the invoice level).
-  const [{ data: actUnpaid }, { data: healthUnpaid }] = await Promise.all([
+  // Barn-level expenses are included too — a `cost_type='pass_through'`
+  // barn expense (e.g., "split this utility bill among boarders") should
+  // land on AR the same way a horse-level pass-through entry does.
+  // Note: barn_expenses has no `status` column, so the completed filter
+  // applies only to activity_log / health_records.
+  const [
+    { data: actUnpaid },
+    { data: healthUnpaid },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { data: barnUnpaid },
+  ] = await Promise.all([
     supabase
       .from("activity_log")
       .select("id, horse_id, activity_type, notes, performed_at, created_at, total_cost, cost_type, client_id, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at")
@@ -104,6 +124,15 @@ export default async function ReceivablesPage() {
       .in("cost_type", ["revenue", "pass_through"])
       .is("invoice_id", null)
       .eq("status", "completed")
+      .limit(5000),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("barn_expenses")
+      .select("id, barn_id, category, vendor_name, description, notes, performed_at, created_at, total_cost, cost_type, client_id, billable_to_user_id, billable_to_name, payment_status, paid_amount, paid_at")
+      .in("barn_id", barnIds)
+      .in("payment_status", ["unpaid", "partial"])
+      .in("cost_type", ["revenue", "pass_through"])
+      .is("invoice_id", null)
       .limit(5000),
   ]);
 
@@ -139,6 +168,13 @@ export default async function ReceivablesPage() {
       ...(e as unknown as FinancialRow),
       source: "health",
       barn_id: horseToBarn[(e as { horse_id: string }).horse_id] ?? null,
+    });
+  }
+  for (const e of (barnUnpaid ?? []) as Record<string, unknown>[]) {
+    entries.push({
+      ...(e as unknown as FinancialRow),
+      source: "barn_expense",
+      // barn_id comes directly from the row, not a horse lookup.
     });
   }
 

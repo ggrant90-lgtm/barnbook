@@ -4,7 +4,7 @@ import { canUserEditHorse } from "@/lib/horse-access";
 import { createServerComponentClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
 
-type Source = "activity" | "health";
+type Source = "activity" | "health" | "barn_expense";
 
 async function requireBusinessPro() {
   const supabase = await createServerComponentClient();
@@ -22,14 +22,34 @@ async function requireBusinessPro() {
   return { supabase, userId: user.id };
 }
 
-/** Fetch the entry to verify access + read total_cost/horse_id. */
+function tableForSource(source: Source): string {
+  if (source === "activity") return "activity_log";
+  if (source === "health") return "health_records";
+  return "barn_expenses";
+}
+
+/** Fetch the entry to verify access + read total_cost + parent scope.
+ *  Horse-sourced rows carry `horse_id`; barn_expense rows carry
+ *  `barn_id` instead. Callers branch on the presence of horse_id. */
 async function loadEntry(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   entryId: string,
   source: Source,
-): Promise<{ horse_id: string; total_cost: number | null } | null> {
-  const table = source === "activity" ? "activity_log" : "health_records";
+): Promise<
+  | { horse_id: string; barn_id?: undefined; total_cost: number | null }
+  | { horse_id?: undefined; barn_id: string; total_cost: number | null }
+  | null
+> {
+  const table = tableForSource(source);
+  if (source === "barn_expense") {
+    const { data } = await supabase
+      .from(table)
+      .select("barn_id, total_cost")
+      .eq("id", entryId)
+      .maybeSingle();
+    return data ?? null;
+  }
   const { data } = await supabase
     .from(table)
     .select("horse_id, total_cost")
@@ -45,8 +65,52 @@ async function updateEntry(
   source: Source,
   patch: Record<string, unknown>,
 ) {
-  const table = source === "activity" ? "activity_log" : "health_records";
-  return supabase.from(table).update(patch).eq("id", entryId);
+  return supabase.from(tableForSource(source)).update(patch).eq("id", entryId);
+}
+
+/** Verify the caller can mutate the given entry — horse-level rows
+ *  use canUserEditHorse; barn_expense rows use the barn owner check
+ *  (same gate `actions/barn-expenses.ts` uses). Returns true on
+ *  success, false otherwise. */
+async function canEditEntry(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+  entry: Awaited<ReturnType<typeof loadEntry>>,
+): Promise<boolean> {
+  if (!entry) return false;
+  if ("horse_id" in entry && entry.horse_id) {
+    const { data: horse } = await supabase
+      .from("horses")
+      .select("barn_id")
+      .eq("id", entry.horse_id)
+      .maybeSingle();
+    if (!horse) return false;
+    return canUserEditHorse(supabase, userId, horse.barn_id);
+  }
+  if ("barn_id" in entry && entry.barn_id) {
+    const { data: barn } = await supabase
+      .from("barns")
+      .select("owner_id")
+      .eq("id", entry.barn_id)
+      .maybeSingle();
+    return !!barn && barn.owner_id === userId;
+  }
+  return false;
+}
+
+function revalidateForEntry(
+  entry: Awaited<ReturnType<typeof loadEntry>>,
+) {
+  revalidatePath("/business-pro/overview");
+  revalidatePath("/business-pro/receivables");
+  if (entry && "horse_id" in entry && entry.horse_id) {
+    revalidatePath(`/horses/${entry.horse_id}`);
+  }
+  if (entry && "barn_id" in entry && entry.barn_id) {
+    revalidatePath("/logs");
+    revalidatePath("/business-pro/expenses");
+  }
 }
 
 /** Mark a log entry as fully paid (sets paid_amount = total_cost, paid_at = now). */
@@ -58,11 +122,9 @@ export async function markAsPaidAction(entryId: string, source: Source) {
   const entry = await loadEntry(supabase, entryId, source);
   if (!entry) return { error: "Entry not found" };
 
-  const { data: horse } = await supabase.from("horses").select("barn_id").eq("id", entry.horse_id).maybeSingle();
-  if (!horse) return { error: "Horse not found" };
-
-  const canEdit = await canUserEditHorse(supabase, userId, horse.barn_id);
-  if (!canEdit) return { error: "No permission" };
+  if (!(await canEditEntry(supabase, userId, entry))) {
+    return { error: "No permission" };
+  }
 
   const { error } = await updateEntry(supabase, entryId, source, {
     payment_status: "paid",
@@ -71,8 +133,7 @@ export async function markAsPaidAction(entryId: string, source: Source) {
   });
   if (error) return { error: error.message };
 
-  revalidatePath("/business-pro/overview");
-  revalidatePath(`/horses/${entry.horse_id}`);
+  revalidateForEntry(entry);
   return { ok: true, newStatus: "paid" as const, paid_amount: entry.total_cost };
 }
 
@@ -90,11 +151,9 @@ export async function logPartialPaymentAction(
   const entry = await loadEntry(supabase, entryId, source);
   if (!entry) return { error: "Entry not found" };
 
-  const { data: horse } = await supabase.from("horses").select("barn_id").eq("id", entry.horse_id).maybeSingle();
-  if (!horse) return { error: "Horse not found" };
-
-  const canEdit = await canUserEditHorse(supabase, userId, horse.barn_id);
-  if (!canEdit) return { error: "No permission" };
+  if (!(await canEditEntry(supabase, userId, entry))) {
+    return { error: "No permission" };
+  }
 
   if (!(amount > 0)) return { error: "Amount must be greater than zero" };
 
@@ -105,8 +164,7 @@ export async function logPartialPaymentAction(
   });
   if (error) return { error: error.message };
 
-  revalidatePath("/business-pro/overview");
-  revalidatePath(`/horses/${entry.horse_id}`);
+  revalidateForEntry(entry);
   return { ok: true, newStatus: "partial" as const, paid_amount: amount };
 }
 
@@ -119,18 +177,15 @@ export async function waiveChargeAction(entryId: string, source: Source) {
   const entry = await loadEntry(supabase, entryId, source);
   if (!entry) return { error: "Entry not found" };
 
-  const { data: horse } = await supabase.from("horses").select("barn_id").eq("id", entry.horse_id).maybeSingle();
-  if (!horse) return { error: "Horse not found" };
-
-  const canEdit = await canUserEditHorse(supabase, userId, horse.barn_id);
-  if (!canEdit) return { error: "No permission" };
+  if (!(await canEditEntry(supabase, userId, entry))) {
+    return { error: "No permission" };
+  }
 
   const { error } = await updateEntry(supabase, entryId, source, {
     payment_status: "waived",
   });
   if (error) return { error: error.message };
 
-  revalidatePath("/business-pro/overview");
-  revalidatePath(`/horses/${entry.horse_id}`);
+  revalidateForEntry(entry);
   return { ok: true, newStatus: "waived" as const };
 }

@@ -52,6 +52,7 @@ export function DashboardTabs({
   onboardingState,
   coreOnboardingBarn,
   allBarnsOverview,
+  recentBarnLogs,
 }: {
   ownedBarns: Barn[];
   accessBarns: (Barn & { userRole: string })[];
@@ -99,6 +100,18 @@ export function DashboardTabs({
   /** User's owned barn used by the Core wizard step 1 rename path. Null
    *  if no barn exists yet (rare — signup auto-creates one). */
   coreOnboardingBarn: { id: string; name: string } | null;
+  /** Five most recent barn-level log entries (barn_expenses) for the
+   *  active barn. Empty when no barn is active (All Barns view) or
+   *  when the barn has no logs yet. */
+  recentBarnLogs: Array<{
+    id: string;
+    barn_id: string;
+    performed_at: string;
+    category: string;
+    total_cost: number;
+    vendor_name: string | null;
+    description: string | null;
+  }>;
   /** Per-barn summary rendered when the user has "All Barns" active
    *  (activeBarnId === "__all__"). Empty array otherwise — the single-
    *  barn view uses its own dedicated data and doesn't read this. */
@@ -404,6 +417,85 @@ export function DashboardTabs({
                           <time className="text-xs text-barn-dark/50" dateTime={log.created_at}>
                             {formatWhen(log.created_at)}
                           </time>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+
+              {/* Recent barn activity — barn_expenses rows for the
+                  active barn. Includes both zero-cost activity logs
+                  (cleaning, maintenance) and financial entries (hay,
+                  utilities). Tap a row to jump to /logs scoped to
+                  this barn, where the user can edit/delete. */}
+              <section className="mt-12">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <h2 className="font-serif text-xl text-barn-dark">
+                    Recent barn activity
+                  </h2>
+                  <Link
+                    href="/logs"
+                    className="text-xs font-medium text-brass-gold hover:underline"
+                  >
+                    View all · + Add log
+                  </Link>
+                </div>
+                {recentBarnLogs.length === 0 ? (
+                  <p className="mt-3 text-barn-dark/70">
+                    No barn logs yet. Track hay deliveries, cleaning, or
+                    anything that happens at the barn itself.
+                  </p>
+                ) : (
+                  <ul className="mt-4 divide-y divide-barn-dark/10 rounded-2xl border border-barn-dark/10 bg-white">
+                    {recentBarnLogs.map((l) => (
+                      <li key={l.id}>
+                        <Link
+                          href="/logs"
+                          className="flex flex-col gap-1 px-4 py-3 hover:bg-parchment/60 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                style={{
+                                  background: "rgba(42,64,49,0.08)",
+                                  color: "#2a4031",
+                                }}
+                              >
+                                {l.category}
+                              </span>
+                              <p className="font-medium text-barn-dark truncate">
+                                {l.description ?? "(no description)"}
+                              </p>
+                            </div>
+                            {l.vendor_name && (
+                              <p className="text-xs text-barn-dark/55 mt-0.5">
+                                {l.vendor_name}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-barn-dark/55">
+                            {l.total_cost > 0 && (
+                              <span className="font-semibold text-barn-dark">
+                                ${l.total_cost.toLocaleString()}
+                              </span>
+                            )}
+                            <time dateTime={l.performed_at}>
+                              {new Date(l.performed_at).toLocaleDateString(
+                                undefined,
+                                {
+                                  month: "short",
+                                  day: "numeric",
+                                  year:
+                                    new Date(l.performed_at).getFullYear() !==
+                                    new Date().getFullYear()
+                                      ? "numeric"
+                                      : undefined,
+                                },
+                              )}
+                            </time>
+                          </div>
                         </Link>
                       </li>
                     ))}
