@@ -313,14 +313,35 @@ function ReceiptReviewForm({
   // Split state — starts collapsed. When opened, seeds line rows from
   // the extraction so the user can adjust + assign categories.
   const [splitOpen, setSplitOpen] = useState(false);
-  const [splitLines, setSplitLines] = useState<SplitLine[]>(() =>
-    (extracted.line_items ?? []).map((li) => ({
+  const [splitLines, setSplitLines] = useState<SplitLine[]>(() => {
+    const seeded: SplitLine[] = (extracted.line_items ?? []).map((li) => ({
       key: mkKey(),
       description: li.description,
       amount: li.price ?? 0,
       category: extracted.suggested_category ?? "Other",
-    })),
-  );
+    }));
+
+    // Auto-seed a Tax line when the receipt extraction found a
+    // non-zero tax. The LLM extracts `tax` as its own field (separate
+    // from `line_items`), so without this the split total never
+    // matches the receipt total on taxed purchases — the user ends
+    // up typing the tax row by hand. "Taxes" is in BARN_LOG_CATEGORIES
+    // so it groups correctly on BP Overview.
+    if (
+      typeof extracted.tax === "number" &&
+      Number.isFinite(extracted.tax) &&
+      extracted.tax > 0
+    ) {
+      seeded.push({
+        key: mkKey(),
+        description: "Tax",
+        amount: extracted.tax,
+        category: "Taxes",
+      });
+    }
+
+    return seeded;
+  });
 
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -770,8 +791,12 @@ function ReceiptReviewForm({
                   Split total: ${splitTotal.toFixed(2)}
                 </span>
                 {splitMismatch && (
-                  <span style={{ color: "#b8421f" }}>
-                    Doesn&apos;t match receipt total (${headerTotal.toFixed(2)})
+                  <span
+                    className="text-[11px]"
+                    style={{ color: "rgba(42,64,49,0.55)" }}
+                    title="You can still save — this is just a heads-up."
+                  >
+                    Heads-up: ${headerTotal.toFixed(2)} on receipt
                   </span>
                 )}
               </div>
