@@ -26,6 +26,9 @@ interface LogRow {
   payment_status: "unpaid" | "paid" | "partial" | "waived" | null;
   paid_amount: number | null;
   paid_at: string | null;
+  receipt_file_path?: string | null;
+  receipt_file_name?: string | null;
+  receipt_mime_type?: string | null;
 }
 
 export function BarnLogsClient({
@@ -163,6 +166,9 @@ export function BarnLogsClient({
                       payment_status: l.payment_status,
                       paid_amount: l.paid_amount,
                       paid_at: l.paid_at,
+                      receipt_file_path: l.receipt_file_path ?? null,
+                      receipt_file_name: l.receipt_file_name ?? null,
+                      receipt_mime_type: l.receipt_mime_type ?? null,
                     },
                   })
                 }

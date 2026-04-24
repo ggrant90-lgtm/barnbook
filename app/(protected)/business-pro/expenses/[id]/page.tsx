@@ -58,11 +58,22 @@ export default async function ExpenseDetailPage({
   }
   const customCategories = [...customSet].sort((a, b) => a.localeCompare(b));
 
+  // Business Pro check — gates whether the receipt attachment (if
+  // any) is rendered inside ExpenseDetailClient. Data always loads;
+  // only the UI branches on plan tier.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("has_business_pro")
+    .eq("id", user.id)
+    .maybeSingle();
+  const hasBusinessPro = profile?.has_business_pro === true;
+
   return (
     <ExpenseDetailClient
       expense={expense}
       barns={barns}
       customCategories={customCategories}
+      hasBusinessPro={hasBusinessPro}
     />
   );
 }

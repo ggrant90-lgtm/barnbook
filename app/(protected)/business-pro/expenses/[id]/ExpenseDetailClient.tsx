@@ -9,6 +9,7 @@ import {
   deleteBarnExpenseAction,
 } from "@/app/(protected)/actions/barn-expenses";
 import type { PaymentMethod } from "@/lib/business-pro-constants";
+import { ReceiptBlock } from "@/components/barn-logs/ReceiptBlock";
 
 interface Expense {
   id: string;
@@ -25,6 +26,9 @@ interface Expense {
   paid_at: string | null;
   paid_amount: number | null;
   created_at: string;
+  receipt_file_path?: string | null;
+  receipt_file_name?: string | null;
+  receipt_mime_type?: string | null;
 }
 
 const breadcrumb = [
@@ -37,10 +41,12 @@ export function ExpenseDetailClient({
   expense,
   barns,
   customCategories,
+  hasBusinessPro,
 }: {
   expense: Expense;
   barns: { id: string; name: string }[];
   customCategories: string[];
+  hasBusinessPro: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -116,6 +122,15 @@ export function ExpenseDetailClient({
         </p>
       </div>
       <div style={{ padding: "0 32px 48px" }}>
+        {expense.receipt_file_path && hasBusinessPro && (
+          <div style={{ marginBottom: 24, maxWidth: 720 }}>
+            <ReceiptBlock
+              barnLogId={expense.id}
+              hasBusinessPro={hasBusinessPro}
+              fileName={expense.receipt_file_name}
+            />
+          </div>
+        )}
         <ExpenseForm
           barns={barns}
           customCategories={customCategories}

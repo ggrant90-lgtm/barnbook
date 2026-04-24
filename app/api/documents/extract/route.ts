@@ -6,8 +6,12 @@ import { getClaudeVisionModel } from "@/lib/anthropic-config";
 import {
   EXTRACTION_PROMPT,
   EXTRACTION_PROMPT_VERSION,
+  RECEIPT_EXTRACTION_PROMPT,
+  RECEIPT_EXTRACTION_PROMPT_VERSION,
   type ExtractedHorseData,
+  type ExtractedReceiptData,
 } from "@/lib/document-extraction-prompt";
+import { BARN_LOG_CATEGORIES } from "@/lib/business-pro-constants";
 import { canUserUseDocumentScanner } from "@/lib/document-scanner/access";
 import {
   matchExtractedHorse,
@@ -32,6 +36,10 @@ interface ExtractRequestBody {
   mime_type: string;
   barn_id: string;
   horse_id?: string;
+  /** "horse" (default, backwards-compatible) runs the horse-document
+   *  prompt + horse matching. "receipt" runs the receipt prompt and
+   *  skips horse matching entirely. */
+  document_type?: "horse" | "receipt";
 }
 
 // Anthropic vision accepts these as base64 source media types.
@@ -126,8 +134,11 @@ export async function POST(req: NextRequest) {
     return res;
   }
 
-  // If a specific horse was specified, verify access up front.
-  if (body.horse_id) {
+  const docType: "horse" | "receipt" = body.document_type === "receipt" ? "receipt" : "horse";
+
+  // If a specific horse was specified, verify access up front. (Only
+  // meaningful for the horse-doc path — receipts are barn-scoped.)
+  if (docType === "horse" && body.horse_id) {
     const canAccess = await canUserAccessHorse(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase as any,
@@ -143,7 +154,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Call Claude.
-  let extracted: ExtractedHorseData;
+  const activePrompt = docType === "receipt" ? RECEIPT_EXTRACTION_PROMPT : EXTRACTION_PROMPT;
+  const activeVersion = docType === "receipt" ? RECEIPT_EXTRACTION_PROMPT_VERSION : EXTRACTION_PROMPT_VERSION;
+
+  let extracted: ExtractedHorseData | ExtractedReceiptData;
   let costCents: number | null = null;
   try {
     const client = createAnthropicClient();
@@ -162,7 +176,7 @@ export async function POST(req: NextRequest) {
                 data: body.image_base64,
               },
             },
-            { type: "text", text: EXTRACTION_PROMPT },
+            { type: "text", text: activePrompt },
           ],
         },
       ],
@@ -188,7 +202,7 @@ export async function POST(req: NextRequest) {
       .replace(/^```(?:json)?\s*/i, "")
       .replace(/\s*```$/i, "");
     try {
-      extracted = JSON.parse(cleaned) as ExtractedHorseData;
+      extracted = JSON.parse(cleaned);
     } catch {
       await logApiCall(supabase, {
         user_id: user.id,
@@ -222,6 +236,54 @@ export async function POST(req: NextRequest) {
     return friendlyExtractionError();
   }
 
+  // ── Receipt branch: no horse matching, normalize suggested_category. ──
+  if (docType === "receipt") {
+    const receipt = extracted as ExtractedReceiptData;
+    // Normalize suggested_category: if the model returned something
+    // outside our preset list, collapse to "Other" so downstream UI
+    // doesn't render a junk value in the dropdown.
+    const allowed = new Set<string>(BARN_LOG_CATEGORIES as readonly string[]);
+    if (receipt.suggested_category && !allowed.has(receipt.suggested_category)) {
+      receipt.suggested_category = "Other";
+    }
+
+    await logApiCall(supabase, {
+      user_id: user.id,
+      endpoint: ENDPOINT,
+      success: true,
+      confidence: receipt.confidence,
+      cost_cents: costCents,
+    });
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("admin_audit_log").insert({
+        admin_user_id: user.id,
+        action: "extract_document",
+        target_type: "receipt",
+        target_id: null,
+        details: {
+          document_type: "receipt",
+          confidence: receipt.confidence,
+          cost_cents: costCents,
+          prompt_version: activeVersion,
+          barn_id: body.barn_id,
+        },
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("[admin_audit_log] insert failed:", e);
+    }
+
+    return NextResponse.json({
+      extracted_data: receipt,
+      prompt_version: activeVersion,
+    });
+  }
+
+  // ── Horse document branch (original behavior). ──
+  const horseExtracted = extracted as ExtractedHorseData;
+
   // Horse matching — only if no horse was specified up front.
   let matchResult: MatchResult;
   if (body.horse_id) {
@@ -249,7 +311,7 @@ export async function POST(req: NextRequest) {
           match_reason: "Horse not found.",
         };
   } else {
-    matchResult = await matchExtractedHorse(supabase, user.id, extracted);
+    matchResult = await matchExtractedHorse(supabase, user.id, horseExtracted);
   }
 
   // Log success. Best-effort audit log alongside.
@@ -257,7 +319,7 @@ export async function POST(req: NextRequest) {
     user_id: user.id,
     endpoint: ENDPOINT,
     success: true,
-    confidence: extracted.overall_confidence,
+    confidence: horseExtracted.overall_confidence,
     cost_cents: costCents,
   });
 
@@ -270,8 +332,8 @@ export async function POST(req: NextRequest) {
       target_type: "document",
       target_id: null,
       details: {
-        document_type: extracted.document_type,
-        confidence: extracted.overall_confidence,
+        document_type: horseExtracted.document_type,
+        confidence: horseExtracted.overall_confidence,
         match_status: matchResult.status,
         cost_cents: costCents,
         prompt_version: EXTRACTION_PROMPT_VERSION,
@@ -284,7 +346,7 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({
-    extracted_data: extracted,
+    extracted_data: horseExtracted,
     match_result: matchResult,
     prompt_version: EXTRACTION_PROMPT_VERSION,
   });

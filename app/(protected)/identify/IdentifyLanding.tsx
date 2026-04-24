@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ScanModal, type ScanResult } from "@/components/document-scanner/ScanModal";
+import { ReceiptScanModal } from "@/components/document-scanner/ReceiptScanModal";
 
 const QRScanner = dynamic(
   () => import("@/components/QRScanner").then((m) => m.QRScanner),
@@ -16,13 +17,29 @@ type Mode = "tiles" | "qr" | "document";
 export function IdentifyLanding({
   hasDocumentScanner,
   activeBarnId,
+  activeBarnName,
+  hasBusinessPro,
+  barnClients,
+  barnMembers,
+  customCategories,
 }: {
   hasDocumentScanner: boolean;
   activeBarnId: string | null;
+  activeBarnName: string | null;
+  hasBusinessPro: boolean;
+  barnClients: Array<{
+    id: string;
+    display_name: string;
+    user_id: string | null;
+    name_key: string;
+  }>;
+  barnMembers: Array<{ id: string; name: string; role: string }>;
+  customCategories: string[];
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("tiles");
   const [scanOpen, setScanOpen] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
 
   const handleScanComplete = (r: ScanResult) => {
     setScanOpen(false);
@@ -116,6 +133,44 @@ export function IdentifyLanding({
               </div>
             </div>
           )}
+
+          {activeBarnId ? (
+            <button
+              type="button"
+              onClick={() => setReceiptOpen(true)}
+              className="rounded-2xl border border-barn-dark/10 bg-white p-6 text-left hover:border-brass-gold transition"
+            >
+              <div className="text-3xl mb-2">🧾</div>
+              <div className="font-serif text-lg font-semibold text-barn-dark">
+                Scan a receipt
+              </div>
+              <div className="text-xs text-barn-dark/60 mt-1">
+                Photograph a receipt and BarnBook will pull the vendor,
+                total, and line items into a barn log
+                {hasBusinessPro
+                  ? " with the image attached for later."
+                  : "."}
+              </div>
+            </button>
+          ) : (
+            <div
+              className="rounded-2xl border p-6 text-left"
+              style={{
+                borderStyle: "dashed",
+                borderColor: "rgba(0,0,0,0.12)",
+                background: "#fefdf8",
+              }}
+            >
+              <div className="text-3xl mb-2 opacity-50">🧾</div>
+              <div className="font-serif text-lg font-semibold text-barn-dark/70">
+                Scan a receipt
+              </div>
+              <div className="text-xs text-barn-dark/60 mt-1">
+                Pick a barn first — receipts are logged against the
+                active barn.
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -142,6 +197,18 @@ export function IdentifyLanding({
           barnId={activeBarnId}
           mode="dashboard"
           onComplete={handleScanComplete}
+        />
+      )}
+
+      {activeBarnId && receiptOpen && (
+        <ReceiptScanModal
+          barnId={activeBarnId}
+          barnName={activeBarnName ?? "Barn"}
+          hasBusinessPro={hasBusinessPro}
+          barnClients={barnClients}
+          barnMembers={barnMembers}
+          customCategories={customCategories}
+          onClose={() => setReceiptOpen(false)}
         />
       )}
     </div>

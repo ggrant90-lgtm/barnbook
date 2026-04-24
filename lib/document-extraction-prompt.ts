@@ -93,3 +93,90 @@ export interface ExtractedHorseData {
   overall_confidence: "high" | "medium" | "low";
   extraction_notes: string | null;
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Receipt extraction — scanned receipts → barn_expenses rows
+// ────────────────────────────────────────────────────────────────────────
+
+export const RECEIPT_EXTRACTION_PROMPT_VERSION = "2026-04-23-v1";
+
+/**
+ * Built at import time so the preset category list in the prompt stays
+ * in sync with the app's actual category constants. The model is told
+ * to pick from this list for `suggested_category` — any value outside
+ * the list is normalized to "Other" on the server.
+ */
+const RECEIPT_CATEGORY_HINT = [
+  "Cleaning",
+  "Maintenance",
+  "Grounds/Pasture",
+  "Delivery received",
+  "Waste removal",
+  "Equipment check",
+  "Feed",
+  "Hay",
+  "Bedding",
+  "Utilities",
+  "Rent/Mortgage",
+  "Insurance",
+  "Farrier",
+  "Vet",
+  "Labor/Payroll",
+  "Supplies",
+  "Repairs/Maintenance",
+  "Fuel",
+  "Taxes",
+  "Other",
+].join(", ");
+
+export const RECEIPT_EXTRACTION_PROMPT = `You are extracting structured data from a purchase receipt image. The receipt is being scanned by a horse-farm operator so the captured data can be logged as a barn expense.
+
+Common receipt types in this context: feed store invoices, hay delivery tickets, farm-supply store receipts, fuel purchases, veterinary/farrier service invoices, equipment/repair shop receipts, and utility bills.
+
+Extract every field you can identify. Return ONLY a JSON object with no other text, no markdown backticks, no explanation. Use null for any field you cannot read or are not confident about.
+
+{
+  "vendor_name": "string or null — the business name at the top of the receipt",
+  "vendor_address": "string or null — the vendor's address if shown",
+  "transaction_date": "YYYY-MM-DD or null — the date printed on the receipt",
+  "total_amount": "number or null — grand total as a number (no currency symbol)",
+  "subtotal": "number or null — subtotal before tax if shown",
+  "tax": "number or null — total tax amount if shown",
+  "payment_method": "check | cash | card | ach | venmo | other | null — how the purchase was paid",
+  "payment_reference": "string or null — check number, last-4 of the card, or transaction id",
+  "line_items": [
+    { "description": "string", "quantity": "number or null", "price": "number or null — line total" }
+  ],
+  "suggested_category": "string — MUST be one of: ${RECEIPT_CATEGORY_HINT}. Pick the single best match based on vendor + line items. If unsure, return \\"Other\\".",
+  "confidence": "high | medium | low",
+  "notes": "string or null — any free-text info that doesn't fit the other fields (special instructions, invoice number, etc.)"
+}
+
+Guidance:
+- Line items: include itemized rows when visible. Skip blank rows and subtotal/tax lines. If the receipt has no itemization (a single total only), return an empty array.
+- Numbers: strip currency symbols and commas. "$1,234.56" → 1234.56. Always a plain number.
+- payment_method: match to the closest option. "Visa", "Mastercard", "Discover" → "card". "ACH", "bank transfer" → "ach". "Venmo", "Zelle", "PayPal" → "venmo". If not identifiable, return null.
+- payment_reference: for cards, extract last 4 digits. For checks, extract the check number. Otherwise null.
+- suggested_category: think about what the VENDOR and line items imply. A tractor-supply receipt with bales of hay → "Hay". A feed store receipt → "Feed". A vet clinic → "Vet". A gas station → "Fuel". A hardware store → "Supplies" or "Repairs/Maintenance" depending on items. When in doubt, "Other".
+- confidence: "high" when all main fields are clearly legible; "medium" when the total and vendor are clear but some fields are partial; "low" when extraction is guesswork.
+
+Do NOT hallucinate values. If a field is not visible or illegible, return null.`;
+
+export interface ExtractedReceiptData {
+  vendor_name: string | null;
+  vendor_address: string | null;
+  transaction_date: string | null;
+  total_amount: number | null;
+  subtotal: number | null;
+  tax: number | null;
+  payment_method: "check" | "cash" | "card" | "ach" | "venmo" | "other" | null;
+  payment_reference: string | null;
+  line_items: Array<{
+    description: string;
+    quantity: number | null;
+    price: number | null;
+  }>;
+  suggested_category: string | null;
+  confidence: "high" | "medium" | "low";
+  notes: string | null;
+}

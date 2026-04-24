@@ -10,6 +10,7 @@ import {
 } from "@/app/(protected)/actions/barn-logs";
 import { BARN_LOG_CATEGORIES } from "@/lib/business-pro-constants";
 import { FinancialsSection } from "@/components/business-pro/FinancialsSection";
+import { ReceiptBlock } from "@/components/barn-logs/ReceiptBlock";
 import { ErrorDetails } from "@/components/ui/ErrorDetails";
 
 /**
@@ -52,6 +53,12 @@ export interface BarnLogInitial {
   paid_amount: number | null;
   paid_at: string | null;
   client_id?: string | null;
+  /** Pointer to a receipt already attached to this log. Used by BP
+   *  users to render the receipt block; non-BP users never see the
+   *  image even when this is set. */
+  receipt_file_path?: string | null;
+  receipt_file_name?: string | null;
+  receipt_mime_type?: string | null;
 }
 
 export function BarnLogForm({
@@ -63,6 +70,10 @@ export function BarnLogForm({
   customCategories,
   initial,
   onClose,
+  externalSave,
+  externalSavePending,
+  externalSaveLabel,
+  hideDelete,
 }: {
   barnId: string;
   barnName: string;
@@ -73,13 +84,30 @@ export function BarnLogForm({
    *  appended to the preset list so once a user types "Trailer repair"
    *  as a custom category, it shows up on future forms. */
   customCategories: string[];
-  /** When set, the form renders in edit mode. */
+  /** When set with a non-empty `id`, the form renders in edit mode.
+   *  When set with an empty `id`, fields are pre-populated but the
+   *  save path stays in create-mode — used by the receipt scan flow. */
   initial?: BarnLogInitial;
   onClose: () => void;
+  /** Override the default submit path (createBarnLogAction / update).
+   *  When provided, submitting calls this with the current field values
+   *  wrapped as a BarnLogInitial. Used by ReceiptScanModal so the
+   *  scan flow can create the row AND upload+attach the receipt in
+   *  one operation. */
+  externalSave?: (prefill: BarnLogInitial) => void;
+  /** Disable the submit button when the parent is mid-save. */
+  externalSavePending?: boolean;
+  /** Label override for the submit button (e.g. "Save receipt"). */
+  externalSaveLabel?: string;
+  /** Hide the delete button even in edit mode — used by the scan
+   *  flow where delete doesn't apply (no row exists yet). */
+  hideDelete?: boolean;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-  const isEdit = !!initial;
+  // True only when `initial` represents a real existing row. Empty-id
+  // initials are pre-populated create flows (receipt scan).
+  const isEdit = !!initial && !!initial.id;
 
   const [date, setDate] = useState<string>(
     initial?.performed_at
@@ -168,6 +196,32 @@ export function BarnLogForm({
       setError("Add a short description.");
       return;
     }
+
+    // Receipt-scan flow hands submit back to the parent so it can
+    // orchestrate create + upload + attach. Wrap the current field
+    // state as a BarnLogInitial-shaped object so the parent can read
+    // whatever the user corrected during review.
+    if (externalSave) {
+      const input = buildInput();
+      externalSave({
+        id: initial?.id ?? "",
+        performed_at: input.performed_at,
+        category: input.category,
+        total_cost: input.total_cost ?? null,
+        vendor_name: input.vendor_name ?? null,
+        description: input.description ?? null,
+        notes: input.notes ?? null,
+        cost_type: input.cost_type ?? null,
+        billable_to_user_id: input.billable_to_user_id ?? null,
+        billable_to_name: input.billable_to_name ?? null,
+        payment_status: input.payment_status ?? null,
+        paid_amount: input.paid_amount ?? null,
+        paid_at: input.paid_at ?? null,
+        client_id: input.client_id ?? null,
+      });
+      return;
+    }
+
     startTransition(async () => {
       const input = buildInput();
       const res = isEdit
@@ -239,7 +293,11 @@ export function BarnLogForm({
         >
           <div>
             <div className="font-serif text-lg font-semibold text-barn-dark">
-              {isEdit ? "Edit barn log" : "New barn log"}
+              {externalSave
+                ? "Review receipt"
+                : isEdit
+                  ? "Edit barn log"
+                  : "New barn log"}
             </div>
             <div className="text-xs text-barn-dark/55 mt-0.5">{barnName}</div>
           </div>
@@ -418,6 +476,14 @@ export function BarnLogForm({
             />
           )}
 
+          {isEdit && initial?.receipt_file_path && hasBusinessPro && (
+            <ReceiptBlock
+              barnLogId={initial.id}
+              hasBusinessPro={hasBusinessPro}
+              fileName={initial.receipt_file_name}
+            />
+          )}
+
           {error && (
             <ErrorDetails
               title="Couldn't save"
@@ -439,7 +505,7 @@ export function BarnLogForm({
           }}
         >
           <div>
-            {isEdit && !confirmingDelete && (
+            {isEdit && !hideDelete && !confirmingDelete && (
               <button
                 type="button"
                 onClick={() => setConfirmingDelete(true)}
@@ -449,7 +515,7 @@ export function BarnLogForm({
                 Delete
               </button>
             )}
-            {isEdit && confirmingDelete && (
+            {isEdit && !hideDelete && confirmingDelete && (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-barn-dark/60">Delete this log?</span>
                 <button
@@ -485,11 +551,19 @@ export function BarnLogForm({
             <button
               type="button"
               onClick={(e) => handleSubmit(e)}
-              disabled={pending || deleting}
+              disabled={pending || deleting || externalSavePending}
               className="rounded-xl px-5 py-2 text-sm font-semibold shadow disabled:opacity-60"
               style={{ background: "#c9a84c", color: "#2a4031" }}
             >
-              {pending ? "Saving…" : isEdit ? "Save" : "Add log"}
+              {externalSavePending
+                ? "Saving…"
+                : pending
+                  ? "Saving…"
+                  : externalSaveLabel
+                    ? externalSaveLabel
+                    : isEdit
+                      ? "Save"
+                      : "Add log"}
             </button>
           </div>
         </div>
