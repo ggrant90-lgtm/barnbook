@@ -59,6 +59,7 @@ export function BusinessProChrome({
       { href: "/business-pro/receivables", label: "Receivables", icon: <IconInbox /> },
       { href: "/business-pro/invoicing", label: "Invoicing", icon: <IconDoc /> },
       { href: "/business-pro/expenses", label: "Expenses", icon: <IconArrowDown /> },
+      { href: "/business-pro/receipts", label: "Receipts", icon: <IconFolder /> },
       { href: "/business-pro/clients", label: "Clients", icon: <IconUsers /> },
     ],
   };

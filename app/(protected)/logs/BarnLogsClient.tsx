@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { BarnLogForm, type BarnLogInitial } from "@/components/barn-logs/BarnLogForm";
+import { ReceiptScanModal } from "@/components/document-scanner/ReceiptScanModal";
 import { switchBarnAction } from "@/app/(protected)/actions/switch-barn";
 
 /**
@@ -60,6 +61,7 @@ export function BarnLogsClient({
     | { kind: "new" }
     | { kind: "edit"; initial: BarnLogInitial }
   >({ kind: "closed" });
+  const [receiptOpen, setReceiptOpen] = useState(false);
 
   function handleBarnSwitch(barnId: string) {
     if (barnId === scopedBarn.id) return;
@@ -89,14 +91,25 @@ export function BarnLogsClient({
             deliveries, cleaning, maintenance, utilities.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setFormMode({ kind: "new" })}
-          className="rounded-xl px-4 py-2 text-sm font-semibold shadow"
-          style={{ background: "#c9a84c", color: "#2a4031" }}
-        >
-          + Add log
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setReceiptOpen(true)}
+            className="rounded-xl border px-4 py-2 text-sm font-medium text-barn-dark hover:bg-parchment"
+            style={{ borderColor: "rgba(42,64,49,0.15)" }}
+            title="Scan a receipt to log an expense automatically"
+          >
+            🧾 Scan receipt
+          </button>
+          <button
+            type="button"
+            onClick={() => setFormMode({ kind: "new" })}
+            className="rounded-xl px-4 py-2 text-sm font-semibold shadow"
+            style={{ background: "#c9a84c", color: "#2a4031" }}
+          >
+            + Add log
+          </button>
+        </div>
       </div>
 
       {writableBarns.length > 1 && (
@@ -230,6 +243,15 @@ export function BarnLogsClient({
           customCategories={customCategories}
           initial={formMode.kind === "edit" ? formMode.initial : undefined}
           onClose={() => setFormMode({ kind: "closed" })}
+        />
+      )}
+
+      {receiptOpen && (
+        <ReceiptScanModal
+          barnId={scopedBarn.id}
+          barnName={scopedBarn.name}
+          writableBarns={writableBarns}
+          onClose={() => setReceiptOpen(false)}
         />
       )}
     </div>

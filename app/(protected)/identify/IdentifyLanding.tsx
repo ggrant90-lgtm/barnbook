@@ -18,23 +18,15 @@ export function IdentifyLanding({
   hasDocumentScanner,
   activeBarnId,
   activeBarnName,
-  hasBusinessPro,
-  barnClients,
-  barnMembers,
-  customCategories,
+  writableBarns,
 }: {
   hasDocumentScanner: boolean;
   activeBarnId: string | null;
   activeBarnName: string | null;
-  hasBusinessPro: boolean;
-  barnClients: Array<{
-    id: string;
-    display_name: string;
-    user_id: string | null;
-    name_key: string;
-  }>;
-  barnMembers: Array<{ id: string; name: string; role: string }>;
-  customCategories: string[];
+  /** Every barn the user can write to (owner or editor member).
+   *  Used by the receipt-scan review step to let multi-barn users
+   *  pick which barn the log posts to. */
+  writableBarns: Array<{ id: string; name: string }>;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("tiles");
@@ -146,10 +138,7 @@ export function IdentifyLanding({
               </div>
               <div className="text-xs text-barn-dark/60 mt-1">
                 Photograph a receipt and BarnBook will pull the vendor,
-                total, and line items into a barn log
-                {hasBusinessPro
-                  ? " with the image attached for later."
-                  : "."}
+                total, and line items into a barn log.
               </div>
             </button>
           ) : (
@@ -204,10 +193,7 @@ export function IdentifyLanding({
         <ReceiptScanModal
           barnId={activeBarnId}
           barnName={activeBarnName ?? "Barn"}
-          hasBusinessPro={hasBusinessPro}
-          barnClients={barnClients}
-          barnMembers={barnMembers}
-          customCategories={customCategories}
+          writableBarns={writableBarns}
           onClose={() => setReceiptOpen(false)}
         />
       )}

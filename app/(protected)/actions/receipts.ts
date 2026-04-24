@@ -182,6 +182,84 @@ export async function attachReceiptToBarnLogAction(
 }
 
 /**
+ * Create one receipt's worth of barn_expenses rows in a single call —
+ * used by the scan Review step when the user chose to split the
+ * receipt across multiple categories. All rows share the same
+ * `receipt_file_path` + `receipt_group_id`, so the Receipts bin can
+ * coalesce them back into one "scan event."
+ *
+ * This is a single transactional-feeling call rather than a loop of
+ * create + attach so we don't produce half-a-receipt on partial
+ * failures: either all rows land with the receipt pointer, or none
+ * do.
+ */
+export async function createSplitReceiptLogsAction(input: {
+  barnId: string;
+  receipt: {
+    file_path: string;
+    file_name: string;
+    mime_type: string;
+    extracted: ExtractedReceiptData;
+  };
+  splits: Array<{
+    category: string;
+    total_cost: number;
+    description?: string | null;
+    vendor_name?: string | null;
+    notes?: string | null;
+    performed_at: string;
+    cost_type?: "expense" | "revenue" | "pass_through" | null;
+  }>;
+}): Promise<{ ok?: true; logIds?: string[]; error?: string }> {
+  if (!input.splits || input.splits.length === 0) {
+    return { error: "No line items to split" };
+  }
+
+  const auth = await requireBarnWriter(input.barnId);
+  if ("error" in auth) return { error: auth.error };
+  const { userId } = auth;
+
+  const admin = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = admin as any;
+
+  // One group id ties every row back to this one scan event.
+  const groupId = newUniq();
+
+  const rows = input.splits.map((s) => ({
+    barn_id: input.barnId,
+    created_by_user_id: userId,
+    performed_at: s.performed_at,
+    category: s.category.trim(),
+    total_cost: Number.isFinite(s.total_cost) ? s.total_cost : 0,
+    vendor_name: s.vendor_name?.trim() || null,
+    description: s.description?.trim() || null,
+    notes: s.notes?.trim() || null,
+    cost_type: s.cost_type ?? "expense",
+    receipt_file_path: input.receipt.file_path,
+    receipt_file_name: input.receipt.file_name,
+    receipt_mime_type: input.receipt.mime_type,
+    receipt_extracted_data: input.receipt.extracted,
+    receipt_group_id: groupId,
+  }));
+
+  const { data, error } = await db
+    .from("barn_expenses")
+    .insert(rows)
+    .select("id");
+  if (error || !data) {
+    return { error: error?.message ?? "Failed to create split receipt" };
+  }
+
+  revalidatePath("/logs");
+  revalidatePath("/business-pro/overview");
+  revalidatePath("/business-pro/expenses");
+  revalidatePath("/business-pro/receipts");
+  revalidatePath(`/barn/${input.barnId}`);
+  return { ok: true, logIds: (data as { id: string }[]).map((d) => d.id) };
+}
+
+/**
  * Clear the receipt pointer (the storage object stays — garbage
  * collection is deferred). Used by the "Remove receipt" button on
  * the BP expense detail.

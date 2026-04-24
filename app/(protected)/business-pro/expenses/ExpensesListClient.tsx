@@ -353,7 +353,8 @@ export function ExpensesListClient({
                 {filtered.map((e) => (
                   <tr
                     key={e.id}
-                    className="border-b border-barn-dark/5 hover:bg-parchment/30"
+                    onClick={() => router.push(`/business-pro/expenses/${e.id}`)}
+                    className="border-b border-barn-dark/5 hover:bg-parchment/50 cursor-pointer"
                   >
                     <td className="px-4 py-2 whitespace-nowrap text-barn-dark/80">
                       {new Date(e.performed_at).toLocaleDateString(undefined, {
@@ -403,13 +404,17 @@ export function ExpensesListClient({
                     <td className="px-4 py-2 text-right whitespace-nowrap">
                       <Link
                         href={`/business-pro/expenses/${e.id}`}
+                        onClick={(ev) => ev.stopPropagation()}
                         className="text-xs text-barn-dark/70 hover:text-barn-dark mr-2"
                       >
                         Edit
                       </Link>
                       <button
                         type="button"
-                        onClick={() => handleDelete(e.id)}
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          handleDelete(e.id);
+                        }}
                         className="text-xs text-barn-dark/60 hover:text-[#b8421f]"
                       >
                         Delete
