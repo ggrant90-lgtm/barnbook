@@ -97,6 +97,11 @@ export async function generateAccessKeyAction(
     return { error: "Pick at least one log type for custom permissions." };
   }
 
+  const visibilityRaw = String(formData.get("visibility_level") ?? "limited")
+    .toLowerCase()
+    .trim();
+  const visibility_level = visibilityRaw === "full" ? "full" : "limited";
+
   const maxUsesRaw = String(formData.get("max_uses") ?? "").trim();
   const max_uses =
     maxUsesRaw === "" ? null : Math.max(1, Math.min(1_000_000, parseInt(maxUsesRaw, 10) || 0));
@@ -120,6 +125,7 @@ export async function generateAccessKeyAction(
       token_hash,
       permission_level,
       allowed_log_types,
+      visibility_level,
       max_uses: max_uses && max_uses > 0 ? max_uses : null,
       times_used: 0,
       is_active: true,

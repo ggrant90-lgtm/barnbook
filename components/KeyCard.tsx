@@ -80,6 +80,11 @@ export function KeyCard({ accessKey: k, onCopied }: KeyCardProps) {
                 <span>{levelEmoji}</span>
                 {levelLabel}
               </span>
+              {k.visibility_level === "full" ? (
+                <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-barn-dark/10 text-barn-dark/70">
+                  Full preview
+                </span>
+              ) : null}
             </div>
             <p className="mt-1 font-mono text-sm tracking-wide text-barn-dark/80">{masked}</p>
             {level === "custom" && Array.isArray(allowedTypes) && allowedTypes.length > 0 ? (
@@ -105,7 +110,7 @@ export function KeyCard({ accessKey: k, onCopied }: KeyCardProps) {
               Copy code
             </Button>
             <Button type="button" variant="secondary" onClick={() => void toggle()} disabled={pending}>
-              {k.is_active ? "Deactivate" : "Activate"}
+              {k.is_active ? "Revoke access" : "Restore access"}
             </Button>
             <Button type="button" variant="danger" onClick={() => void remove()} disabled={pending}>
               Delete

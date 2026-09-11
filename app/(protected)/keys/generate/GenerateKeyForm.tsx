@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { getJoinUrl } from "@/lib/site-url";
+import { getJoinUrl, getViewUrl } from "@/lib/site-url";
 import { LOG_TYPES, logTypeLabel } from "@/lib/horse-form-constants";
 import {
   PERMISSION_LEVELS,
@@ -35,11 +35,13 @@ export function GenerateKeyForm({
   const [permissionLevel, setPermissionLevel] =
     useState<PermissionLevel>("log_all");
   const [allowedLogTypes, setAllowedLogTypes] = useState<string[]>([]);
+  const [visibilityLevel, setVisibilityLevel] = useState<"limited" | "full">("limited");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [revealed, setRevealed] = useState<string | null>(null);
 
   const joinUrl = getJoinUrl();
+  const viewUrl = getViewUrl();
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -56,6 +58,7 @@ export function GenerateKeyForm({
     fd.set("key_kind", keyKind);
     if (keyKind === "stall") fd.set("horse_id", horseId);
     fd.set("permission_level", permissionLevel);
+    fd.set("visibility_level", visibilityLevel);
     if (permissionLevel === "custom") {
       for (const t of allowedLogTypes) fd.append("allowed_log_types[]", t);
     }
@@ -76,7 +79,7 @@ export function GenerateKeyForm({
   }
 
   async function shareKey(code: string) {
-    const shareUrl = `${joinUrl}?key=${encodeURIComponent(code)}`;
+    const shareUrl = `${viewUrl}/${encodeURIComponent(code)}`;
     const text = `Join ${barnName} on BarnBook: ${shareUrl}`;
     try {
       if (navigator.share) {
@@ -104,14 +107,18 @@ export function GenerateKeyForm({
             {revealed}
           </p>
           <p className="mt-4 text-sm leading-relaxed text-barn-dark/75">
-            Share this key with the person who needs access. They&apos;ll enter it at{" "}
-            <span className="font-medium text-barn-dark">{joinUrl}</span>
+            Share the preview link below — they can look around with no account, then create
+            one when they&apos;re ready. It&apos;ll redeem automatically, no extra steps.
           </p>
           <p className="mt-2 text-xs text-barn-dark/50">
-            Or share the direct link:{" "}
+            Preview link (no account needed):{" "}
             <span className="break-all font-mono text-barn-dark/70">
-              {joinUrl}?key={revealed}
+              {viewUrl}/{revealed}
             </span>
+          </p>
+          <p className="mt-1 text-xs text-barn-dark/40">
+            Or the key code, to enter manually at {joinUrl}:{" "}
+            <span className="break-all font-mono text-barn-dark/60">{revealed}</span>
           </p>
         </Card>
 
@@ -270,6 +277,54 @@ export function GenerateKeyForm({
             </p>
           </div>
         ) : null}
+
+        <div>
+          <span className="mb-2 block text-sm font-medium text-barn-dark/80">
+            What can they see without an account?
+          </span>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {(
+              [
+                {
+                  value: "limited" as const,
+                  label: "Limited",
+                  description: "Profile basics, feed/care summary, recent activity.",
+                },
+                {
+                  value: "full" as const,
+                  label: "Full",
+                  description: "Adds the complete activity log and health record detail.",
+                },
+              ]
+            ).map((tier) => {
+              const active = visibilityLevel === tier.value;
+              return (
+                <button
+                  key={tier.value}
+                  type="button"
+                  onClick={() => setVisibilityLevel(tier.value)}
+                  className="rounded-xl border p-3 text-left transition"
+                  style={{
+                    borderColor: active
+                      ? "var(--brass-gold, #c9a84c)"
+                      : "rgba(42, 64, 49, 0.15)",
+                    background: active
+                      ? "rgba(201, 168, 76, 0.08)"
+                      : "white",
+                  }}
+                >
+                  <span className="text-sm font-semibold text-barn-dark">{tier.label}</span>
+                  <p className="mt-1 text-xs leading-snug text-barn-dark/65">
+                    {tier.description}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs text-barn-dark/55">
+            Applies to the no-account preview link — invoices and billing are never shown either way.
+          </p>
+        </div>
 
         <Input
           id="max_uses"

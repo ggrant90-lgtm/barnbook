@@ -16,6 +16,9 @@ function isProtectedPath(pathname: string): boolean {
   // But /barn/new and /barn/{id}/edit are protected
   if (pathname.startsWith("/barn/") && pathname !== "/barn/new" && !pathname.endsWith("/edit")) return false;
 
+  // /view/{key_code} is the public no-account key viewer — always allow
+  if (pathname.startsWith("/view/")) return false;
+
   const prefixes = [
     "/admin",
     "/dashboard",

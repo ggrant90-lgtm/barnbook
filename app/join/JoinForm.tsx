@@ -4,7 +4,7 @@ import { redeemKeyAction, submitKeyRequestAction } from "@/app/join/actions";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 function errMessage(code: string | undefined): string {
   switch (code) {
@@ -35,9 +35,16 @@ export function JoinForm() {
   const [error, setError] = useState<string | null>(null);
   const [reqMsg, setReqMsg] = useState<string | null>(null);
   const [reqPending, setReqPending] = useState(false);
+  const [confirmation, setConfirmation] = useState<{
+    name: string | null;
+    redirectTo: string;
+  } | null>(null);
+  const autoAttempted = useRef(false);
 
   const barnParam = sp.get("barn");
   const kParam = sp.get("k") || sp.get("key");
+  const intentParam = sp.get("intent");
+  const horseParam = sp.get("horse");
 
   useEffect(() => {
     if (kParam) setCode(kParam);
@@ -61,7 +68,66 @@ export function JoinForm() {
   if (kParam) qs.set("key", kParam);
   else if (code.trim()) qs.set("key", code.trim());
   if (barnParam) qs.set("barn", barnParam);
+  if (intentParam) qs.set("intent", intentParam);
+  if (horseParam) qs.set("horse", horseParam);
   const nextJoin = `/join${qs.toString() ? `?${qs.toString()}` : ""}`;
+
+  // Auto-redeem: the moment we know the user is signed in and a key is
+  // present in the URL, redeem it immediately — no manual "click redeem"
+  // step required. Covers both a bare invite link and the post-signup
+  // return trip (via the `next` param round-trip through email confirm).
+  useEffect(() => {
+    if (!userId || !kParam || autoAttempted.current) return;
+    autoAttempted.current = true;
+    setPending(true);
+    void (async () => {
+      const res = await redeemKeyAction(kParam);
+      setPending(false);
+
+      if (!res.ok && res.error !== "already_redeemed") {
+        setError(errMessage(res.error));
+        return;
+      }
+
+      // "Add a log" intent from the no-account viewer: skip the generic
+      // confirmation and drop straight into the log-entry flow.
+      if (intentParam === "log" && horseParam) {
+        router.push(`/horses/${horseParam}?tab=logs`);
+        router.refresh();
+        return;
+      }
+
+      const redirectTo = res.redirectTo ?? "/dashboard";
+      let name: string | null = null;
+      try {
+        if (horseParam) {
+          const { data } = await supabase
+            .from("horses")
+            .select("name, barn_name, primary_name_pref")
+            .eq("id", horseParam)
+            .maybeSingle();
+          if (data) {
+            name =
+              data.primary_name_pref === "barn" && data.barn_name
+                ? data.barn_name
+                : data.name;
+          }
+        } else if (barnParam) {
+          const { data } = await supabase
+            .from("barns")
+            .select("name")
+            .eq("id", barnParam)
+            .maybeSingle();
+          name = data?.name ?? null;
+        }
+      } catch {
+        /* best-effort — confirmation still shows without a name */
+      }
+
+      setConfirmation({ name, redirectTo });
+      router.refresh();
+    })();
+  }, [userId, kParam, intentParam, horseParam, barnParam, router]);
 
   async function onRedeem(e: React.FormEvent) {
     e.preventDefault();
@@ -100,6 +166,35 @@ export function JoinForm() {
   }
 
   const signedIn = Boolean(userId);
+
+  if (confirmation) {
+    return (
+      <div className="mx-auto flex min-h-full max-w-lg flex-col px-5 py-12 sm:px-8">
+        <div className="rounded-2xl border border-brass-gold/25 bg-barn-panel p-8 text-center shadow-lg shadow-black/40">
+          <p className="font-serif text-2xl text-brass-gold">You&apos;re in!</p>
+          <p className="mt-3 text-parchment">
+            {confirmation.name ? `${confirmation.name} has been added.` : "Access has been added."}
+          </p>
+          <Link
+            href={confirmation.redirectTo}
+            className="mt-8 inline-flex min-h-[48px] w-full items-center justify-center rounded-xl bg-brass-gold px-4 py-3.5 text-center font-medium text-barn-dark transition hover:brightness-110"
+          >
+            Continue
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Signed in with a key already in the URL — auto-redeem is in flight
+  // (or about to be); show a lightweight status instead of the manual form.
+  if (signedIn && kParam && !error) {
+    return (
+      <div className="mx-auto flex min-h-full max-w-lg flex-col px-5 py-12 sm:px-8">
+        <p className="text-center text-muted-tan">Redeeming your key…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex min-h-full max-w-lg flex-col px-5 py-12 sm:px-8">

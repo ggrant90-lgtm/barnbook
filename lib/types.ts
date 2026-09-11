@@ -161,6 +161,7 @@ export interface AccessKey {
   is_active: boolean;
   created_at: string;
   expires_at: string | null;
+  visibility_level: "limited" | "full";
 }
 
 /** @deprecated Use AccessKey */
@@ -720,6 +721,7 @@ export type AccessKeyInsert = {
   is_active?: boolean;
   created_at?: string;
   expires_at?: string | null;
+  visibility_level?: "limited" | "full";
 };
 
 /** @deprecated Use AccessKeyInsert */
@@ -970,6 +972,10 @@ export type Database = {
     Functions: {
       redeem_access_key: {
         Args: { p_raw_code: string; p_user_id: string };
+        Returns: Json;
+      };
+      get_key_view_data: {
+        Args: { p_key_code: string };
         Returns: Json;
       };
     };

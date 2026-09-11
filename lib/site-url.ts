@@ -8,3 +8,7 @@ export function getPublicSiteUrl(): string {
 export function getJoinUrl(): string {
   return `${getPublicSiteUrl()}/join`;
 }
+
+export function getViewUrl(): string {
+  return `${getPublicSiteUrl()}/view`;
+}
