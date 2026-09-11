@@ -35,16 +35,23 @@ export interface NudgeContext {
 export interface NudgeDef {
   key: string;
   priority: number;
+  /** May contain {{varName}} tokens, filled in from check()'s vars. */
   title: string;
   body: string;
   actionLabel: string;
+  /** May contain {{varName}} tokens (e.g. "/keys/generate?horse={{horseId}}"). */
   actionHref: string;
-  /** Returns true when the nudge should fire. Cheap queries only. */
+  /**
+   * Returns true/false when the nudge should fire/not fire, or a vars
+   * object (truthy = fire) whose entries get substituted into title,
+   * body, and actionHref wherever a matching {{varName}} token appears.
+   * Cheap queries only.
+   */
   check: (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     supabase: SupabaseClient<any>,
     ctx: NudgeContext,
-  ) => Promise<boolean>;
+  ) => Promise<boolean | Record<string, string>>;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -165,6 +172,55 @@ const NUDGE_CALENDAR: NudgeDef = {
   },
 };
 
+const HORSE_PAGE_RE = /^\/horses\/([0-9a-f-]{36})$/;
+
+const NUDGE_INVITE_FIRST_HORSE: NudgeDef = {
+  key: "nudge_invite_first_horse",
+  priority: 72,
+  title: "Who else helps care for {{horseName}}?",
+  body: "Add your vet, farrier, or a helper so they can log their own work.",
+  actionLabel: "Generate a key",
+  actionHref: "/keys/generate?type=stall&horse={{horseId}}",
+  async check(supabase, ctx) {
+    // Only fires on the horse's own profile page, right after it's
+    // created (that's where horse-creation already redirects to).
+    const match = HORSE_PAGE_RE.exec(ctx.path);
+    if (!match) return false;
+    const horseId = match[1]!;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: horse } = await (supabase as any)
+      .from("horses")
+      .select("id, name, barn_id")
+      .eq("id", horseId)
+      .maybeSingle();
+    if (!horse) return false;
+
+    // "First horse" for this specific barn — mirrors the first_horse
+    // celebration's count logic (defs.ts in engagement/celebrations).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { count: horseCount } = await (supabase as any)
+      .from("horses")
+      .select("id", { count: "exact", head: true })
+      .eq("barn_id", horse.barn_id)
+      .eq("archived", false);
+    if ((horseCount ?? 0) !== 1) return false;
+
+    // Nobody's been invited from this barn yet.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { count: keyCount } = await (supabase as any)
+      .from("access_keys")
+      .select("id", { count: "exact", head: true })
+      .eq("barn_id", horse.barn_id);
+    if ((keyCount ?? 0) > 0) return false;
+
+    return {
+      horseId: horse.id as string,
+      horseName: (horse.name as string | null)?.trim() || "your horse",
+    };
+  },
+};
+
 const NUDGE_SHARE_KEY: NudgeDef = {
   key: "nudge_share_key",
   priority: 60,
@@ -275,6 +331,7 @@ const NUDGE_STREAK_RESTART: NudgeDef = {
 export const NUDGES: NudgeDef[] = [
   NUDGE_BILLABLE_TO,
   NUDGE_BUSINESS_PRO_COSTS,
+  NUDGE_INVITE_FIRST_HORSE,
   NUDGE_SCAN_COGGINS,
   NUDGE_SHARE_KEY,
   NUDGE_BARNPILOT,

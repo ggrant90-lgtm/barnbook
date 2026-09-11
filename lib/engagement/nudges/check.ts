@@ -23,6 +23,13 @@ export type NudgeResult = {
   actionHref: string;
 };
 
+/** Replaces {{varName}} tokens with values from `vars`; leaves unmatched tokens as-is. */
+function fillTemplate(s: string, vars: Record<string, string>): string {
+  return s.replace(/\{\{(\w+)\}\}/g, (match, key: string) =>
+    Object.prototype.hasOwnProperty.call(vars, key) ? vars[key]! : match,
+  );
+}
+
 export async function pickNudgeForUser(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any>,
@@ -49,14 +56,15 @@ export async function pickNudgeForUser(
 
     for (const def of candidates) {
       try {
-        const ok = await def.check(supabase, ctx);
-        if (ok) {
+        const result = await def.check(supabase, ctx);
+        if (result) {
+          const vars = typeof result === "object" ? result : {};
           return {
             key: def.key,
-            title: def.title,
-            body: def.body,
+            title: fillTemplate(def.title, vars),
+            body: fillTemplate(def.body, vars),
             actionLabel: def.actionLabel,
-            actionHref: def.actionHref,
+            actionHref: fillTemplate(def.actionHref, vars),
           };
         }
       } catch (err) {
