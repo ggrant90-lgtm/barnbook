@@ -54,14 +54,14 @@ export default async function PublicCareCardPage({
       .from("health_records")
       .select("*")
       .eq("horse_id", id)
-      .eq("record_type", "shoeing")
+      .ilike("record_type", "shoeing")
       .order("record_date", { ascending: false })
       .limit(1),
     supabase
       .from("health_records")
       .select("*")
       .eq("horse_id", id)
-      .eq("record_type", "worming")
+      .ilike("record_type", "worming")
       .order("record_date", { ascending: false })
       .limit(1),
   ]);
