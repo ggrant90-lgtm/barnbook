@@ -26,7 +26,11 @@ function dismiss() {
 
 function isIOS(): boolean {
   if (typeof navigator === "undefined") return false;
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as { MSStream?: unknown }).MSStream;
+  // iPadOS Safari's default UA reports as "Macintosh" (no "iPad"), so also
+  // treat a touch-capable "MacIntel" platform as iOS (desktop Macs have no touch points).
+  const isIOSUA = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isIPadOS = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+  return (isIOSUA || isIPadOS) && !(window as unknown as { MSStream?: unknown }).MSStream;
 }
 
 function isStandalone(): boolean {
